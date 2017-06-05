@@ -94,6 +94,7 @@ int main(int argc, char **argv)
   QGLFormat::setDefaultFormat(fmt); 
   
   CGLWidget *widget = new CGLWidget;
+  widget->setTriangularMesh(nNodes, nTriangles, coords, conn);
   widget->show();
   app.exec();
 

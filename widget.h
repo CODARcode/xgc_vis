@@ -27,6 +27,8 @@ public:
   CGLWidget(const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
   ~CGLWidget(); 
 
+  void setTriangularMesh(int nNodes, int nTriangles, double *coords, int *conn);
+
 protected:
   void initializeGL(); 
   void resizeGL(int w, int h); 
@@ -37,6 +39,9 @@ protected:
   void keyPressEvent(QKeyEvent*); 
   void wheelEvent(QWheelEvent*); 
 
+protected:
+  void renderMesh();
+
 private:
   CGLTrackball _trackball;
   QMatrix4x4 _projmatrix, _mvmatrix; 
@@ -44,6 +49,12 @@ private:
 private: // camera
   const float _fovy, _znear, _zfar; 
   const QVector3D _eye, _center, _up;
+
+private: // mesh
+  double *coords; 
+  int *conn;
+
+  std::vector<float> f_vertices;
 }; 
 
 #endif

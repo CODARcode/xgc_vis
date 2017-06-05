@@ -145,8 +145,39 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  glColor3f(0, 0, 0);
-  glutWireTeapot(1.0);
+  renderMesh();
 
   CHECK_GLERROR(); 
+}
+
+void CGLWidget::renderMesh()
+{
+  if (f_vertices.size() == 0) return;
+
+  glColor3f(0, 0, 0);
+
+  glTranslatef(-1.7, 0, 0);
+  glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+
+  glEnableClientState(GL_VERTEX_ARRAY);
+  glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
+  glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
+  glDisableClientState(GL_VERTEX_ARRAY);
+
+  CHECK_GLERROR();
+}
+  
+void CGLWidget::setTriangularMesh(int nNodes, int nTriangles, double *coords, int *conn)
+{
+  f_vertices.clear();
+
+  for (int i=0; i<nTriangles; i++) {
+    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    f_vertices.push_back(coords[i0*2]);
+    f_vertices.push_back(coords[i0*2+1]);
+    f_vertices.push_back(coords[i1*2]);
+    f_vertices.push_back(coords[i1*2+1]);
+    f_vertices.push_back(coords[i2*2]);
+    f_vertices.push_back(coords[i2*2+1]);
+  }
 }
