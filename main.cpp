@@ -3,12 +3,15 @@
 #include <adios_read.h>
 #include <cassert>
 
+#include <QApplication>
+#include "widget.h"
+
 extern "C"
 {
 extern void adios_read_bp_reset_dimension_order (const ADIOS_FILE *fp, int is_fortran);
 }
 
-bool readIntValue(ADIOS_FILE *fp, const char *nm, int *val)
+bool readValueInt(ADIOS_FILE *fp, const char *nm, int *val)
 {
   ADIOS_VARINFO *avi = adios_inq_var(fp, nm);
   if (avi == NULL || avi->type != adios_integer) return false;
@@ -50,8 +53,8 @@ template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr)
 bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **coords, int **conn) 
 {
   // read number of nodes and triangles
-  readIntValue(fp, "n_n", &nNodes);
-  readIntValue(fp, "n_t", &nTriangles);
+  readValueInt(fp, "n_n", &nNodes);
+  readValueInt(fp, "n_t", &nTriangles);
   
   // read coordinates
   readScalars<double>(fp, "/coordinates/values", coords);
@@ -76,13 +79,23 @@ int main(int argc, char **argv)
   adios_read_bp_reset_dimension_order(varFP, 0);
 
   int nNodes, nTriangles, nPhi;
-  readIntValue(varFP, "nphi", &nPhi);
+  readValueInt(varFP, "nphi", &nPhi);
 
   double *coords; 
   int *conn;
   readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
   // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
   //     nNodes, nTriangles, nPhi);
+
+  QApplication app(argc, argv);
+  QGLFormat fmt = QGLFormat::defaultFormat();
+  fmt.setSampleBuffers(true);
+  fmt.setSamples(16); 
+  QGLFormat::setDefaultFormat(fmt); 
+  
+  CGLWidget *widget = new CGLWidget;
+  widget->show();
+  app.exec();
 
   free(coords);
   free(conn);

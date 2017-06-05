@@ -13,7 +13,9 @@ find_package (ZLIB REQUIRED)
 find_package (Qt4 REQUIRED COMPONENTS QtCore QtGui QtOpenGL)
 find_package (ADIOS REQUIRED)
 
-include_directories (${ADIOS_INCLUDE_DIRS})
+include (${QT_USE_FILE})
+include_directories (${ADIOS_INCLUDE_DIRS} ${GLEW_INCLUDE_DIR})
 
-add_executable (main main.cpp)
-target_link_libraries (main ${ADIOS_LIBRARIES} ${ZLIB_LIBRARIES})
+add_executable (main main.cpp widget.cpp trackball.cpp)
+target_link_libraries (main ${ADIOS_LIBRARIES} ${ZLIB_LIBRARIES} ${QT_LIBRARIES} ${GLUT_LIBRARY} ${GLEW_LIBRARY} ${OPENGL_LIBRARIES})
+set_target_properties (main PROPERTIES AUTOMOC ON)
