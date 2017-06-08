@@ -8,6 +8,7 @@
 #include <QVector3D>
 #include <QMatrix4x4>
 #include <cmath>
+#include <set>
 #include "trackball.h"
 
 class QMouseEvent;
@@ -27,7 +28,8 @@ public:
   CGLWidget(const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
   ~CGLWidget(); 
 
-  void setTriangularMesh(int nNodes, int nTriangles, double *coords, int *conn);
+  void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
+  void setData(double *dpot);
 
 protected:
   void initializeGL(); 
@@ -40,7 +42,9 @@ protected:
   void wheelEvent(QWheelEvent*); 
 
 protected:
-  void renderMesh();
+  void renderSinglePlane();
+  void renderMultiplePlanes();
+  void renderExtremum();
 
 private:
   CGLTrackball _trackball;
@@ -50,11 +54,19 @@ private: // camera
   const float _fovy, _znear, _zfar; 
   const QVector3D _eye, _center, _up;
 
+  bool toggle_wireframe, toggle_extrema;
+
 private: // mesh
   double *coords; 
   int *conn;
+  int nNodes, nTriangles, nPhi;
 
   std::vector<float> f_vertices;
+  std::vector<float> f_colors;
+
+private: // analysis
+  std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
+  std::vector<int> maximum, minimum;
 }; 
 
 #endif

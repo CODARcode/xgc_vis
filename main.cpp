@@ -37,6 +37,7 @@ template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr)
     sz[i] = avi->dims[i];
     nt = nt * sz[i];
   }
+  // fprintf(stderr, "%d, %d, %d, %d\n", sz[0], sz[1], sz[2], sz[3]);
   
   ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
   assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
@@ -81,12 +82,18 @@ int main(int argc, char **argv)
   int nNodes, nTriangles, nPhi;
   readValueInt(varFP, "nphi", &nPhi);
 
+  fprintf(stderr, "reading mesh...\n");
   double *coords; 
   int *conn;
   readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
   // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
   //     nNodes, nTriangles, nPhi);
 
+  fprintf(stderr, "reading data...\n");
+  double *dpot;
+  readScalars<double>(varFP, "dpot", &dpot);
+
+  fprintf(stderr, "starting GUI...\n");
   QApplication app(argc, argv);
   QGLFormat fmt = QGLFormat::defaultFormat();
   fmt.setSampleBuffers(true);
@@ -94,7 +101,8 @@ int main(int argc, char **argv)
   QGLFormat::setDefaultFormat(fmt); 
   
   CGLWidget *widget = new CGLWidget;
-  widget->setTriangularMesh(nNodes, nTriangles, coords, conn);
+  widget->setTriangularMesh(nNodes, nTriangles, nPhi, coords, conn);
+  widget->setData(dpot);
   widget->show();
   app.exec();
 

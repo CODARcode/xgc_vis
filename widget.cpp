@@ -27,7 +27,8 @@
 CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
   : QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
-    _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0)
+    _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
+    toggle_wireframe(false), toggle_extrema(false)
 {
 }
 
@@ -48,6 +49,19 @@ void CGLWidget::mouseMoveEvent(QMouseEvent* e)
 
 void CGLWidget::keyPressEvent(QKeyEvent* e)
 {
+  switch (e->key()) {
+  case Qt::Key_W:
+    toggle_wireframe = !toggle_wireframe; 
+    updateGL();
+    break;
+
+  case Qt::Key_E:
+    toggle_extrema = !toggle_extrema;
+    updateGL();
+    break;
+
+  default: break;
+  }
 }
 
 void CGLWidget::wheelEvent(QWheelEvent* e)
@@ -145,30 +159,104 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  renderMesh();
+  renderSinglePlane();
+  // renderMultiplePlanes();
 
   CHECK_GLERROR(); 
 }
 
-void CGLWidget::renderMesh()
+void CGLWidget::renderExtremum() 
+{
+  glPointSize(4.f);
+  
+  glColor3f(1, 0, 0);
+  glBegin(GL_POINTS);
+  for (int i=0; i<maximum.size(); i++) {
+    int k = maximum[i];
+    glVertex2f(coords[k*2], coords[k*2+1]);
+  }
+  glEnd();
+  
+  glColor3f(0, 1, 0);
+  glBegin(GL_POINTS);
+  for (int i=0; i<minimum.size(); i++) {
+    int k = minimum[i];
+    glVertex2f(coords[k*2], coords[k*2+1]);
+  }
+  glEnd();
+}
+
+void CGLWidget::renderMultiplePlanes()
+{
+  if (f_vertices.size() == 0) return;
+
+  glColor3f(0, 0, 0);
+ 
+  if (toggle_wireframe) {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // render wireframe
+  }
+  else {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  }
+
+  glEnable(GL_DEPTH_TEST);
+
+  for (int i=0; i<nPhi; i++) {
+    glPushMatrix();
+    glRotatef(360.f/nPhi*i, 0, 1, 0);
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+
+    glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
+    glColorPointer(3, GL_FLOAT, 0, f_colors.data());
+    glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
+
+    glDisableClientState(GL_COLOR_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glPopMatrix();
+  }
+}
+
+void CGLWidget::renderSinglePlane()
 {
   if (f_vertices.size() == 0) return;
 
   glColor3f(0, 0, 0);
 
   glTranslatef(-1.7, 0, 0);
-  glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+ 
+  if (toggle_wireframe) {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // render wireframe
+  }
+  else {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  }
 
   glEnableClientState(GL_VERTEX_ARRAY);
+  glEnableClientState(GL_COLOR_ARRAY);
+
   glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
+  glColorPointer(3, GL_FLOAT, 0, f_colors.data());
   glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
+
+  glDisableClientState(GL_COLOR_ARRAY);
   glDisableClientState(GL_VERTEX_ARRAY);
+
+  if (toggle_extrema)
+    renderExtremum();
 
   CHECK_GLERROR();
 }
   
-void CGLWidget::setTriangularMesh(int nNodes, int nTriangles, double *coords, int *conn)
+void CGLWidget::setTriangularMesh(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_)
 {
+  nNodes = nNodes_; 
+  nTriangles = nTriangles_;
+  nPhi = nPhi_;
+  coords = coords_;
+  conn = conn_;
+
   f_vertices.clear();
 
   for (int i=0; i<nTriangles; i++) {
@@ -179,5 +267,64 @@ void CGLWidget::setTriangularMesh(int nNodes, int nTriangles, double *coords, in
     f_vertices.push_back(coords[i1*2+1]);
     f_vertices.push_back(coords[i2*2]);
     f_vertices.push_back(coords[i2*2+1]);
+  }
+
+  // init nodeGraph
+  nodeGraph.clear();
+  nodeGraph.resize(nNodes);
+  for (int i=0; i<nTriangles; i++) {
+    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    nodeGraph[i0].insert(i1);
+    nodeGraph[i1].insert(i2);
+    nodeGraph[i2].insert(i0);
+  }
+}
+
+template <typename T>
+static T clamp(T min, T max, T val)
+{
+  return std::max(min, std::min(max, val));
+}
+
+template <typename T>
+static T clamp_normalize(T min, T max, T val)
+{
+  return (clamp(min, max, val) - min) / (max - min);
+}
+
+void CGLWidget::setData(double *dpot)
+{
+  const float min = -100, max = 100;
+
+  f_colors.clear();
+
+  // for (int plane = 0; plane < nPhi; plane ++) {
+  for (int plane = 0; plane < 1; plane ++) {
+    for (int i=0; i<nTriangles; i++) {
+      int v[3] = {conn[i*3], conn[i*3+1], conn[i*3+2]};
+
+      for (int j=0; j<3; j++) {
+        float val = clamp_normalize(min, max, (float)dpot[plane*nNodes + v[j]]);
+        f_colors.push_back(val);
+        f_colors.push_back(1-val);
+        f_colors.push_back(0);
+      }
+    }
+  }
+
+  for (int i=0; i<nNodes; i++) {
+    std::set<int> &neighbors = nodeGraph[i];
+    bool local_max = true, local_min = true;
+
+    for (std::set<int>::iterator it = neighbors.begin(); it != neighbors.end(); it ++) {
+      const int j = *it;
+      if (dpot[i] >= dpot[j]) local_min = false;
+      if (dpot[i] <= dpot[j]) local_max = false;
+    }
+
+    if (local_max)
+      maximum.push_back(i); 
+    else if (local_min)
+      minimum.push_back(i);
   }
 }
