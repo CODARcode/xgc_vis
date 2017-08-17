@@ -46,6 +46,10 @@ protected:
   void renderMultiplePlanes();
   void renderExtremum();
 
+private: 
+  void extractExtremum(int plane, double *dpot);
+  void constructDiscreteGradient(double *dpot);
+
 private:
   CGLTrackball _trackball;
   QMatrix4x4 _projmatrix, _mvmatrix; 
@@ -66,7 +70,8 @@ private: // mesh
 
 private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
-  std::vector<int> maximum, minimum;
+  std::map<int, std::vector<int> > maximum, minimum;
+  // std::vector<int> maximum, minimum;
 }; 
 
 #endif

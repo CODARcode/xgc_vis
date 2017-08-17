@@ -159,8 +159,8 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  renderSinglePlane();
-  // renderMultiplePlanes();
+  // renderSinglePlane();
+  renderMultiplePlanes();
 
   CHECK_GLERROR(); 
 }
@@ -171,16 +171,16 @@ void CGLWidget::renderExtremum()
   
   glColor3f(1, 0, 0);
   glBegin(GL_POINTS);
-  for (int i=0; i<maximum.size(); i++) {
-    int k = maximum[i];
+  for (int i=0; i<maximum[0].size(); i++) {
+    int k = maximum[0][i];
     glVertex2f(coords[k*2], coords[k*2+1]);
   }
   glEnd();
   
   glColor3f(0, 1, 0);
   glBegin(GL_POINTS);
-  for (int i=0; i<minimum.size(); i++) {
-    int k = minimum[i];
+  for (int i=0; i<minimum[0].size(); i++) {
+    int k = minimum[0][i];
     glVertex2f(coords[k*2], coords[k*2+1]);
   }
   glEnd();
@@ -205,6 +205,7 @@ void CGLWidget::renderMultiplePlanes()
     glPushMatrix();
     glRotatef(360.f/nPhi*i, 0, 1, 0);
 
+#if 0
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
 
@@ -214,6 +215,26 @@ void CGLWidget::renderMultiplePlanes()
 
     glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
+#endif
+
+    glPointSize(4.f);
+    
+    glColor3f(1, 0, 0);
+    glBegin(GL_POINTS);
+    for (int i=0; i<maximum[0].size(); i++) {
+      int k = maximum[0][i];
+      glVertex2f(coords[k*2], coords[k*2+1]);
+    }
+    glEnd();
+    
+    glColor3f(0, 1, 0);
+    glBegin(GL_POINTS);
+    for (int i=0; i<minimum[0].size(); i++) {
+      int k = minimum[0][i];
+      glVertex2f(coords[k*2], coords[k*2+1]);
+    }
+    glEnd();
+
     glPopMatrix();
   }
 }
@@ -292,6 +313,41 @@ static T clamp_normalize(T min, T max, T val)
   return (clamp(min, max, val) - min) / (max - min);
 }
 
+void CGLWidget::constructDiscreteGradient(double *dpot) // based on MS theory
+{
+  // 0-cell: vertices
+  // 1-cell: edges
+  // 2-cell: cells
+  
+  typedef struct {
+    unsigned char index;
+    double value;
+    std::vector<int> hCells;
+  } msCell;
+
+}
+
+void CGLWidget::extractExtremum(int plane, double *dpot_)
+{
+  double *dpot = dpot_ + plane * nNodes;
+
+  for (int i=0; i<nNodes; i++) {
+    std::set<int> &neighbors = nodeGraph[i];
+    bool local_max = true, local_min = true;
+
+    for (std::set<int>::iterator it = neighbors.begin(); it != neighbors.end(); it ++) {
+      const int j = *it;
+      if (dpot[i] >= dpot[j]) local_min = false;
+      if (dpot[i] <= dpot[j]) local_max = false;
+    }
+
+    if (local_max)
+      maximum[plane].push_back(i); 
+    else if (local_min)
+      minimum[plane].push_back(i);
+  }
+}
+
 void CGLWidget::setData(double *dpot)
 {
   const float min = -100, max = 100;
@@ -312,19 +368,7 @@ void CGLWidget::setData(double *dpot)
     }
   }
 
-  for (int i=0; i<nNodes; i++) {
-    std::set<int> &neighbors = nodeGraph[i];
-    bool local_max = true, local_min = true;
-
-    for (std::set<int>::iterator it = neighbors.begin(); it != neighbors.end(); it ++) {
-      const int j = *it;
-      if (dpot[i] >= dpot[j]) local_min = false;
-      if (dpot[i] <= dpot[j]) local_max = false;
-    }
-
-    if (local_max)
-      maximum.push_back(i); 
-    else if (local_min)
-      minimum.push_back(i);
+  for (int i=0; i<nPhi; i++) {
+    extractExtremum(i, dpot); // dpot + i*nNodes);
   }
 }
