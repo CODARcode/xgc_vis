@@ -219,18 +219,18 @@ void CGLWidget::renderMultiplePlanes()
 
     glPointSize(4.f);
     
-    glColor3f(1, 0, 0);
+    glColor4f(1, 0, 0, 0.8);
     glBegin(GL_POINTS);
-    for (int i=0; i<maximum[0].size(); i++) {
-      int k = maximum[0][i];
+    for (int j=0; j<maximum[i].size(); j++) {
+      int k = maximum[i][j];
       glVertex2f(coords[k*2], coords[k*2+1]);
     }
     glEnd();
     
-    glColor3f(0, 1, 0);
+    glColor4f(0, 1, 0, 0.8);
     glBegin(GL_POINTS);
-    for (int i=0; i<minimum[0].size(); i++) {
-      int k = minimum[0][i];
+    for (int j=0; j<minimum[i].size(); j++) {
+      int k = minimum[i][j];
       glVertex2f(coords[k*2], coords[k*2+1]);
     }
     glEnd();
