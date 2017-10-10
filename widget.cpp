@@ -200,6 +200,8 @@ void CGLWidget::renderMultiplePlanes()
   }
 
   glEnable(GL_DEPTH_TEST);
+  // glDisable(GL_DEPTH_TEST);
+  // glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
   for (int i=0; i<nPhi; i++) {
     glPushMatrix();
