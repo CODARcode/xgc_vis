@@ -29,7 +29,8 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
   : QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
-    toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(false)
+    toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(false), 
+    current_slice(0)
 {
 }
 
@@ -68,6 +69,16 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
 
   case Qt::Key_L:
     toggle_labels = !toggle_labels;
+    updateGL();
+    break;
+
+  case Qt::Key_Right:
+    current_slice = (current_slice + 1) % nPhi;
+    updateGL();
+    break;
+
+  case Qt::Key_Left:
+    current_slice = (current_slice - 1 + nPhi) % nPhi;
     updateGL();
     break;
 
@@ -201,7 +212,7 @@ void CGLWidget::renderLabels()
 {
   glPointSize(4.f);
 
-  const std::vector<size_t> &labels = all_labels[0];
+  const std::vector<size_t> &labels = all_labels[current_slice];
 
   glBegin(GL_POINTS);
   for (int i=0; i<nNodes; i++) {
@@ -288,7 +299,7 @@ void CGLWidget::renderSinglePlane()
     glEnableClientState(GL_COLOR_ARRAY);
 
     glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
-    glColorPointer(3, GL_FLOAT, 0, f_colors.data());
+    glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*nTriangles*3*3] );
     glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
 
     glDisableClientState(GL_COLOR_ARRAY);
@@ -515,8 +526,7 @@ void CGLWidget::setData(double *dpot)
 
   f_colors.clear();
 
-  // for (int plane = 0; plane < nPhi; plane ++) {
-  for (int plane = 0; plane < 1; plane ++) {
+  for (int plane = 0; plane < nPhi; plane ++) {
     for (int i=0; i<nTriangles; i++) {
       int v[3] = {conn[i*3], conn[i*3+1], conn[i*3+2]};
 

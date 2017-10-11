@@ -64,6 +64,7 @@ private: // camera
   const QVector3D _eye, _center, _up;
 
   bool toggle_mesh, toggle_wireframe, toggle_extrema, toggle_labels;
+  int current_slice;
 
 private: // mesh
   double *coords; 
