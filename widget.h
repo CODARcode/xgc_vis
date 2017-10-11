@@ -7,6 +7,7 @@
 #include <QVector>
 #include <QVector3D>
 #include <QMatrix4x4>
+#include <tourtre.h>
 #include <cmath>
 #include <set>
 #include "trackball.h"
@@ -45,8 +46,12 @@ protected:
   void renderSinglePlane();
   void renderMultiplePlanes();
   void renderExtremum();
+  void renderLabels();
 
 private: 
+  void buildContourTree(int plane, double *dpot);
+  void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*); 
+
   void extractExtremum(int plane, double *dpot);
   void constructDiscreteGradient(double *dpot);
 
@@ -58,7 +63,7 @@ private: // camera
   const float _fovy, _znear, _zfar; 
   const QVector3D _eye, _center, _up;
 
-  bool toggle_wireframe, toggle_extrema;
+  bool toggle_mesh, toggle_wireframe, toggle_extrema, toggle_labels;
 
 private: // mesh
   double *coords; 
@@ -68,9 +73,12 @@ private: // mesh
   std::vector<float> f_vertices;
   std::vector<float> f_colors;
 
+  std::map<int, QColor> label_colors;
+
 private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
+  std::map<int, std::vector<size_t> > all_labels;
   // std::vector<int> maximum, minimum;
 }; 
 

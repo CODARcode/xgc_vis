@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <fstream>
 #include <iostream>
+#include <queue>
 #include "widget.h"
 
 #ifdef __APPLE__
@@ -28,7 +29,7 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
   : QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
-    toggle_wireframe(false), toggle_extrema(false)
+    toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(false)
 {
 }
 
@@ -50,6 +51,11 @@ void CGLWidget::mouseMoveEvent(QMouseEvent* e)
 void CGLWidget::keyPressEvent(QKeyEvent* e)
 {
   switch (e->key()) {
+  case Qt::Key_M: 
+    toggle_mesh = !toggle_mesh;
+    updateGL();
+    break;
+
   case Qt::Key_W:
     toggle_wireframe = !toggle_wireframe; 
     updateGL();
@@ -57,6 +63,11 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
 
   case Qt::Key_E:
     toggle_extrema = !toggle_extrema;
+    updateGL();
+    break;
+
+  case Qt::Key_L:
+    toggle_labels = !toggle_labels;
     updateGL();
     break;
 
@@ -159,8 +170,8 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  // renderSinglePlane();
-  renderMultiplePlanes();
+  renderSinglePlane();
+  // renderMultiplePlanes();
 
   CHECK_GLERROR(); 
 }
@@ -182,6 +193,22 @@ void CGLWidget::renderExtremum()
   for (int i=0; i<minimum[0].size(); i++) {
     int k = minimum[0][i];
     glVertex2f(coords[k*2], coords[k*2+1]);
+  }
+  glEnd();
+}
+
+void CGLWidget::renderLabels()
+{
+  glPointSize(4.f);
+
+  const std::vector<size_t> &labels = all_labels[0];
+
+  glBegin(GL_POINTS);
+  for (int i=0; i<nNodes; i++) {
+    int label = labels[i];
+    QColor c = label_colors[label];
+    glColor3ub(c.red(), c.green(), c.blue());
+    glVertex2f(coords[i*2], coords[i*2+1]);
   }
   glEnd();
 }
@@ -248,23 +275,28 @@ void CGLWidget::renderSinglePlane()
   glColor3f(0, 0, 0);
 
   glTranslatef(-1.7, 0, 0);
- 
-  if (toggle_wireframe) {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // render wireframe
+
+  if (toggle_mesh) {
+    if (toggle_wireframe) {
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // render wireframe
+    }
+    else {
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+
+    glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
+    glColorPointer(3, GL_FLOAT, 0, f_colors.data());
+    glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
+
+    glDisableClientState(GL_COLOR_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
   }
-  else {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-  }
 
-  glEnableClientState(GL_VERTEX_ARRAY);
-  glEnableClientState(GL_COLOR_ARRAY);
-
-  glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
-  glColorPointer(3, GL_FLOAT, 0, f_colors.data());
-  glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
-
-  glDisableClientState(GL_COLOR_ARRAY);
-  glDisableClientState(GL_VERTEX_ARRAY);
+  if (toggle_labels)
+    renderLabels();
 
   if (toggle_extrema)
     renderExtremum();
@@ -329,6 +361,133 @@ void CGLWidget::constructDiscreteGradient(double *dpot) // based on MS theory
 
 }
 
+struct SingleSliceData {
+  std::vector<std::set<int> > *nodeGraph;
+  double *dpot;
+};
+
+static double value(size_t v, void *d)
+{
+  SingleSliceData *data = (SingleSliceData*)d;
+  // fprintf(stderr, "%d, %f\n", v, data->dpot[v]);
+  return data->dpot[v];
+}
+
+static size_t neighbors(size_t v, size_t *nbrs, void *d)
+{
+  SingleSliceData *data = (SingleSliceData*)d;
+  std::set<int>& nodes = (*data->nodeGraph)[v];
+  int i = 0;
+  
+  for (std::set<int>::iterator it = nodes.begin(); it != nodes.end(); it ++) {
+    nbrs[i] = *it;
+    i ++;
+  }
+
+  // fprintf(stderr, "number of neighbors for %d: %d\n", v, i);
+  return i;
+}
+
+static void printContourTree(ctBranch* b)
+{
+  fprintf(stderr, "%d, %d, %p\n", b->extremum, b->saddle, b->children.head);
+  
+  for (ctBranch* c = b->children.head; c != NULL; c = c->nextChild) 
+    printContourTree(c);
+}
+
+void CGLWidget::buildContourTree(int plane, double *dpot_)
+{
+  fprintf(stderr, "building contour tree for plane %d\n", plane);
+
+  std::vector<size_t> totalOrder; 
+  for (int i=0; i<nNodes; i++) 
+    totalOrder.push_back(i);
+
+  SingleSliceData data;
+  data.nodeGraph = &nodeGraph;
+  data.dpot = dpot_ + plane * nNodes;
+
+  std::sort(totalOrder.begin(), totalOrder.end(),
+      [&data](size_t v0, size_t v1) {
+        return data.dpot[v0] < data.dpot[v1];
+      });
+
+  ctContext *ctx = ct_init(
+      nNodes, 
+      &totalOrder.front(),  
+      &value,
+      &neighbors, 
+      &data);
+
+  ct_sweepAndMerge(ctx);
+  ctBranch *root = ct_decompose(ctx);
+  ctBranch **map = ct_branchMap(ctx);
+
+  std::vector<size_t> labels(nNodes, 0);
+
+  buildSegmentation(root, labels, &data);
+
+  all_labels[plane] = labels;
+
+  // printContourTree(root);
+
+  ct_cleanup(ctx);
+}
+
+void CGLWidget::buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void *d)
+{
+  static int id = 0; // FIXME
+  const int currentId = ++ id;
+
+  label_colors[currentId] = QColor(rand()%256, rand()%256, rand()%256);
+
+  SingleSliceData *data = (SingleSliceData*)d;
+
+  const double val_extremum = value(b->extremum, d), 
+               val_saddle = value(b->saddle, d);
+  const double val_hi = std::max(val_extremum, val_saddle),
+               val_lo = std::min(val_extremum, val_saddle);
+
+  int count = 1;
+
+  std::queue<size_t> Q;
+  Q.push(b->extremum);
+  labels[b->extremum] = currentId; 
+
+  while (!Q.empty()) {
+    size_t p = Q.front();
+    Q.pop();
+
+    std::set<int> &neighbors = nodeGraph[p];
+    for (std::set<int>::iterator it = neighbors.begin(); it != neighbors.end(); it ++) {
+      const int neighbor = *it;
+
+      if (labels[neighbor] != currentId) {
+        double val = value(neighbor, d);
+        // fprintf(stderr, "val=%f, val_extremum=%f, val_saddle=%f\n", val, val_extremum, val_saddle);
+        bool qualify = true;
+        if (val_extremum > val_saddle) {
+          if (val > val_extremum || val <= val_saddle) qualify = false;
+        } else {
+          if (val < val_extremum || val >= val_saddle) qualify = false;
+        }
+
+        if (qualify) {
+          Q.push(neighbor);
+          labels[neighbor] = currentId;
+          count ++;
+        }
+      }
+    }
+  }
+
+  // fprintf(stderr, "#count=%d\n", count);
+
+  for (ctBranch *c = b->children.head; c != NULL; c = c->nextChild) 
+    buildSegmentation(c, labels, d);
+}
+
 void CGLWidget::extractExtremum(int plane, double *dpot_)
 {
   double *dpot = dpot_ + plane * nNodes;
@@ -371,6 +530,7 @@ void CGLWidget::setData(double *dpot)
   }
 
   for (int i=0; i<nPhi; i++) {
+    buildContourTree(i, dpot); 
     extractExtremum(i, dpot); // dpot + i*nNodes);
   }
 }
