@@ -450,9 +450,23 @@ static void printContourTree(ctBranch* b)
     printContourTree(c);
 }
 
+void CGLWidget::simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *d)
+{
+  // SingleSliceData *data = (SingleSliceData*)d;
+
+RESTART: 
+  for (ctBranch *c=b->children.head; c!=NULL; c=c->nextChild)
+    if (fabs(value(c->extremum, d) - value(c->saddle, d)) < threshold) {
+      ctBranchList_remove(&b->children, c);
+      goto RESTART;
+    } else {
+      simplifyBranchDecompositionByThreshold(c, threshold, d);
+    }
+}
+
 void CGLWidget::buildContourTree(int plane, double *dpot_)
 {
-  fprintf(stderr, "building contour tree for plane %d\n", plane);
+  fprintf(stderr, "building contour tree for plane %d, nNodes=%d\n", plane, nNodes);
 
   std::vector<size_t> totalOrder; 
   for (int i=0; i<nNodes; i++) 
@@ -465,6 +479,8 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   std::sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         return data.dpot[v0] < data.dpot[v1];
+        if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
+        // else return data.dpot[v0] < data.dpot[v1];
       });
 
   ctContext *ctx = ct_init(
@@ -474,15 +490,19 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
       &neighbors, 
       &data);
 
-  ct_priorityFunc(ctx, volumePriority);
+  // ct_priorityFunc(ctx, volumePriority);
 
   ct_sweepAndMerge(ctx);
   ctBranch *root = ct_decompose(ctx);
   ctBranch **map = ct_branchMap(ctx);
 
+  simplifyBranchDecompositionByThreshold(root, 20, &data);
+
   std::vector<size_t> labels(nNodes, 0);
 
   buildSegmentation(root, labels, &data);
+  // for (int i=0; i<nNodes; i++) 
+  //   fprintf(stderr, "%d, %d\n", i, labels[i]);
 
   all_labels[plane] = labels;
 
@@ -493,7 +513,7 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
 
 void CGLWidget::buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void *d)
 {
-  static int id = 0; // FIXME
+  static int id = 1; // FIXME
   const int currentId = ++ id;
 
   label_colors[currentId] = QColor(rand()%256, rand()%256, rand()%256);
@@ -521,14 +541,13 @@ void CGLWidget::buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void
 
       if (labels[neighbor] != currentId) {
         double val = value(neighbor, d);
-        // fprintf(stderr, "val=%f, val_extremum=%f, val_saddle=%f\n", val, val_extremum, val_saddle);
         bool qualify = true;
         if (val_extremum > val_saddle) {
           if (val > val_extremum || val <= val_saddle) qualify = false;
         } else {
           if (val < val_extremum || val >= val_saddle) qualify = false;
         }
-
+        
         if (qualify) {
           Q.push(neighbor);
           labels[neighbor] = currentId;
