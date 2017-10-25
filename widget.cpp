@@ -399,6 +399,49 @@ static size_t neighbors(size_t v, size_t *nbrs, void *d)
   return i;
 }
 
+static double volumePriority(ctNode *node, void *d)
+{
+  SingleSliceData *data = static_cast<SingleSliceData*>(d);
+  ctArc *arc = ctNode_leafArc(node);
+
+  ctNode *lo = arc->lo,
+         *hi = arc->hi;
+
+  double val_lo = value(lo->i, d),
+         val_hi = value(hi->i, d);
+
+  int count = 0;
+
+  std::queue<size_t> Q;
+  std::set<size_t> visited;
+
+  Q.push(lo->i);
+  visited.insert(lo->i); 
+
+  while (!Q.empty()) {
+    size_t p = Q.front(); 
+    Q.pop();
+    double val_p = value(p, d);
+
+    std::set<int> &neighbors = (*data->nodeGraph)[p];
+    for (std::set<int>::iterator it = neighbors.begin(); it != neighbors.end(); it ++) {
+      const int neighbor = *it; 
+
+      if (visited.find(neighbor) == visited.end()) { // not found
+        double val_q = value(neighbor, d);
+        if (val_q >= val_lo && val_q < val_hi) {
+          Q.push(neighbor);
+          visited.insert(neighbor);
+          count ++;
+        }
+      }
+    }
+  }
+
+  fprintf(stderr, "volume=%d\n", count);
+  return count;
+}
+
 static void printContourTree(ctBranch* b)
 {
   fprintf(stderr, "%d, %d, %p\n", b->extremum, b->saddle, b->children.head);
@@ -430,6 +473,8 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
       &value,
       &neighbors, 
       &data);
+
+  ct_priorityFunc(ctx, volumePriority);
 
   ct_sweepAndMerge(ctx);
   ctBranch *root = ct_decompose(ctx);
