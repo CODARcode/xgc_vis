@@ -51,6 +51,7 @@ protected:
 private: 
   void buildContourTree(int plane, double *dpot);
   void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
+  void simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *);
   void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*); 
 
   void extractExtremum(int plane, double *dpot);

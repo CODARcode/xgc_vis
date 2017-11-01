@@ -464,6 +464,46 @@ RESTART:
     }
 }
 
+#if 0
+void CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *d) // no more than a number
+{
+  float minPriority; // default is persistence
+  ctBranch *minPriorityBranch = NULL; 
+
+  qDebug() << "calculating priorities..."; 
+
+  QList< QPair<float, ctBranch*> > m_branchPriorityList; 
+  foreach (ctBranch *c, m_reverseBranchMap.keys()) {
+    // m_branchPriorityList << qMakePair(static_cast<float>(volumePriority(c, blk)), c); 
+    m_branchPriorityList << qMakePair(static_cast<float>(fabs(value(c->extremum, blk) - value(c->saddle, blk))), c); 
+  }
+  qStableSort(m_branchPriorityList); 
+
+  qDebug() << "simplifying branch decomposition..."; 
+  while (minPriorityBranch != m_rootBranch && m_reverseBranchMap.size() > nLimit) {
+    minPriority = 1e38f; 
+    minPriorityBranch = m_rootBranch; 
+
+    for (QList< QPair<float, ctBranch*> >::iterator itor=m_branchPriorityList.begin(); itor!=m_branchPriorityList.end(); itor++) {
+      if (itor->second->children.head == NULL) {
+        minPriority = itor->first; 
+        minPriorityBranch = itor->second; 
+        m_branchPriorityList.erase(itor); 
+        break; 
+      }
+    }
+
+    qDebug() << "priority =" << minPriority << "branch =" << minPriorityBranch; 
+
+    if (minPriorityBranch == m_rootBranch) break; 
+    ctBranch *parentBranch = minPriorityBranch->parent; 
+
+    ctBranchList_remove(&parentBranch->children, minPriorityBranch); 
+    m_reverseBranchMap.remove(minPriorityBranch); 
+  }
+}
+#endif
+
 void CGLWidget::buildContourTree(int plane, double *dpot_)
 {
   fprintf(stderr, "building contour tree for plane %d, nNodes=%d\n", plane, nNodes);
