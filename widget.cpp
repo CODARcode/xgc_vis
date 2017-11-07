@@ -372,36 +372,61 @@ void CGLWidget::constructDiscreteGradient(double *dpot) // based on MS theory
 
 }
 
-struct SingleSliceData {
+struct XGCData { // either single slice or all slices
   std::vector<std::set<int> > *nodeGraph;
   double *dpot;
+  int nNodes, nPhi;
 };
 
 static double value(size_t v, void *d)
 {
-  SingleSliceData *data = (SingleSliceData*)d;
+  XGCData *data = (XGCData*)d;
   // fprintf(stderr, "%d, %f\n", v, data->dpot[v]);
   return data->dpot[v];
 }
 
 static size_t neighbors(size_t v, size_t *nbrs, void *d)
 {
-  SingleSliceData *data = (SingleSliceData*)d;
+  XGCData *data = (XGCData*)d;
   std::set<int>& nodes = (*data->nodeGraph)[v];
-  int i = 0;
   
+  int i = 0;
   for (std::set<int>::iterator it = nodes.begin(); it != nodes.end(); it ++) {
     nbrs[i] = *it;
     i ++;
   }
 
-  // fprintf(stderr, "number of neighbors for %d: %d\n", v, i);
+  return i;
+}
+
+static size_t neighbors3D(size_t v, size_t *nbrs, void *d)
+{
+  XGCData *data = (XGCData*)d;
+ 
+  const size_t nNodes = data->nNodes;
+  const size_t nPhi = data->nPhi;
+
+  size_t plane = v / nNodes;
+  size_t node = v % nNodes;
+
+  // fprintf(stderr, "nnodes=%d, nphi=%d, plane=%d, node=%d\n", nNodes, nPhi, plane, node);
+
+  std::set<int>& nodes2D = (*data->nodeGraph)[node];
+  
+  int i = 0;
+  for (std::set<int>::iterator it = nodes2D.begin(); it != nodes2D.end(); it ++) {
+    size_t nbr2D = *it;
+    nbrs[i++] = ((plane - 1 + nPhi) % nPhi) * nNodes + nbr2D;
+    nbrs[i++] = plane * nNodes + nbr2D;
+    nbrs[i++] = ((plane + 1 + nPhi) % nPhi) * nNodes + nbr2D;
+  }
+
   return i;
 }
 
 static double volumePriority(ctNode *node, void *d)
 {
-  SingleSliceData *data = static_cast<SingleSliceData*>(d);
+  XGCData *data = static_cast<XGCData*>(d);
   ctArc *arc = ctNode_leafArc(node);
 
   ctNode *lo = arc->lo,
@@ -452,7 +477,7 @@ static void printContourTree(ctBranch* b)
 
 void CGLWidget::simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *d)
 {
-  // SingleSliceData *data = (SingleSliceData*)d;
+  // XGCData *data = (XGCData*)d;
 
 RESTART: 
   for (ctBranch *c=b->children.head; c!=NULL; c=c->nextChild)
@@ -512,9 +537,11 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   for (int i=0; i<nNodes; i++) 
     totalOrder.push_back(i);
 
-  SingleSliceData data;
+  XGCData data;
   data.nodeGraph = &nodeGraph;
   data.dpot = dpot_ + plane * nNodes;
+  data.nNodes = nNodes;
+  data.nPhi = nPhi;
 
   std::sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
@@ -539,7 +566,6 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   simplifyBranchDecompositionByThreshold(root, 20, &data);
 
   std::vector<size_t> labels(nNodes, 0);
-
   buildSegmentation(root, labels, &data);
   // for (int i=0; i<nNodes; i++) 
   //   fprintf(stderr, "%d, %d\n", i, labels[i]);
@@ -551,6 +577,110 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   ct_cleanup(ctx);
 }
 
+void CGLWidget::buildContourTree3D(double *dpot_)
+{
+  fprintf(stderr, "building contour tree over 3D...\n");
+
+  std::vector<size_t> totalOrder; 
+  for (int i=0; i<nNodes*nPhi; i++) 
+    totalOrder.push_back(i);
+
+  XGCData data;
+  data.nodeGraph = &nodeGraph;
+  data.dpot = dpot_;
+  data.nNodes = nNodes;
+  data.nPhi = nPhi;
+  
+  std::sort(totalOrder.begin(), totalOrder.end(),
+      [&data](size_t v0, size_t v1) {
+        return data.dpot[v0] < data.dpot[v1];
+        if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
+        // else return data.dpot[v0] < data.dpot[v1];
+      });
+  
+  ctContext *ctx = ct_init(
+      nNodes * nPhi, 
+      &totalOrder.front(),  
+      &value,
+      &neighbors3D, 
+      &data);
+  
+  ct_sweepAndMerge(ctx);
+  ctBranch *root = ct_decompose(ctx);
+  ctBranch **map = ct_branchMap(ctx);
+  
+  simplifyBranchDecompositionByThreshold(root, 20, &data);
+  
+  std::vector<size_t> labels(nNodes*nPhi, 0);
+  buildSegmentation3D(root, labels, &data);
+  // TODO
+
+  for (int i=0; i<nPhi; i++) {
+    std::vector<size_t> l(nNodes);
+    std::copy(labels.begin() + i*nNodes, labels.begin() + (i+1)*nNodes - 1, l.begin());
+    all_labels[i] = l;
+  }
+  
+  ct_cleanup(ctx); 
+  // TODO
+  
+  fprintf(stderr, "built contour tree over 3D.\n");
+}
+
+void CGLWidget::buildSegmentation3D(ctBranch *b, std::vector<size_t> &labels, void *d)
+{
+  static int id = 1; // FIXME
+  const int currentId = ++ id;
+
+  label_colors[currentId] = QColor(rand()%256, rand()%256, rand()%256);
+
+  XGCData *data = (XGCData*)d;
+
+  const double val_extremum = value(b->extremum, d), 
+               val_saddle = value(b->saddle, d);
+  const double val_hi = std::max(val_extremum, val_saddle),
+               val_lo = std::min(val_extremum, val_saddle);
+
+  int count = 1;
+
+  std::queue<size_t> Q;
+  Q.push(b->extremum);
+  labels[b->extremum] = currentId; 
+
+  while (!Q.empty()) {
+    size_t p = Q.front();
+    Q.pop();
+
+    size_t nbrs[128]; // TODO
+    size_t nnbrs = neighbors3D(p, nbrs, d);
+
+    for (int i=0; i<nnbrs; i++) {
+      const size_t neighbor = nbrs[i];
+
+      if (labels[neighbor] != currentId) {
+        double val = value(neighbor, d);
+        bool qualify = true;
+        if (val_extremum > val_saddle) {
+          if (val > val_extremum || val <= val_saddle) qualify = false;
+        } else {
+          if (val < val_extremum || val >= val_saddle) qualify = false;
+        }
+        
+        if (qualify) {
+          Q.push(neighbor);
+          labels[neighbor] = currentId;
+          count ++;
+        }
+      }
+    }
+  }
+
+  // fprintf(stderr, "#count=%d\n", count);
+
+  for (ctBranch *c = b->children.head; c != NULL; c = c->nextChild) 
+    buildSegmentation3D(c, labels, d);
+}
+
 void CGLWidget::buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void *d)
 {
   static int id = 1; // FIXME
@@ -558,7 +688,7 @@ void CGLWidget::buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void
 
   label_colors[currentId] = QColor(rand()%256, rand()%256, rand()%256);
 
-  SingleSliceData *data = (SingleSliceData*)d;
+  XGCData *data = (XGCData*)d;
 
   const double val_extremum = value(b->extremum, d), 
                val_saddle = value(b->saddle, d);
@@ -643,8 +773,12 @@ void CGLWidget::setData(double *dpot)
     }
   }
 
+  buildContourTree3D(dpot);
+
+#if 0
   for (int i=0; i<nPhi; i++) {
     buildContourTree(i, dpot); 
     extractExtremum(i, dpot); // dpot + i*nNodes);
   }
+#endif
 }

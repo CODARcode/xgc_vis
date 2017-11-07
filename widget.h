@@ -54,6 +54,9 @@ private:
   void simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *);
   void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*); 
 
+  void buildContourTree3D(double *dpot); 
+  void buildSegmentation3D(ctBranch *b, std::vector<size_t> &labels, void*); 
+
   void extractExtremum(int plane, double *dpot);
   void constructDiscreteGradient(double *dpot);
 
