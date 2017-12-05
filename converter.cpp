@@ -171,13 +171,13 @@ ReadScalarData(ADIOS_FILE *fp, const char *var, vtkDataArray **arr)
 static vtkDataSet *
 ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
 {
-  int numPlanes = numPhi+1;
-  numPlanes = numPhi;
-  double dPhi = 2.0*M_PI/(double)(numPlanes-1);
+  // int numPlanes = numPhi+1;
+  // const int numPlanes = numPhi;
+  double dPhi = 2.0*M_PI/(double)(numPhi);
 
   cout<<"NNodes = "<<numNodes<<endl;
   cout<<"NTris = "<<numTris<<endl;
-  cout<<"NPlns = "<<numPlanes<<endl;    
+  cout<<"NPhi = "<<numPhi<<endl;    
   
   vtkDataArray *coords = NULL;
   if (!ReadScalarData(fp, "/coordinates/values", &coords))
@@ -191,35 +191,28 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
 
   //Create coordinates
   vtkPoints *pts = vtkPoints::New();
-  pts->SetNumberOfPoints(numNodes*numPlanes);
+  pts->SetNumberOfPoints(numNodes*numPhi);
   grid->SetPoints(pts);
 
-  for (int i = 0; i < numPlanes; i++)
+  for (int i = 0; i < numPhi; i++)
   {
     double phi = - (double)i * dPhi;
     for (int p = 0; p < numNodes; p++)
     {
       double R = coords->GetTuple1(p*2 +0);
       double Z = coords->GetTuple1(p*2 +1);
-      pts->SetPoint(p+i*numNodes, R,phi,Z);
+      // pts->SetPoint(p+i*numNodes, R, phi, Z);
+      pts->SetPoint(p+i*numNodes, R*cos(phi), R*sin(phi), Z); // torus
     }
   }
 
-  for (int p=0; p<numNodes; p++) {
-    double R = coords->GetTuple1(p*2 +0);
-    double Z = coords->GetTuple1(p*2 +1);
-    
-    /// fprintf(stderr, "%d: (%f, %f)\n", p, R, Z);
-  }
-  
   coords->Delete();
   pts->Delete();
 
-#if 0
   //Create wedges.
   int *connPtr = (int *)(conn->GetVoidPointer(0));
   vtkIdType wedge[6];
-  for (int i = 0; i < numPlanes-1; i++)
+  for (int i = 0; i < numPhi; i++)
   {
     for (int p = 0; p < numTris*3; p+=3)
     {
@@ -232,7 +225,7 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
       wedge[1] = p1 + off;
       wedge[2] = p2 + off;
 
-      off = (i+1)*(numNodes);
+      off = ((i+1)%numPhi)*(numNodes);
       wedge[3] = p0 + off;
       wedge[4] = p1 + off;
       wedge[5] = p2 + off;
@@ -240,13 +233,12 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
     }
   }
   conn->Delete();
-#endif
-  
+ 
+#if 0
   //Create triangles.
-  int *connPtr = (int *)(conn->GetVoidPointer(0));
+  // int *connPtr = (int *)(conn->GetVoidPointer(0));
   vtkIdType triangle[6]; 
-  // for (int i = 0; i < numPlanes-1; i++)
-  for (int i = 0; i < 1; i++)
+  for (int i = 0; i < numPlanes-1; i++)
   {
     for (int p = 0; p < numTris*3; p+=3)
     {
@@ -265,6 +257,7 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
     }
   }
   conn->Delete();
+#endif
 
   return grid;
 }
