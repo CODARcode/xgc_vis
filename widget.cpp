@@ -546,7 +546,7 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   std::sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         return data.dpot[v0] < data.dpot[v1];
-        if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
+        // if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
         // else return data.dpot[v0] < data.dpot[v1];
       });
 
@@ -594,7 +594,7 @@ void CGLWidget::buildContourTree3D(double *dpot_)
   std::sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         return data.dpot[v0] < data.dpot[v1];
-        if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
+        // if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
         // else return data.dpot[v0] < data.dpot[v1];
       });
   
@@ -607,8 +607,55 @@ void CGLWidget::buildContourTree3D(double *dpot_)
   
   ct_sweepAndMerge(ctx);
   ctBranch *root = ct_decompose(ctx);
-  ctBranch **map = ct_branchMap(ctx);
-  
+  ctBranch **branchMap = ct_branchMap(ctx);
+  ctArc **arcMap = ct_arcMap(ctx);
+
+#if 0
+#if 1
+  std::map<ctArc*, size_t> arcSet;
+  size_t nArcs = 0;
+  for (int i=0; i<nNodes*nPhi; i++) {
+    if (arcSet.find(arcMap[i]) == arcSet.end()) {
+      size_t arcId = nArcs ++;
+      // arcSet.insert(arcMap[i], arcId);
+      arcSet[arcMap[i]] = arcId;
+      fprintf(stderr, "arcId=%d, %p, hi=%p, lo=%p\n", arcId, arcMap[i], arcMap[i]->hi, arcMap[i]->lo);
+      label_colors[arcId] = QColor(rand()%256, rand()%256, rand()%256);
+    }
+  }
+ 
+  for (int i=0; i<nPhi; i++) {
+    std::vector<size_t> labels(nNodes, 0);
+    for (int j=0; j<nNodes; j++) {
+      size_t arcId = arcSet[arcMap[i*nNodes + j]];
+      labels[j] = arcId;
+    }
+    all_labels[i] = labels;
+  }
+#else
+  std::map<ctBranch*, size_t> branchSet;
+  size_t nBranches = 0;
+  for (int i=0; i<nNodes*nPhi; i++) {
+    if (branchSet.find(branchMap[i]) == branchSet.end()) {
+      size_t branchId = nBranches ++;
+      branchSet[branchMap[i]] = branchId;
+      fprintf(stderr, "branchId=%d, %p\n", branchId, branchMap[i]);
+      label_colors[branchId] = QColor(rand()%256, rand()%256, rand()%256);
+    }
+  }
+ 
+  for (int i=0; i<nPhi; i++) {
+    std::vector<size_t> labels(nNodes, 0);
+    for (int j=0; j<nNodes; j++) {
+      size_t branchId = branchSet[branchMap[i*nNodes + j]];
+      labels[j] = branchId;
+    }
+    all_labels[i] = labels;
+  }
+#endif
+#endif
+
+#if 1
   simplifyBranchDecompositionByThreshold(root, 20, &data);
   
   std::vector<size_t> labels(nNodes*nPhi, 0);
@@ -623,7 +670,8 @@ void CGLWidget::buildContourTree3D(double *dpot_)
   
   ct_cleanup(ctx); 
   // TODO
-  
+#endif
+
   fprintf(stderr, "built contour tree over 3D.\n");
 }
 
@@ -775,10 +823,8 @@ void CGLWidget::setData(double *dpot)
 
   buildContourTree3D(dpot);
 
-#if 0
   for (int i=0; i<nPhi; i++) {
-    buildContourTree(i, dpot); 
+    // buildContourTree(i, dpot); 
     extractExtremum(i, dpot); // dpot + i*nNodes);
   }
-#endif
 }

@@ -69,6 +69,11 @@ bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **c
   return true;
 }
 
+void writeVTK(const int nNodes, const int nTriangles, double *coords, int *conn) 
+{
+
+}
+
 int main(int argc, char **argv)
 {
   MPI_Init(&argc, &argv);
