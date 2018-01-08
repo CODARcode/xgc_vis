@@ -14,6 +14,7 @@ find_package (ADIOS REQUIRED)
  
 include_directories (
   ${ADIOS_INCLUDE_DIRS} 
+  ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/third_party/libtourtre/include
 )
 
