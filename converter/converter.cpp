@@ -175,6 +175,8 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
   // const int numPlanes = numPhi;
   double dPhi = 2.0*M_PI/(double)(numPhi);
 
+  numPhi = 1;
+
   cout<<"NNodes = "<<numNodes<<endl;
   cout<<"NTris = "<<numTris<<endl;
   cout<<"NPhi = "<<numPhi<<endl;    
@@ -209,6 +211,7 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
   coords->Delete();
   pts->Delete();
 
+#if 0
   //Create wedges.
   int *connPtr = (int *)(conn->GetVoidPointer(0));
   vtkIdType wedge[6];
@@ -233,12 +236,13 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
     }
   }
   conn->Delete();
- 
-#if 0
+#endif
+
+#if 1
   //Create triangles.
-  // int *connPtr = (int *)(conn->GetVoidPointer(0));
+  int *connPtr = (int *)(conn->GetVoidPointer(0));
   vtkIdType triangle[6]; 
-  for (int i = 0; i < numPlanes-1; i++)
+  for (int i = 0; i < 1; i++)
   {
     for (int p = 0; p < numTris*3; p+=3)
     {
@@ -346,7 +350,7 @@ int main (int argc, char ** argv)
 
   vtkDataSetWriter *wrt = vtkDataSetWriter::New();
   wrt->SetFileTypeToBinary();
-  wrt->SetFileName("xgc.vtk");
+  wrt->SetFileName("xgc_single_slice.vtk");
   wrt->SetInputData(grid);
   wrt->Write();
   wrt->Delete();
