@@ -2,6 +2,43 @@
 #include <iostream>
 #include <queue>
 #include "xgcBlobExtractor.h"
+#include "json.hpp"
+
+using json = nlohmann::json;
+
+std::string serializeBranch(ctBranch* b, std::map<ctBranch*, size_t> &branchSet)
+{
+  json j;
+
+  j["id"] = branchSet[b];
+  j["extremum"] = b->extremum;
+  j["saddle"] = b->saddle;
+  if (branchSet.find(b->parent) != branchSet.end()) 
+    j["parent"] = branchSet[b->parent];
+
+  std::vector<size_t> children;
+  for (ctBranch *c = b->children.head; c != NULL; c = c->nextChild)
+    children.push_back(branchSet[c]);
+  j["children"] = children;
+
+  if (branchSet.find(b->nextChild) != branchSet.end()) 
+    j["nextChild"] = branchSet[b->nextChild];
+  
+  if (branchSet.find(b->prevChild) != branchSet.end()) 
+    j["prevChild"] = branchSet[b->prevChild];
+
+  return j.dump();
+}
+
+void unserializeBranch() 
+{
+
+}
+
+void serializeBranchDecomposition(ctBranch *root, ctBranch **map)
+{
+
+}
 
 void XGCBlobExtractor::setMesh(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_)
 {
@@ -275,7 +312,6 @@ void XGCBlobExtractor::buildContourTree3D()
   ctArc **arcMap = ct_arcMap(ctx);
 
 #if 0
-#if 1
   std::map<ctArc*, size_t> arcSet;
   size_t nArcs = 0;
   for (int i=0; i<nNodes*nPhi; i++) {
@@ -304,8 +340,13 @@ void XGCBlobExtractor::buildContourTree3D()
       size_t branchId = nBranches ++;
       branchSet[branchMap[i]] = branchId;
       fprintf(stderr, "branchId=%d, %p\n", branchId, branchMap[i]);
-      label_colors[branchId] = QColor(rand()%256, rand()%256, rand()%256);
+      // label_colors[branchId] = QColor(rand()%256, rand()%256, rand()%256);
     }
+  }
+
+  for (std::map<ctBranch*, size_t>::iterator it = branchSet.begin();  it != branchSet.end();  it ++) {
+    std::string str = serializeBranch(it->first, branchSet);
+    std::cout << str << std::endl;
   }
  
   for (int i=0; i<nPhi; i++) {
@@ -317,9 +358,9 @@ void XGCBlobExtractor::buildContourTree3D()
     all_labels[i] = labels;
   }
 #endif
-#endif
 
-#if 1
+
+#if 0 // simplifications
   simplifyBranchDecompositionByThreshold(root, 20, &data);
   
   std::vector<size_t> labels(nNodes*nPhi, 0);

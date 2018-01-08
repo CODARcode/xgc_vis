@@ -3,6 +3,7 @@
 
 #include <tourtre.h>
 #include <cmath>
+#include <vector>
 #include <set>
 #include <map>
 

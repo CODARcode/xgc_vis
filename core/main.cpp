@@ -4,6 +4,7 @@
 #include <cassert>
 #include <iostream>
 #include "core/bp_utils.hpp"
+#include "core/xgcBlobExtractor.h"
 
 int main(int argc, char **argv)
 {
@@ -31,7 +32,13 @@ int main(int argc, char **argv)
 
   // TODO: analysis
   fprintf(stderr, "starting analysis..\n");
+  
+  XGCBlobExtractor *extractor = new XGCBlobExtractor;
+  extractor->setMesh(nNodes, nTriangles, nPhi, coords, conn);
+  extractor->setData(dpot);
+  extractor->buildContourTree3D();
 
+  delete extractor;
   free(dpot);
   free(coords);
   free(conn);
