@@ -8,7 +8,7 @@ using json = nlohmann::json;
 
 XGCBlobExtractor::XGCBlobExtractor(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_) :
   nNodes(nNodes_), nTriangles(nTriangles_), nPhi(nPhi_), 
-  coords(coords_, coords_ + nNodes_), 
+  coords(coords_, coords_ + nNodes_*2), 
   conn(conn_, conn_ + 3*nTriangles_)
 {
   // init nodeGraph
@@ -154,7 +154,8 @@ json branch2json(ctBranch* b, std::map<ctBranch*, size_t> &branchSet, void *d)
   std::vector<size_t> children;
   for (ctBranch *c = b->children.head; c != NULL; c = c->nextChild)
     children.push_back(branchSet[c]);
-  j["children"] = children;
+  if (children.size() > 0)
+    j["children"] = children;
 
   if (branchSet.find(b->nextChild) != branchSet.end()) 
     j["nextChild"] = branchSet[b->nextChild];

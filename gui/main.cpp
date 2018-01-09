@@ -1,30 +1,8 @@
-#include <mpi.h>
-#include <adios.h>
-#include <adios_read.h>
-#include <cassert>
-
 #include <QApplication>
 #include "widget.h"
-#include "core/bp_utils.hpp"
 
 int main(int argc, char **argv)
 {
-  MPI_Init(&argc, &argv);
-
-  ADIOS_FILE *meshFP = adios_read_open_file("xgc.mesh.bp", ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-  adios_read_bp_reset_dimension_order(meshFP, 0);
-
-  int nNodes, nTriangles, nPhi;
-  // readValueInt(varFP, "nphi", &nPhi);
-
-  fprintf(stderr, "reading mesh...\n");
-  double *coords; 
-  int *conn;
-  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
-  // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
-  //     nNodes, nTriangles, nPhi);
-
-  fprintf(stderr, "starting GUI...\n");
   QApplication app(argc, argv);
   QGLFormat fmt = QGLFormat::defaultFormat();
   fmt.setSampleBuffers(true);
@@ -32,13 +10,9 @@ int main(int argc, char **argv)
   QGLFormat::setDefaultFormat(fmt); 
   
   CGLWidget *widget = new CGLWidget;
-  widget->setTriangularMesh(nNodes, nTriangles, nPhi, coords, conn);
-  widget->loadLabels("xgc.labels"); // TODO: load labels from ADIOS
+  widget->loadMeshFromJsonFile("xgc.mesh.json");
+  widget->loadBranchesFromJsonFile("xgc.branches.json");
+  widget->loadLabels("xgc.labels.bin"); // TODO: load labels from ADIOS
   widget->show();
   app.exec();
-
-  free(coords);
-  free(conn);
-
-  MPI_Finalize();
 }

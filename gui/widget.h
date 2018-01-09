@@ -1,7 +1,7 @@
 #ifndef _WIDGET_H
 #define _WIDGET_H
 
-#include <GL/glew.h>
+// #include <GL/glew.h>
 #include <QGLWidget>
 #include <QList>
 #include <QVector>
@@ -30,6 +30,8 @@ public:
   ~CGLWidget(); 
 
   void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
+  void loadMeshFromJsonFile(const std::string& filename);
+  void loadBranchesFromJsonFile(const std::string& filename);
   void loadLabels(const std::string& filename);
   // void setData(double *dpot);
 
@@ -73,20 +75,23 @@ private: // camera
   int current_slice;
 
 private: // mesh
-  double *coords; 
-  int *conn;
+  std::vector<double> coords; 
+  std::vector<int> conn;
   int nNodes, nTriangles, nPhi;
 
   std::vector<float> f_vertices;
   std::vector<float> f_colors;
 
-  std::map<int, QColor> label_colors;
+  std::map<size_t, QColor> label_colors;
 
 private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
   std::map<int, std::vector<size_t> > all_labels;
   // std::vector<int> maximum, minimum;
+  
+  std::vector<ctBranch*> branches;
+  std::map<ctBranch*, size_t> branchSet;
 }; 
 
 #endif

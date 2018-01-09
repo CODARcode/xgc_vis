@@ -5,14 +5,15 @@
 #include <fstream>
 #include <iostream>
 #include <queue>
+#include <json.hpp>
 #include "widget.h"
 
 #ifdef __APPLE__
 #include <OpenGL/glu.h>
-#include <GLUT/glut.h>
+// #include <GLUT/glut.h>
 #else
 #include <GL/glu.h>
-#include <GL/glut.h>
+// #include <GL/glut.h>
 #endif
 
 #define CHECK_GLERROR()\
@@ -25,6 +26,8 @@
   }\
 }
 
+using nlohmann::json;
+
 CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
   : QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
@@ -36,6 +39,75 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
 
 CGLWidget::~CGLWidget()
 {
+}
+
+void CGLWidget::loadBranchesFromJsonFile(const std::string& filename)
+{
+  json j;
+  std::ifstream ifs(filename, std::ifstream::in);
+  ifs >> j;
+  ifs.close();
+
+  for (int i=0; i<j.size(); i++) {
+    branches.push_back(new ctBranch);
+    label_colors[i] = QColor(rand()%256, rand()%256, rand()%256);
+  }
+
+  for (json::iterator it = j.begin(); it != j.end(); it ++) {
+    json jbranch = *it;
+    int id = jbranch["id"];
+    ctBranch *b = branches[id];
+
+    b->extremum = jbranch["extremum"];
+    b->saddle = jbranch["saddle"];
+
+    if (!jbranch["children"].is_null())
+      b->children.head = branches[jbranch["children"][0]];
+
+    if (!jbranch["nextChild"].is_null())
+      b->nextChild = branches[jbranch["nextChild"]];
+    
+    if (!jbranch["prevChild"].is_null())
+      b->prevChild = branches[jbranch["prevChild"]];
+  }
+
+  fprintf(stderr, "Branch decompositions loaded: %lu\n", branches.size());
+}
+
+void CGLWidget::loadMeshFromJsonFile(const std::string& filename)
+{
+  json jmesh;
+
+  std::ifstream ifs(filename, std::ifstream::in);
+  ifs >> jmesh;
+  ifs.close();
+
+  nNodes = jmesh["nNodes"];
+  nTriangles = jmesh["nTriangles"];
+  nPhi = jmesh["nPhi"];
+
+  json jcoords = jmesh["coords"];
+  coords.clear();
+  for (json::iterator it = jcoords.begin();  it != jcoords.end();  it ++)
+    coords.push_back(*it);
+  
+  json jconn = jmesh["conn"];
+  conn.clear();
+  for (json::iterator it = jconn.begin();  it != jconn.end();  it ++)
+    conn.push_back(*it);
+  
+  f_vertices.clear();
+  for (int i=0; i<nTriangles; i++) {
+    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    f_vertices.push_back(coords[i0*2]);
+    f_vertices.push_back(coords[i0*2+1]);
+    f_vertices.push_back(coords[i1*2]);
+    f_vertices.push_back(coords[i1*2+1]);
+    f_vertices.push_back(coords[i2*2]);
+    f_vertices.push_back(coords[i2*2+1]);
+  }
+
+  fprintf(stderr, "Mesh loaded: nNodes=%d, nTriangles=%d, nPhi=%d\n", nNodes, nTriangles, nPhi);
 }
 
 void CGLWidget::mousePressEvent(QMouseEvent* e)
@@ -95,7 +167,7 @@ void CGLWidget::wheelEvent(QWheelEvent* e)
 
 void CGLWidget::initializeGL()
 {
-  glewInit();
+  // glewInit();
   _trackball.init();
 
   // opengl smooth rendering
@@ -215,6 +287,7 @@ void CGLWidget::renderLabels()
 
   const std::vector<size_t> &labels = all_labels[current_slice];
 
+  glColor3f(0, 0, 0);
   glBegin(GL_POINTS);
   for (int i=0; i<nNodes; i++) {
     int label = labels[i];
@@ -315,7 +388,8 @@ void CGLWidget::renderSinglePlane()
 
   CHECK_GLERROR();
 }
-  
+ 
+#if 0
 void CGLWidget::setTriangularMesh(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_)
 {
   nNodes = nNodes_; 
@@ -346,6 +420,7 @@ void CGLWidget::setTriangularMesh(int nNodes_, int nTriangles_, int nPhi_, doubl
     nodeGraph[i2].insert(i0);
   }
 }
+#endif
 
 template <typename T>
 static T clamp(T min, T max, T val)
