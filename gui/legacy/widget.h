@@ -30,8 +30,7 @@ public:
   ~CGLWidget(); 
 
   void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
-  void loadLabels(const std::string& filename);
-  // void setData(double *dpot);
+  void setData(double *dpot);
 
 protected:
   void initializeGL(); 

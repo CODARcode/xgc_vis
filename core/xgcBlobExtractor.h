@@ -10,13 +10,12 @@
 class XGCBlobExtractor
 {
 public:
-  XGCBlobExtractor() {}
+  XGCBlobExtractor(int nNodes, int nTriangles, int nPhi, double *coords, int *conn); 
   ~XGCBlobExtractor() {}
  
-  void setMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn); 
   void setData(double *dpot);
 
-  void dumpInfo(const std::string& filename);
+  void dumpMesh(const std::string& filename);
   void dumpLabels(const std::string& filename);
   void dumpBranchDecompositions(const std::string& filename);
 
@@ -33,8 +32,10 @@ public:
   void constructDiscreteGradient(double *dpot);
 
 private: // mesh
-  double *coords; 
-  int *conn;
+  std::vector<double> coords;
+  std::vector<int> conn;
+  // double *coords; 
+  // int *conn;
   int nNodes, nTriangles, nPhi;
 
 private: // data

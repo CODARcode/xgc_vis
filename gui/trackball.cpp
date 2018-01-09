@@ -1,17 +1,3 @@
-/*
-   PKUVIS CONFIDENTIAL
-   ___________________
-
-   Copyright (c) 2009-2012, PKU Visualization and Visual Analytics Group 
-   Produced at Peking University, Beijing, China.
-   All rights reserved.
-
-NOTICE: THIS IS UNPUBLISHED PROPRIETARY SOURCE CODE OF  VISUALIZATION 
-AND VISUAL ANALYTICS GROUP (PKUVIS), PEKING UNIVERSITY. DISSEMINATION
-OF  THIS  INFORMATION  OR  REPRODUCTION OF THIS  MATERIAL IS STRICTLY 
-FORBIDDEN UNLESS PRIOR WRITTEN PERMISSION IS OBTAINED FROM PKUVIS.
-*/
-
 #include "trackball.h"
 #include <cstdlib>
 #include <cmath>

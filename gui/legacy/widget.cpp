@@ -29,7 +29,7 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
   : QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
-    toggle_mesh(false), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
+    toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(false), 
     current_slice(0)
 {
 }
@@ -52,7 +52,6 @@ void CGLWidget::mouseMoveEvent(QMouseEvent* e)
 void CGLWidget::keyPressEvent(QKeyEvent* e)
 {
   switch (e->key()) {
-#if 0
   case Qt::Key_M: 
     toggle_mesh = !toggle_mesh;
     updateGL();
@@ -67,7 +66,7 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
     toggle_extrema = !toggle_extrema;
     updateGL();
     break;
-#endif
+
   case Qt::Key_L:
     toggle_labels = !toggle_labels;
     updateGL();
@@ -803,7 +802,6 @@ void CGLWidget::extractExtremum(int plane, double *dpot_)
   }
 }
 
-#if 0
 void CGLWidget::setData(double *dpot)
 {
   const float min = -100, max = 100;
@@ -829,17 +827,4 @@ void CGLWidget::setData(double *dpot)
     // buildContourTree(i, dpot); 
     extractExtremum(i, dpot); // dpot + i*nNodes);
   }
-}
-#endif
-
-void CGLWidget::loadLabels(const std::string& filename)
-{
-  FILE *fp = fopen(filename.c_str(), "rb");
-  for (int i=0; i<nPhi; i++) {
-    std::vector<size_t> labels;
-    labels.resize(nNodes);
-    fread((void*)labels.data(), sizeof(size_t), nNodes, fp);
-    all_labels[i] = labels;
-  }
-  fclose(fp);
 }

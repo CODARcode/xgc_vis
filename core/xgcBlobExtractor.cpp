@@ -6,48 +6,11 @@
 
 using json = nlohmann::json;
 
-std::string serializeBranch(ctBranch* b, std::map<ctBranch*, size_t> &branchSet)
+XGCBlobExtractor::XGCBlobExtractor(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_) :
+  nNodes(nNodes_), nTriangles(nTriangles_), nPhi(nPhi_), 
+  coords(coords_, coords_ + nNodes_), 
+  conn(conn_, conn_ + 3*nTriangles_)
 {
-  json j;
-
-  j["id"] = branchSet[b];
-  j["extremum"] = b->extremum;
-  j["saddle"] = b->saddle;
-  if (branchSet.find(b->parent) != branchSet.end()) 
-    j["parent"] = branchSet[b->parent];
-
-  std::vector<size_t> children;
-  for (ctBranch *c = b->children.head; c != NULL; c = c->nextChild)
-    children.push_back(branchSet[c]);
-  j["children"] = children;
-
-  if (branchSet.find(b->nextChild) != branchSet.end()) 
-    j["nextChild"] = branchSet[b->nextChild];
-  
-  if (branchSet.find(b->prevChild) != branchSet.end()) 
-    j["prevChild"] = branchSet[b->prevChild];
-
-  return j.dump();
-}
-
-void unserializeBranch(const std::string& str)
-{
-
-}
-
-void serializeBranchDecomposition(ctBranch *root, ctBranch **map)
-{
-
-}
-
-void XGCBlobExtractor::setMesh(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_)
-{
-  nNodes = nNodes_; 
-  nTriangles = nTriangles_;
-  nPhi = nPhi_;
-  coords = coords_;
-  conn = conn_;
-
   // init nodeGraph
   nodeGraph.clear();
   nodeGraph.resize(nNodes);
@@ -174,6 +137,37 @@ static void printContourTree(ctBranch* b)
   
   for (ctBranch* c = b->children.head; c != NULL; c = c->nextChild) 
     printContourTree(c);
+}
+
+json branch2json(ctBranch* b, std::map<ctBranch*, size_t> &branchSet, void *d)
+{
+  json j;
+
+  j["id"] = branchSet[b];
+  j["extremum"] = b->extremum;
+  j["extremum_val"] = value(b->extremum, d);
+  j["saddle"] = b->saddle;
+  j["saddle_val"] = value(b->saddle, d);
+  if (branchSet.find(b->parent) != branchSet.end()) 
+    j["parent"] = branchSet[b->parent];
+
+  std::vector<size_t> children;
+  for (ctBranch *c = b->children.head; c != NULL; c = c->nextChild)
+    children.push_back(branchSet[c]);
+  j["children"] = children;
+
+  if (branchSet.find(b->nextChild) != branchSet.end()) 
+    j["nextChild"] = branchSet[b->nextChild];
+  
+  if (branchSet.find(b->prevChild) != branchSet.end()) 
+    j["prevChild"] = branchSet[b->prevChild];
+
+  return j;
+}
+
+void unserializeBranch(const std::string& str)
+{
+
 }
 
 void XGCBlobExtractor::simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *d)
@@ -540,10 +534,32 @@ void XGCBlobExtractor::dumpLabels(const std::string& filename)
 
 
 void XGCBlobExtractor::dumpBranchDecompositions(const std::string& filename) {
+  XGCData data;
+  data.nodeGraph = &nodeGraph;
+  data.dpot = dpot;
+  data.nNodes = nNodes;
+  data.nPhi = nPhi;
+
   std::ofstream ofs(filename, std::ofstream::out);
+  json jresults;
   for (std::map<ctBranch*, size_t>::iterator it = branchSet.begin();  it != branchSet.end();  it ++) {
-    std::string str = serializeBranch(it->first, branchSet);
-    ofs << str << std::endl;
+    jresults[it->second] = branch2json(it->first, branchSet, &data);
   }
+  ofs << jresults.dump();
+  ofs.close();
+}
+
+void XGCBlobExtractor::dumpMesh(const std::string& filename) {
+  std::ofstream ofs(filename, std::ofstream::out);
+  json j;
+
+  j["nPhi"] = nPhi;
+  j["nNodes"] = nNodes;
+  j["nTriangles"] = nTriangles;
+
+  j["coords"] = coords;
+  j["conn"] = conn;
+
+  ofs << j.dump();
   ofs.close();
 }
