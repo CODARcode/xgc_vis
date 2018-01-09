@@ -16,6 +16,10 @@ public:
   void setMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn); 
   void setData(double *dpot);
 
+  void dumpInfo(const std::string& filename);
+  void dumpLabels(const std::string& filename);
+  void dumpBranchDecompositions(const std::string& filename);
+
 public: 
   void buildContourTree2D(int plane);
   void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
@@ -40,6 +44,7 @@ private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
   std::map<int, std::vector<size_t> > all_labels;
+  std::map<ctBranch*, size_t> branchSet;
 }; 
 
 #endif

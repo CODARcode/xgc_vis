@@ -30,13 +30,16 @@ int main(int argc, char **argv)
   double *dpot;
   readScalars<double>(varFP, "dpot", &dpot);
 
-  // TODO: analysis
   fprintf(stderr, "starting analysis..\n");
-  
   XGCBlobExtractor *extractor = new XGCBlobExtractor;
   extractor->setMesh(nNodes, nTriangles, nPhi, coords, conn);
   extractor->setData(dpot);
   extractor->buildContourTree3D();
+
+  fprintf(stderr, "dumping results..\n");
+  // extractor->dumpInfo("xgc.info");
+  extractor->dumpLabels("xgc.labels");
+  extractor->dumpBranchDecompositions("xgc.branches");
 
   delete extractor;
   free(dpot);

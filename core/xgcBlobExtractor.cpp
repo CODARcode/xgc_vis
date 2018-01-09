@@ -30,7 +30,7 @@ std::string serializeBranch(ctBranch* b, std::map<ctBranch*, size_t> &branchSet)
   return j.dump();
 }
 
-void unserializeBranch() 
+void unserializeBranch(const std::string& str)
 {
 
 }
@@ -333,20 +333,14 @@ void XGCBlobExtractor::buildContourTree3D()
     all_labels[i] = labels;
   }
 #else
-  std::map<ctBranch*, size_t> branchSet;
   size_t nBranches = 0;
   for (int i=0; i<nNodes*nPhi; i++) {
     if (branchSet.find(branchMap[i]) == branchSet.end()) {
       size_t branchId = nBranches ++;
       branchSet[branchMap[i]] = branchId;
-      fprintf(stderr, "branchId=%d, %p\n", branchId, branchMap[i]);
+      // fprintf(stderr, "branchId=%d, %p\n", branchId, branchMap[i]);
       // label_colors[branchId] = QColor(rand()%256, rand()%256, rand()%256);
     }
-  }
-
-  for (std::map<ctBranch*, size_t>::iterator it = branchSet.begin();  it != branchSet.end();  it ++) {
-    std::string str = serializeBranch(it->first, branchSet);
-    std::cout << str << std::endl;
   }
  
   for (int i=0; i<nPhi; i++) {
@@ -359,8 +353,7 @@ void XGCBlobExtractor::buildContourTree3D()
   }
 #endif
 
-
-#if 0 // simplifications
+#if 1 // simplifications
   simplifyBranchDecompositionByThreshold(root, 20, &data);
   
   std::vector<size_t> labels(nNodes*nPhi, 0);
@@ -535,4 +528,22 @@ void XGCBlobExtractor::setData(double *dpot_)
     extractExtremum(i, dpot); // dpot + i*nNodes);
   }
 #endif
+}
+
+void XGCBlobExtractor::dumpLabels(const std::string& filename) 
+{
+  FILE *fp = fopen(filename.c_str(), "wb");
+  for (int i=0; i<nPhi; i++) 
+    fwrite(all_labels[i].data(), sizeof(size_t), nNodes, fp);
+  fclose(fp);
+}
+
+
+void XGCBlobExtractor::dumpBranchDecompositions(const std::string& filename) {
+  std::ofstream ofs(filename, std::ofstream::out);
+  for (std::map<ctBranch*, size_t>::iterator it = branchSet.begin();  it != branchSet.end();  it ++) {
+    std::string str = serializeBranch(it->first, branchSet);
+    ofs << str << std::endl;
+  }
+  ofs.close();
 }
