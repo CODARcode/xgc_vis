@@ -11,11 +11,16 @@ set (CMAKE_CXX_STANDARD_REQUIRED ON)
 set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules)
 
 find_package (ZLIB REQUIRED)
-    
+set (Boost_USE_STATIC_LIBS ON)
+set (Boost_USE_MULTITHREADED ON)
+set (Boost_USE_STATIC_RUNTIME OFF)
+find_package (Boost REQUIRED COMPONENTS program_options)
+
 include_directories (
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/third_party/libtourtre/include
   ${PROJECT_SOURCE_DIR}/third_party/json
+  ${Boost_INCLUDE_DIR}
 )
 
 if (XGCVIS_BUILD_CORE)
