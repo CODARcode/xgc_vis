@@ -9,7 +9,8 @@ using json = nlohmann::json;
 XGCBlobExtractor::XGCBlobExtractor(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_) :
   nNodes(nNodes_), nTriangles(nTriangles_), nPhi(nPhi_), 
   coords(coords_, coords_ + nNodes_*2), 
-  conn(conn_, conn_ + 3*nTriangles_)
+  conn(conn_, conn_ + 3*nTriangles_),
+  persistenceThreshold(0)
 {
   // init nodeGraph
   nodeGraph.clear();
@@ -349,7 +350,8 @@ void XGCBlobExtractor::buildContourTree3D()
 #endif
 
 #if 1 // simplifications
-  simplifyBranchDecompositionByThreshold(root, 20, &data);
+  if (persistenceThreshold > 0)
+    simplifyBranchDecompositionByThreshold(root, persistenceThreshold, &data);
   
   std::vector<size_t> labels(nNodes*nPhi, 0);
   buildSegmentation3D(root, labels, &data);

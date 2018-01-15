@@ -14,6 +14,7 @@ public:
   ~XGCBlobExtractor() {}
  
   void setData(double *dpot);
+  void setPersistenceThreshold(double threshold) {persistenceThreshold = threshold;}
 
   void dumpMesh(const std::string& filename);
   void dumpLabels(const std::string& filename);
@@ -40,6 +41,9 @@ private: // mesh
 
 private: // data
   double *dpot;
+
+private: // parameters
+  double persistenceThreshold;
 
 private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
