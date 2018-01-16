@@ -50,15 +50,19 @@ protected:
 
 private: 
   void buildContourTree(int plane, double *dpot);
+  void addExtremumFromBranchDecomposition(int plane, ctBranch *root, ctBranch *b, void *);
   void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
   void simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *);
-  void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*); 
+  void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*);
 
   void buildContourTree3D(double *dpot); 
   void buildSegmentation3D(ctBranch *b, std::vector<size_t> &labels, void*); 
 
   void extractExtremum(int plane, double *dpot);
   void constructDiscreteGradient(double *dpot);
+
+  void extractStreamersFromExtremum(int plane, double *dpot, double percentage=0.1);
+  int flood2D(size_t seed, size_t id, std::vector<size_t> &labels, double min, double max, void *d);
 
 private:
   CGLTrackball _trackball;

@@ -193,16 +193,16 @@ void CGLWidget::renderExtremum()
   
   glColor3f(1, 0, 0);
   glBegin(GL_POINTS);
-  for (int i=0; i<maximum[0].size(); i++) {
-    int k = maximum[0][i];
+  for (int i=0; i<maximum[current_slice].size(); i++) {
+    int k = maximum[current_slice][i];
     glVertex2f(coords[k*2], coords[k*2+1]);
   }
   glEnd();
   
   glColor3f(0, 1, 0);
   glBegin(GL_POINTS);
-  for (int i=0; i<minimum[0].size(); i++) {
-    int k = minimum[0][i];
+  for (int i=0; i<minimum[current_slice].size(); i++) {
+    int k = minimum[current_slice][i];
     glVertex2f(coords[k*2], coords[k*2+1]);
   }
   glEnd();
@@ -475,6 +475,67 @@ static void printContourTree(ctBranch* b)
     printContourTree(c);
 }
 
+int CGLWidget::flood2D(size_t seed, size_t id, std::vector<size_t> &labels, double min, double max, void *d)
+{
+  fprintf(stderr, "seed=%lu, id=%lu, min=%.10e, max=%.10e\n", seed, id, min, max);
+
+  XGCData *data = (XGCData*)d;
+
+  int count = 1;
+  std::queue<size_t> Q;
+  Q.push(seed);
+  labels[seed] = id;
+
+  while (!Q.empty()) {
+    size_t p = Q.front(); 
+    Q.pop();
+
+    size_t nbrs[32]; //TODO
+    size_t nnbrs = neighbors(p, nbrs, d);
+
+    for (int i=0; i<nnbrs; i++) {
+      const size_t neighbor = nbrs[i];
+
+      if (labels[neighbor] != id) {
+        double val = value(neighbor, d);
+        if (val >= min && val <= max) {
+          // fprintf(stderr, "true for %d, val=%.10e, min=%.10e, max=%.10e\n", neighbor, val, min, max);
+          Q.push(neighbor);
+          labels[neighbor] = id;
+          count ++;
+        }
+      }
+    }
+  }
+
+  return count;
+}
+
+void CGLWidget::addExtremumFromBranchDecomposition(int plane, ctBranch *root, ctBranch *b, void *d)
+{
+  double val_extremum = value(b->extremum, d), 
+         val_saddle = value(b->saddle, d);
+
+  if (b == root) {
+    if (val_extremum >= val_saddle) {
+      maximum[plane].push_back(b->extremum);
+      minimum[plane].push_back(b->saddle);
+    } else {
+      maximum[plane].push_back(b->saddle);
+      minimum[plane].push_back(b->extremum);
+    }
+  } else {
+    if (val_extremum >= val_saddle) 
+      maximum[plane].push_back(b->extremum);
+    else 
+      minimum[plane].push_back(b->extremum);
+  }
+
+  for (ctBranch *c = b->children.head; c != NULL; c = c->nextChild) {
+    addExtremumFromBranchDecomposition(plane, root, c, d);
+  }
+}
+
 void CGLWidget::simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *d)
 {
   // XGCData *data = (XGCData*)d;
@@ -563,8 +624,10 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   ctBranch *root = ct_decompose(ctx);
   ctBranch **map = ct_branchMap(ctx);
 
-  simplifyBranchDecompositionByThreshold(root, 20, &data);
+  simplifyBranchDecompositionByThreshold(root, 3e-10, &data);
+  addExtremumFromBranchDecomposition(plane, root, root, &data);
 
+#if 0 // 2D topology segmentation
   std::vector<size_t> labels(nNodes, 0);
   buildSegmentation(root, labels, &data);
   // for (int i=0; i<nNodes; i++) 
@@ -573,6 +636,9 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   all_labels[plane] = labels;
 
   // printContourTree(root);
+#else // threshold-based streamer extraction
+  extractStreamersFromExtremum(plane, dpot_, 0.1);
+#endif
 
   ct_cleanup(ctx);
 }
@@ -802,9 +868,46 @@ void CGLWidget::extractExtremum(int plane, double *dpot_)
   }
 }
 
+void CGLWidget::extractStreamersFromExtremum(int plane, double *dpot, double percentage)
+{
+  XGCData data;
+  data.nodeGraph = &nodeGraph;
+  data.dpot = dpot + plane * nNodes;
+  data.nNodes = nNodes;
+  data.nPhi = nPhi;
+
+  struct Streamer {
+    size_t id;
+    size_t seed;
+    double min, max; 
+  };
+
+  int count = 0;
+  std::vector<Streamer> streamers;
+  for (int i=0; i<maximum[plane].size(); i++) {
+    Streamer s; 
+    s.id = 1 + count ++;
+    s.seed = maximum[plane][i];
+    s.max = value(s.seed, &data);
+    s.min = 0.1 * s.max;
+    streamers.push_back(s);
+  }
+
+  std::vector<size_t> labels(nNodes, 0);
+  for (int i=0; i<streamers.size(); i++) {
+    int count = flood2D(streamers[i].seed, streamers[i].id, labels, streamers[i].min, streamers[i].max, &data);
+    label_colors[streamers[i].id] = QColor(rand()%256, rand()%256, rand()%256);
+    fprintf(stderr, "count=%d\n", count);
+  }
+
+  all_labels[plane] = labels;
+}
+
+
 void CGLWidget::setData(double *dpot)
 {
-  const float min = -100, max = 100;
+  // const float min = -100, max = 100;
+  const float min = -1e-9, max = 1e-9;
 
   f_colors.clear();
 
@@ -821,7 +924,7 @@ void CGLWidget::setData(double *dpot)
     }
   }
 
-  buildContourTree3D(dpot);
+  // buildContourTree3D(dpot);
 
   for (int i=0; i<nPhi; i++) {
     // buildContourTree(i, dpot); 
