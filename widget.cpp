@@ -550,45 +550,48 @@ RESTART:
     }
 }
 
-#if 0
-void CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *d) // no more than a number
+void CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::map<ctBranch*, size_t> &branchSet, int nLimit, void *d) // no more than a number
 {
   float minPriority; // default is persistence
   ctBranch *minPriorityBranch = NULL; 
 
-  qDebug() << "calculating priorities..."; 
-
-  QList< QPair<float, ctBranch*> > m_branchPriorityList; 
-  foreach (ctBranch *c, m_reverseBranchMap.keys()) {
-    // m_branchPriorityList << qMakePair(static_cast<float>(volumePriority(c, blk)), c); 
-    m_branchPriorityList << qMakePair(static_cast<float>(fabs(value(c->extremum, blk) - value(c->saddle, blk))), c); 
+  std::list<ctBranch*> branchList;
+  for (auto &kv : branchSet) {
+    branchList.push_back(kv.first);
   }
-  qStableSort(m_branchPriorityList); 
 
-  qDebug() << "simplifying branch decomposition..."; 
-  while (minPriorityBranch != m_rootBranch && m_reverseBranchMap.size() > nLimit) {
+  branchList.sort(
+      [&d](ctBranch* b0, ctBranch* b1) {
+        return fabs(value(b0->extremum, d) - value(b0->saddle, d)) < fabs(value(b1->extremum, d) - value(b1->saddle, d));
+      });
+
+  while (minPriorityBranch != rootBranch && branchSet.size() > nLimit) {
     minPriority = 1e38f; 
-    minPriorityBranch = m_rootBranch; 
+    minPriorityBranch = rootBranch; 
 
-    for (QList< QPair<float, ctBranch*> >::iterator itor=m_branchPriorityList.begin(); itor!=m_branchPriorityList.end(); itor++) {
-      if (itor->second->children.head == NULL) {
-        minPriority = itor->first; 
-        minPriorityBranch = itor->second; 
-        m_branchPriorityList.erase(itor); 
-        break; 
+    std::list<ctBranch*>::iterator it_erase = branchList.end();
+    for (std::list<ctBranch*>::iterator it = branchList.begin(); it != branchList.end(); it ++) {
+      ctBranch *b = *it;
+      if (b->children.head == NULL) {
+        minPriority = fabs(value(b->extremum, d) - value(b->saddle, d));
+        minPriorityBranch = b;
+        it_erase = it;
+        break;
       }
     }
 
-    qDebug() << "priority =" << minPriority << "branch =" << minPriorityBranch; 
+    if (it_erase != branchList.end())
+      branchList.erase(it_erase);
 
-    if (minPriorityBranch == m_rootBranch) break; 
+    // qDebug() << "priority =" << minPriority << "branch =" << minPriorityBranch; 
+
+    if (minPriorityBranch == rootBranch) break; 
     ctBranch *parentBranch = minPriorityBranch->parent; 
 
     ctBranchList_remove(&parentBranch->children, minPriorityBranch); 
-    m_reverseBranchMap.remove(minPriorityBranch); 
+    branchSet.erase(minPriorityBranch); 
   }
 }
-#endif
 
 void CGLWidget::buildContourTree(int plane, double *dpot_)
 {
@@ -622,9 +625,20 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
 
   ct_sweepAndMerge(ctx);
   ctBranch *root = ct_decompose(ctx);
-  ctBranch **map = ct_branchMap(ctx);
+  ctBranch **branchMap = ct_branchMap(ctx);
 
-  simplifyBranchDecompositionByThreshold(root, 3e-10, &data);
+  // build branchSet
+  std::map<ctBranch*, size_t> branchSet;
+  size_t nBranches = 0;
+  for (int i=0; i<nNodes; i++) {
+    if (branchSet.find(branchMap[i]) == branchSet.end()) {
+      size_t branchId = nBranches ++;
+      branchSet[branchMap[i]] = branchId;
+    }
+  }
+
+  // simplifyBranchDecompositionByThreshold(root, 3e-10, &data);
+  simplifyBranchDecompositionByNumbers(root, branchSet, 10, &data);
   addExtremumFromBranchDecomposition(plane, root, root, &data);
 
 #if 0 // 2D topology segmentation
@@ -927,7 +941,7 @@ void CGLWidget::setData(double *dpot)
   // buildContourTree3D(dpot);
 
   for (int i=0; i<nPhi; i++) {
-    // buildContourTree(i, dpot); 
-    extractExtremum(i, dpot); // dpot + i*nNodes);
+    buildContourTree(i, dpot); 
+    // extractExtremum(i, dpot); // dpot + i*nNodes);
   }
 }

@@ -52,7 +52,7 @@ private:
   void buildContourTree(int plane, double *dpot);
   void addExtremumFromBranchDecomposition(int plane, ctBranch *root, ctBranch *b, void *);
   void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
-  void simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *);
+  void simplifyBranchDecompositionByNumbers(ctBranch* root, std::map<ctBranch*, size_t>&, int nLimit, void *);
   void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*);
 
   void buildContourTree3D(double *dpot); 
