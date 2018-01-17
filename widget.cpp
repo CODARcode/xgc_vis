@@ -510,6 +510,53 @@ int CGLWidget::flood2D(size_t seed, size_t id, std::vector<size_t> &labels, doub
 
   return count;
 }
+  
+void CGLWidget::extractStreamers(int plane, ctBranch *root, std::map<ctBranch*, size_t>& branchSet, int nStreamers, double percentage, void *d)
+{
+  std::vector<std::pair<const ctBranch*, double> > branchPersistences;
+  for (auto &kv : branchSet) {
+    branchPersistences.push_back(std::make_pair<const ctBranch*, double>(kv.first, value(kv.first->extremum, d) - value(kv.first->saddle, d)));
+  }
+  branchPersistences.push_back(std::make_pair<const ctBranch*, double>(root, value(root->saddle, d) - value(root->extremum, d)));
+
+  std::sort(branchPersistences.begin(), branchPersistences.end(), 
+    [](std::pair<const ctBranch*, double> p0, std::pair<const ctBranch*, double> p1) {
+      return p0.second < p1.second;
+    });
+
+  std::vector<size_t> labels(nNodes, 0);
+ 
+  static int id = 1;
+ 
+  // minimum streamers
+  for (int i=0; i<std::min((size_t)nStreamers, branchPersistences.size()); i++) {
+    size_t extremum;
+    if (branchPersistences[i].first == root)
+      extremum = branchPersistences[i].first->saddle; 
+    else 
+      extremum = branchPersistences[i].first->extremum;
+
+    double val_extremum = value(extremum, d);
+    const int myid = 1; // id++; // -i
+    // label_colors[myid] = QColor(rand()%256, rand()%256, rand()%256);
+    label_colors[myid] = QColor(0, 255, 0);
+    int count = flood2D(extremum, myid, labels, val_extremum, percentage*val_extremum, d); // presumably the val is less than 0
+    fprintf(stderr, "count=%d\n", count);
+  }
+
+  // maximum streamers
+  for (int i=branchPersistences.size()-1; i>branchPersistences.size()-nStreamers-1; i--) {
+    size_t extremum = branchPersistences[i].first->extremum; // maximum
+    double val_extremum = value(extremum, d);
+    const int myid = 2; // id++;
+    // label_colors[myid] = QColor(rand()%256, rand()%256, rand()%256);
+    label_colors[myid] = QColor(255, 0, 0);
+    int count = flood2D(extremum, myid, labels, val_extremum*percentage, val_extremum, d);
+    fprintf(stderr, "count=%d\n", count);
+  }
+
+  all_labels[plane] = labels;
+}
 
 void CGLWidget::addExtremumFromBranchDecomposition(int plane, ctBranch *root, ctBranch *b, void *d)
 {
@@ -563,6 +610,7 @@ void CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::
   branchList.sort(
       [&d](ctBranch* b0, ctBranch* b1) {
         return fabs(value(b0->extremum, d) - value(b0->saddle, d)) < fabs(value(b1->extremum, d) - value(b1->saddle, d));
+        // return value(b0->extremum, d) - value(b0->saddle, d) < value(b1->extremum, d) - value(b1->saddle, d);
       });
 
   while (minPriorityBranch != rootBranch && branchSet.size() > nLimit) {
@@ -638,8 +686,9 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   }
 
   // simplifyBranchDecompositionByThreshold(root, 3e-10, &data);
-  simplifyBranchDecompositionByNumbers(root, branchSet, 10, &data);
-  addExtremumFromBranchDecomposition(plane, root, root, &data);
+  simplifyBranchDecompositionByNumbers(root, branchSet, 50, &data);
+  // addExtremumFromBranchDecomposition(plane, root, root, &data);
+  extractStreamers(plane, root, branchSet, 10, 0.1, &data);
 
 #if 0 // 2D topology segmentation
   std::vector<size_t> labels(nNodes, 0);
@@ -651,7 +700,7 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
 
   // printContourTree(root);
 #else // threshold-based streamer extraction
-  extractStreamersFromExtremum(plane, dpot_, 0.1);
+  // extractStreamersFromExtremum(plane, dpot_, 0.1);
 #endif
 
   ct_cleanup(ctx);
@@ -940,6 +989,7 @@ void CGLWidget::setData(double *dpot)
 
   // buildContourTree3D(dpot);
 
+  // for (int i=0; i<nPhi; i++) {
   for (int i=0; i<nPhi; i++) {
     buildContourTree(i, dpot); 
     // extractExtremum(i, dpot); // dpot + i*nNodes);

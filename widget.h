@@ -61,6 +61,7 @@ private:
   void extractExtremum(int plane, double *dpot);
   void constructDiscreteGradient(double *dpot);
 
+  void extractStreamers(int plane, ctBranch *root, std::map<ctBranch*, size_t>& branchSet, int nStreamers, double percentage, void *);
   void extractStreamersFromExtremum(int plane, double *dpot, double percentage=0.1);
   int flood2D(size_t seed, size_t id, std::vector<size_t> &labels, double min, double max, void *d);
 
