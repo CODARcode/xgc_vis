@@ -8,15 +8,15 @@
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
 
-void writeUnstructredMeshData(MPI_Comm comm, int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
+void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, // POSIX, MPI, or others
+    int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
-  const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D", fileName="test.bp";
+  const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
   int64_t groupHandle = -1, fileHandle = -1;
 
   adios_init_noxml(comm);
   adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
-  // adios_select_method(groupHandle, "MPI", "", "");
-  adios_select_method(groupHandle, "POSIX", "", "");
+  adios_select_method(groupHandle, writeMethod.c_str(), "", "");
   adios_define_schema_version(groupHandle, (char*)"1.1");
   adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
 
@@ -129,8 +129,7 @@ int main(int argc, char **argv)
     ("input,i", value<std::string>(), "input_file")
     ("output,o", value<std::string>(), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
-    ("write_method,w", value<std::string>()->default_value("BP"), "write_method (BP)")
-    ("persistence_threshold,p", value<double>()->default_value(0), "persistence_threshold")
+    ("write_method,w", value<std::string>()->default_value("POSIX"), "write_method (POSIX|MPI)")
     ("h", "display this information");
   
   positional_options_description posdesc;
@@ -155,7 +154,6 @@ int main(int argc, char **argv)
   const std::string filename_output = vm["output"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
   const std::string write_method_str = vm["write_method"].as<std::string>();
-  const double persistence_threshold = vm["persistence_threshold"].as<double>();
 
   fprintf(stderr, "==========================================\n");
   fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
@@ -163,7 +161,6 @@ int main(int argc, char **argv)
   fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
   fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
   fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
-  // fprintf(stderr, "persistence_threshold=%.03e\n", persistence_threshold);
   fprintf(stderr, "==========================================\n");
 
   int read_method;
@@ -212,7 +209,7 @@ int main(int argc, char **argv)
   int *labels = extractor->getLabels(0).data();
 
   fprintf(stderr, "dumping results..\n"); // TODO
-  writeUnstructredMeshData(MPI_COMM_WORLD, nNodes, nTriangles, coords, conn, dpot, psi, labels);
+  writeUnstructredMeshData(MPI_COMM_WORLD, filename_output, write_method_str, nNodes, nTriangles, coords, conn, dpot, psi, labels);
 #if 0
   extractor->dumpMesh("xgc.mesh.json"); // only need to dump once
   extractor->dumpBranchDecompositions("xgc.branches.json");

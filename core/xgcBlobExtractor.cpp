@@ -279,7 +279,7 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
     double val_extremum = value(extremum, d);
     const int myid = -1; // id++; // -i
     int count = flood2D(extremum, myid, labels, val_extremum, percentage*val_extremum, d); // presumably the val is less than 0
-    fprintf(stderr, "count=%d\n", count);
+    // fprintf(stderr, "count=%d\n", count);
   }
 
   // maximum streamers
@@ -288,7 +288,7 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
     double val_extremum = value(extremum, d);
     const int myid = 1; // id++;
     int count = flood2D(extremum, myid, labels, val_extremum*percentage, val_extremum, d);
-    fprintf(stderr, "count=%d\n", count);
+    // fprintf(stderr, "count=%d\n", count);
   }
 
   all_labels[plane] = labels;
@@ -353,7 +353,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
     }
   }
 
-  simplifyBranchDecompositionByNumbers(root, branchSet, 50, &data); // TODO
+  // simplifyBranchDecompositionByNumbers(root, branchSet, 50, &data); // TODO
   // addExtremumFromBranchDecomposition(plane, root, root, &data);
   extractStreamers(plane, root, branchSet, 10, 0.1, &data); // TODO
 
