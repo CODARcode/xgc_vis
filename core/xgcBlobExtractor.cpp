@@ -1,6 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <queue>
+#include <list>
 #include "xgcBlobExtractor.h"
 #include "json.hpp"
 
@@ -172,6 +173,128 @@ void unserializeBranch(const std::string& str)
 
 }
 
+void XGCBlobExtractor::simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::map<ctBranch*, size_t> &branchSet, int nLimit, void *d) // no more than a number
+{
+  float minPriority; // default is persistence
+  ctBranch *minPriorityBranch = NULL; 
+
+  std::list<ctBranch*> branchList;
+  for (auto &kv : branchSet) {
+    branchList.push_back(kv.first);
+  }
+
+  branchList.sort(
+      [&d](ctBranch* b0, ctBranch* b1) {
+        return fabs(value(b0->extremum, d) - value(b0->saddle, d)) < fabs(value(b1->extremum, d) - value(b1->saddle, d));
+        // return value(b0->extremum, d) - value(b0->saddle, d) < value(b1->extremum, d) - value(b1->saddle, d);
+      });
+
+  while (minPriorityBranch != rootBranch && branchSet.size() > nLimit) {
+    minPriority = 1e38f; 
+    minPriorityBranch = rootBranch; 
+
+    std::list<ctBranch*>::iterator it_erase = branchList.end();
+    for (std::list<ctBranch*>::iterator it = branchList.begin(); it != branchList.end(); it ++) {
+      ctBranch *b = *it;
+      if (b->children.head == NULL) {
+        minPriority = fabs(value(b->extremum, d) - value(b->saddle, d));
+        minPriorityBranch = b;
+        it_erase = it;
+        break;
+      }
+    }
+
+    if (it_erase != branchList.end())
+      branchList.erase(it_erase);
+
+    // qDebug() << "priority =" << minPriority << "branch =" << minPriorityBranch; 
+
+    if (minPriorityBranch == rootBranch) break; 
+    ctBranch *parentBranch = minPriorityBranch->parent; 
+
+    ctBranchList_remove(&parentBranch->children, minPriorityBranch); 
+    branchSet.erase(minPriorityBranch); 
+  }
+}
+
+int XGCBlobExtractor::flood2D(size_t seed, int id, std::vector<int> &labels, double min, double max, void *d)
+{
+  // fprintf(stderr, "seed=%lu, id=%lu, min=%.10e, max=%.10e\n", seed, id, min, max);
+
+  XGCData *data = (XGCData*)d;
+
+  int count = 1;
+  std::queue<size_t> Q;
+  Q.push(seed);
+  labels[seed] = id;
+
+  while (!Q.empty()) {
+    size_t p = Q.front(); 
+    Q.pop();
+
+    size_t nbrs[32]; //TODO
+    size_t nnbrs = neighbors(p, nbrs, d);
+
+    for (int i=0; i<nnbrs; i++) {
+      const size_t neighbor = nbrs[i];
+
+      if (labels[neighbor] != id) {
+        double val = value(neighbor, d);
+        if (val >= min && val <= max) {
+          // fprintf(stderr, "true for %d, val=%.10e, min=%.10e, max=%.10e\n", neighbor, val, min, max);
+          Q.push(neighbor);
+          labels[neighbor] = id;
+          count ++;
+        }
+      }
+    }
+  }
+
+  return count;
+}
+  
+void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBranch*, size_t>& branchSet, int nStreamers, double percentage, void *d)
+{
+  std::vector<std::pair<const ctBranch*, double> > branchPersistences;
+  for (auto &kv : branchSet) {
+    branchPersistences.push_back(std::make_pair<const ctBranch*, double>(kv.first, value(kv.first->extremum, d) - value(kv.first->saddle, d)));
+  }
+  branchPersistences.push_back(std::make_pair<const ctBranch*, double>(root, value(root->saddle, d) - value(root->extremum, d)));
+
+  std::sort(branchPersistences.begin(), branchPersistences.end(), 
+    [](std::pair<const ctBranch*, double> p0, std::pair<const ctBranch*, double> p1) {
+      return p0.second < p1.second;
+    });
+
+  std::vector<int> labels(nNodes, 0);
+ 
+  // minimum streamers
+  for (int i=0; i<std::min((size_t)nStreamers, branchPersistences.size()); i++) {
+    size_t extremum;
+    if (branchPersistences[i].first == root)
+      extremum = branchPersistences[i].first->saddle; 
+    else 
+      extremum = branchPersistences[i].first->extremum;
+
+    double val_extremum = value(extremum, d);
+    const int myid = -1; // id++; // -i
+    int count = flood2D(extremum, myid, labels, val_extremum, percentage*val_extremum, d); // presumably the val is less than 0
+    fprintf(stderr, "count=%d\n", count);
+  }
+
+  // maximum streamers
+  for (int i=branchPersistences.size()-1; i>branchPersistences.size()-nStreamers-1; i--) {
+    size_t extremum = branchPersistences[i].first->extremum; // maximum
+    double val_extremum = value(extremum, d);
+    const int myid = 1; // id++;
+    int count = flood2D(extremum, myid, labels, val_extremum*percentage, val_extremum, d);
+    fprintf(stderr, "count=%d\n", count);
+  }
+
+  all_labels[plane] = labels;
+}
+
+
 void XGCBlobExtractor::simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *d)
 {
   // XGCData *data = (XGCData*)d;
@@ -185,46 +308,6 @@ RESTART:
       simplifyBranchDecompositionByThreshold(c, threshold, d);
     }
 }
-
-#if 0
-void XGCBlobExtractor::simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *d) // no more than a number
-{
-  float minPriority; // default is persistence
-  ctBranch *minPriorityBranch = NULL; 
-
-  qDebug() << "calculating priorities..."; 
-
-  QList< QPair<float, ctBranch*> > m_branchPriorityList; 
-  foreach (ctBranch *c, m_reverseBranchMap.keys()) {
-    // m_branchPriorityList << qMakePair(static_cast<float>(volumePriority(c, blk)), c); 
-    m_branchPriorityList << qMakePair(static_cast<float>(fabs(value(c->extremum, blk) - value(c->saddle, blk))), c); 
-  }
-  qStableSort(m_branchPriorityList); 
-
-  qDebug() << "simplifying branch decomposition..."; 
-  while (minPriorityBranch != m_rootBranch && m_reverseBranchMap.size() > nLimit) {
-    minPriority = 1e38f; 
-    minPriorityBranch = m_rootBranch; 
-
-    for (QList< QPair<float, ctBranch*> >::iterator itor=m_branchPriorityList.begin(); itor!=m_branchPriorityList.end(); itor++) {
-      if (itor->second->children.head == NULL) {
-        minPriority = itor->first; 
-        minPriorityBranch = itor->second; 
-        m_branchPriorityList.erase(itor); 
-        break; 
-      }
-    }
-
-    qDebug() << "priority =" << minPriority << "branch =" << minPriorityBranch; 
-
-    if (minPriorityBranch == m_rootBranch) break; 
-    ctBranch *parentBranch = minPriorityBranch->parent; 
-
-    ctBranchList_remove(&parentBranch->children, minPriorityBranch); 
-    m_reverseBranchMap.remove(minPriorityBranch); 
-  }
-}
-#endif
 
 void XGCBlobExtractor::buildContourTree2D(int plane)
 {
@@ -258,16 +341,21 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
 
   ct_sweepAndMerge(ctx);
   ctBranch *root = ct_decompose(ctx);
-  ctBranch **map = ct_branchMap(ctx);
+  ctBranch **branchMap = ct_branchMap(ctx);
+  
+  // build branchSet
+  std::map<ctBranch*, size_t> branchSet;
+  size_t nBranches = 0;
+  for (int i=0; i<nNodes; i++) {
+    if (branchSet.find(branchMap[i]) == branchSet.end()) {
+      size_t branchId = nBranches ++;
+      branchSet[branchMap[i]] = branchId;
+    }
+  }
 
-  simplifyBranchDecompositionByThreshold(root, 20, &data);
-
-  std::vector<size_t> labels(nNodes, 0);
-  buildSegmentation(root, labels, &data);
-  // for (int i=0; i<nNodes; i++) 
-  //   fprintf(stderr, "%d, %d\n", i, labels[i]);
-
-  all_labels[plane] = labels;
+  simplifyBranchDecompositionByNumbers(root, branchSet, 50, &data); // TODO
+  // addExtremumFromBranchDecomposition(plane, root, root, &data);
+  extractStreamers(plane, root, branchSet, 10, 0.1, &data); // TODO
 
   // printContourTree(root);
 
@@ -340,7 +428,7 @@ void XGCBlobExtractor::buildContourTree3D()
   }
  
   for (int i=0; i<nPhi; i++) {
-    std::vector<size_t> labels(nNodes, 0);
+    std::vector<int> labels(nNodes, 0);
     for (int j=0; j<nNodes; j++) {
       size_t branchId = branchSet[branchMap[i*nNodes + j]];
       labels[j] = branchId;
@@ -353,12 +441,12 @@ void XGCBlobExtractor::buildContourTree3D()
   if (persistenceThreshold > 0)
     simplifyBranchDecompositionByThreshold(root, persistenceThreshold, &data);
   
-  std::vector<size_t> labels(nNodes*nPhi, 0);
+  std::vector<int> labels(nNodes*nPhi, 0);
   buildSegmentation3D(root, labels, &data);
   // TODO
 
   for (int i=0; i<nPhi; i++) {
-    std::vector<size_t> l(nNodes);
+    std::vector<int> l(nNodes);
     std::copy(labels.begin() + i*nNodes, labels.begin() + (i+1)*nNodes - 1, l.begin());
     all_labels[i] = l;
   }
@@ -370,7 +458,7 @@ void XGCBlobExtractor::buildContourTree3D()
   fprintf(stderr, "built contour tree over 3D.\n");
 }
 
-void XGCBlobExtractor::buildSegmentation3D(ctBranch *b, std::vector<size_t> &labels, void *d)
+void XGCBlobExtractor::buildSegmentation3D(ctBranch *b, std::vector<int> &labels, void *d)
 {
   static int id = 1; // FIXME
   const int currentId = ++ id;
@@ -424,7 +512,7 @@ void XGCBlobExtractor::buildSegmentation3D(ctBranch *b, std::vector<size_t> &lab
     buildSegmentation3D(c, labels, d);
 }
 
-void XGCBlobExtractor::buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void *d)
+void XGCBlobExtractor::buildSegmentation(ctBranch *b, std::vector<int> &labels, void *d)
 {
   static int id = 1; // FIXME
   const int currentId = ++ id;

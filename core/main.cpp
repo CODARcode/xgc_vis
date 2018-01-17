@@ -8,7 +8,7 @@
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
 
-void writeUnstructredMeshData(MPI_Comm comm, int nNodes, int nTriangles, double *coords, int *conn_, double *dpot)
+void writeUnstructredMeshData(MPI_Comm comm, int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
   const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D", fileName="test.bp";
   int64_t groupHandle = -1, fileHandle = -1;
@@ -30,7 +30,9 @@ void writeUnstructredMeshData(MPI_Comm comm, int nNodes, int nTriangles, double 
   const std::string cellsName = "cells";
   const std::string numCellsName = "numCells";
   const std::string cellShape = "triangle"; // FIXME
-  const std::string varName = "dpot";
+  const std::string dpotName = "dpot";
+  const std::string psiName = "psi";
+  const std::string labelsName = "labels";
   const std::string centering = "point";
 
   adios_define_mesh_unstructured(
@@ -73,18 +75,44 @@ void writeUnstructredMeshData(MPI_Comm comm, int nNodes, int nTriangles, double 
       "0,0");
   adios_write_byid(fileHandle, cellId, &conn_[0]);
 
-  // fields
-  adios_define_var_mesh(groupHandle, varName.c_str(), meshName.c_str());
-  adios_define_var_centering(groupHandle, varName.c_str(), centering.c_str());
-  int64_t varId = adios_define_var(
+  // dpot
+  adios_define_var_mesh(groupHandle, dpotName.c_str(), meshName.c_str());
+  adios_define_var_centering(groupHandle, dpotName.c_str(), centering.c_str());
+  int64_t dpotId = adios_define_var(
       groupHandle, 
-      varName.c_str(), 
+      dpotName.c_str(), 
       "",
       adios_double, 
       std::to_string(nNodes).c_str(), 
       std::to_string(nNodes).c_str(),
       "0");
-  adios_write_byid(fileHandle, varId, dpot);
+  adios_write_byid(fileHandle, dpotId, dpot);
+  
+  // psi
+  adios_define_var_mesh(groupHandle, psiName.c_str(), meshName.c_str());
+  adios_define_var_centering(groupHandle, psiName.c_str(), centering.c_str());
+  int64_t psiId = adios_define_var(
+      groupHandle, 
+      psiName.c_str(), 
+      "",
+      adios_double, 
+      std::to_string(nNodes).c_str(), 
+      std::to_string(nNodes).c_str(),
+      "0");
+  adios_write_byid(fileHandle, psiId, psi);
+
+  // labels
+  adios_define_var_mesh(groupHandle, labelsName.c_str(), meshName.c_str());
+  adios_define_var_centering(groupHandle, labelsName.c_str(), centering.c_str());
+  int64_t labelsId = adios_define_var(
+      groupHandle, 
+      labelsName.c_str(), 
+      "",
+      adios_integer, 
+      std::to_string(nNodes).c_str(), 
+      std::to_string(nNodes).c_str(),
+      "0");
+  adios_write_byid(fileHandle, labelsId, labels);
 
   adios_close(fileHandle);
 }
@@ -135,7 +163,7 @@ int main(int argc, char **argv)
   fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
   fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
   fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
-  fprintf(stderr, "persistence_threshold=%f\n", persistence_threshold);
+  // fprintf(stderr, "persistence_threshold=%.03e\n", persistence_threshold);
   fprintf(stderr, "==========================================\n");
 
   int read_method;
@@ -160,9 +188,11 @@ int main(int argc, char **argv)
   readValueInt(varFP, "nphi", &nPhi);
 
   fprintf(stderr, "reading mesh...\n");
-  double *coords; 
+  double *coords;
   int *conn;
+  double *psi; 
   readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
+  readScalars<double>(meshFP, "psi", &psi);
   // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
   //     nNodes, nTriangles, nPhi);
 
@@ -175,13 +205,19 @@ int main(int argc, char **argv)
   fprintf(stderr, "starting analysis..\n");
   XGCBlobExtractor *extractor = new XGCBlobExtractor(nNodes, nTriangles, nPhi, coords, conn);
   extractor->setData(dpot);
-  extractor->setPersistenceThreshold(persistence_threshold);
-  extractor->buildContourTree3D();
+  // extractor->setPersistenceThreshold(persistence_threshold);
+  // extractor->buildContourTree3D();
+  extractor->buildContourTree2D(0);
+
+  int *labels = extractor->getLabels(0).data();
 
   fprintf(stderr, "dumping results..\n"); // TODO
-  // extractor->dumpMesh("xgc.mesh.json"); // only need to dump once
+  writeUnstructredMeshData(MPI_COMM_WORLD, nNodes, nTriangles, coords, conn, dpot, psi, labels);
+#if 0
+  extractor->dumpMesh("xgc.mesh.json"); // only need to dump once
   extractor->dumpBranchDecompositions("xgc.branches.json");
   extractor->dumpLabels("xgc.labels.bin");
+#endif
 
   delete extractor;
   free(dpot);
