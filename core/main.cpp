@@ -23,7 +23,7 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
   adios_delete_vardefs(groupHandle);
   adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
 
-  fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
+  // fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
 
   const std::string pointsName = "points";
   const std::string numPointsName = "numPoints";
@@ -208,13 +208,15 @@ int main(int argc, char **argv)
 
   int *labels = extractor->getLabels(0).data();
 
-  fprintf(stderr, "dumping results..\n"); // TODO
+  fprintf(stderr, "dumping results..\n"); 
   writeUnstructredMeshData(MPI_COMM_WORLD, filename_output, write_method_str, nNodes, nTriangles, coords, conn, dpot, psi, labels);
 #if 0
   extractor->dumpMesh("xgc.mesh.json"); // only need to dump once
   extractor->dumpBranchDecompositions("xgc.branches.json");
   extractor->dumpLabels("xgc.labels.bin");
 #endif
+  
+  fprintf(stderr, "done.\n"); 
 
   delete extractor;
   free(dpot);
