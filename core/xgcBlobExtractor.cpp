@@ -355,7 +355,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
 
   // simplifyBranchDecompositionByNumbers(root, branchSet, 50, &data); // TODO
   // addExtremumFromBranchDecomposition(plane, root, root, &data);
-  extractStreamers(plane, root, branchSet, 10, 0.1, &data); // TODO
+  extractStreamers(plane, root, branchSet, 80, 0.1, &data); // TODO
 
   // printContourTree(root);
 
