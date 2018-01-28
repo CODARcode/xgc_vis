@@ -223,7 +223,7 @@ int main(int argc, char **argv)
     ("input,i", value<std::string>(), "input_file")
     ("output,o", value<std::string>(), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
-    ("write_method,w", value<std::string>()->default_value("POSIX"), "write_method (POSIX|MPI)")
+    ("write_method,w", value<std::string>()->default_value("NONE"), "write_method (NONE|POSIX|MPI)")
     ("wsserver,s", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
     ("h", "display this information");
@@ -259,8 +259,7 @@ int main(int argc, char **argv)
   fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
   fprintf(stderr, "==========================================\n");
 
-  int read_method;
-
+  ADIOS_READ_METHOD read_method;
   if (read_method_str == "BP") read_method = ADIOS_READ_METHOD_BP;
   else if (read_method_str == "DATASPACES") read_method = ADIOS_READ_METHOD_DATASPACES;
   else if (read_method_str == "DIMES") read_method = ADIOS_READ_METHOD_DIMES;
@@ -270,15 +269,11 @@ int main(int argc, char **argv)
     MPI_Abort(MPI_COMM_WORLD, 0);
   }
 
-  /// start
-  ADIOS_FILE *meshFP = adios_read_open_file(filename_mesh.c_str(), ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-  ADIOS_FILE *varFP = adios_read_open_file(filename_input.c_str(), ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-    
+  /// read mesh
+  ADIOS_FILE *meshFP = adios_read_open_file(filename_mesh.c_str(), ADIOS_READ_METHOD_BP, MPI_COMM_WORLD); // always use ADIOS_READ_METHOD_BP for mesh
   adios_read_bp_reset_dimension_order(meshFP, 0);
-  adios_read_bp_reset_dimension_order(varFP, 0);
-
-  int nNodes, nTriangles, nPhi;
-  readValueInt(varFP, "nphi", &nPhi);
+  
+  int nNodes, nTriangles;
 
   fprintf(stderr, "reading mesh...\n");
   double *coords;
@@ -286,41 +281,53 @@ int main(int argc, char **argv)
   double *psi; 
   readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
   readScalars<double>(meshFP, "psi", &psi);
-  // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
-  //     nNodes, nTriangles, nPhi);
   
-  fprintf(stderr, "reading data...\n");
-  double *dpot;
-  readScalars<double>(varFP, "dpot", &dpot);
-
-  // writeUnstructredMeshData(MPI_COMM_WORLD, nNodes, nTriangles, coords, conn, dpot);
-  
-  ex = new XGCBlobExtractor(nNodes, nTriangles, nPhi, coords, conn);
+  // starting server
+  ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
   
   if (vm.count("wsserver")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
   }
 
-  fprintf(stderr, "starting analysis..\n");
+  // read data
+  // ADIOS_FILE *varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
+  ADIOS_FILE *varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_NONE, -1.0);
+  // adios_read_bp_reset_dimension_order(varFP, 0);
 
-  mutex_ex.lock();
-  ex->setData(dpot);
-  // ex->setPersistenceThreshold(persistence_threshold);
-  // ex->buildContourTree3D();
-  ex->buildContourTree2D(0);
-  mutex_ex.unlock();
+  while (adios_errno != err_end_of_stream) {
+    fprintf(stderr, "reading data...\n");
 
-  int *labels = ex->getLabels(0).data();
+    int nPhi;
+    readValueInt(varFP, "nphi", &nPhi);
 
-  fprintf(stderr, "dumping results..\n"); 
-  writeUnstructredMeshData(MPI_COMM_WORLD, filename_output, write_method_str, nNodes, nTriangles, coords, conn, dpot, psi, labels);
+    double *dpot;
+    readScalars<double>(varFP, "dpot", &dpot);
+
+    fprintf(stderr, "starting analysis..\n");
+
+    mutex_ex.lock();
+    ex->setData(nPhi, dpot);
+    // ex->setPersistenceThreshold(persistence_threshold);
+    // ex->buildContourTree3D();
+    ex->buildContourTree2D(0);
+    mutex_ex.unlock();
+
+    int *labels = ex->getLabels(0).data();
+
+    if (write_method_str != "NONE") {
+      fprintf(stderr, "dumping results..\n"); 
+      writeUnstructredMeshData(MPI_COMM_WORLD, filename_output, write_method_str, nNodes, nTriangles, coords, conn, dpot, psi, labels);
 #if 0
-  ex->dumpMesh("xgc.mesh.json"); // only need to dump once
-  ex->dumpBranchDecompositions("xgc.branches.json");
-  ex->dumpLabels("xgc.labels.bin");
+      ex->dumpMesh("xgc.mesh.json"); // only need to dump once
+      ex->dumpBranchDecompositions("xgc.branches.json");
+      ex->dumpLabels("xgc.labels.bin");
 #endif
-  
-  fprintf(stderr, "done.\n"); 
+    }
+    
+    free(dpot);
+    fprintf(stderr, "done.\n");
+    adios_advance_step(varFP, 0, 1.0);
+  }
   
   if (ws_thread) {
     fprintf(stderr, "shutting down wsserver...\n");
@@ -329,7 +336,6 @@ int main(int argc, char **argv)
 
   delete ex;
   ex = NULL;
-  free(dpot);
   free(coords);
   free(conn);
 

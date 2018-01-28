@@ -13,12 +13,12 @@ class XGCBlobExtractor
   using json = nlohmann::json;
 
 public:
-  XGCBlobExtractor(int nNodes, int nTriangles, int nPhi, double *coords, int *conn); 
+  XGCBlobExtractor(int nNodes, int nTriangles, double *coords, int *conn); 
   ~XGCBlobExtractor() {}
 
   int getNNodes() const {return nNodes;}
 
-  void setData(double *dpot);
+  void setData(int nPhi, double *dpot);
   const double *getData() const {return dpot;}
   void setPersistenceThreshold(double threshold) {persistenceThreshold = threshold;}
 

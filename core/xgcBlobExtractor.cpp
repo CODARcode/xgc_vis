@@ -6,8 +6,8 @@
 
 using json = nlohmann::json;
 
-XGCBlobExtractor::XGCBlobExtractor(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_) :
-  nNodes(nNodes_), nTriangles(nTriangles_), nPhi(nPhi_), 
+XGCBlobExtractor::XGCBlobExtractor(int nNodes_, int nTriangles_, double *coords_, int *conn_) :
+  nNodes(nNodes_), nTriangles(nTriangles_), nPhi(1), 
   coords(coords_, coords_ + nNodes_*2), 
   conn(conn_, conn_ + 3*nTriangles_),
   persistenceThreshold(0)
@@ -584,8 +584,9 @@ void XGCBlobExtractor::extractExtremum(int plane, double *dpot_)
   }
 }
 
-void XGCBlobExtractor::setData(double *dpot_)
+void XGCBlobExtractor::setData(int nPhi_, double *dpot_)
 {
+  nPhi = nPhi_;
   dpot = dpot_;
 #if 0
   const float min = -100, max = 100;
