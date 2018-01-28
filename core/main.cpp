@@ -82,7 +82,13 @@ void startWebsocketServer(int port)
     char hostname[1024];
     gethostname(hostname, 1024);
     fprintf(stderr, "=================WEBSOCKET================\n");
-    fprintf(stderr, "hostname=%s\n", hostname);
+    // fprintf(stderr, "hostname=%s\n", hostname);
+    fprintf(stderr, "In order to view analysis results, you need to follow two steps:\n");
+    fprintf(stderr, " 1. Create a SSH tunnel on your machine:\n\n");
+    fprintf(stderr, "  $ ssh -L 9002:%s:9002 titan-internal.ccs.ornl.gov -N\n\n", hostname);
+    fprintf(stderr, " On PASSWORD, you need to enter your PIN and 6-digits numbers on your token.\n\n");
+    fprintf(stderr, " 2. Open your web browser (we recommend Google Chrome or Safari), and open the following webpage:\n\n   http://www.mcs.anl.gov/~hguo/xgc\n\n");
+    fprintf(stderr, "If you have any technical difficulties, please contact Hanqi Guo (hguo@anl.gov) directly.\n");
     fprintf(stderr, "==========================================\n");
 
     // Start the ASIO io_service run loop
