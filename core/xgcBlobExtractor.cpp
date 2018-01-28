@@ -134,7 +134,7 @@ static double volumePriority(ctNode *node, void *d)
 
 static void printContourTree(ctBranch* b)
 {
-  fprintf(stderr, "%d, %d, %p\n", b->extremum, b->saddle, b->children.head);
+  fprintf(stderr, "%lu, %lu, %p\n", b->extremum, b->saddle, b->children.head);
   
   for (ctBranch* c = b->children.head; c != NULL; c = c->nextChild) 
     printContourTree(c);
@@ -324,6 +324,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
 
   std::sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
+        // fprintf(stderr, "%.08e, %.08e\n", data.dpot[v0], data.dpot[v1]);
         return data.dpot[v0] < data.dpot[v1];
         // if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
         // else return data.dpot[v0] < data.dpot[v1];
@@ -588,6 +589,13 @@ void XGCBlobExtractor::setData(int nPhi_, double *dpot_)
 {
   nPhi = nPhi_;
   dpot = dpot_;
+
+#if 0
+  for (int i=0; i<nNodes; i++) {
+    dpot[i] = dpot[i] * 10; // * 1e14 + (double)rand()/RAND_MAX;
+    fprintf(stderr, "%.08e\n", dpot[i]);
+  }
+#endif
 #if 0
   const float min = -100, max = 100;
 
