@@ -309,7 +309,7 @@ int main(int argc, char **argv)
     varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
   else 
     varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
-  adios_read_bp_reset_dimension_order(varFP, 0);
+  // adios_read_bp_reset_dimension_order(varFP, 0);
     
   double *dpot = NULL;
 
@@ -327,8 +327,11 @@ int main(int argc, char **argv)
     adios_inq_var_blockinfo(varFP, avi);
     adios_inq_var_meshinfo(varFP, avi);
 
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {nPhi, static_cast<uint64_t>(nNodes), 1, 1};
+    // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {nPhi, static_cast<uint64_t>(nNodes), 1, 1};
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), nPhi, 1, 1};
     ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
+    // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
+
     assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
     if (dpot == NULL) 
