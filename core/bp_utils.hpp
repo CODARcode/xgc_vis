@@ -58,7 +58,7 @@ bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **c
   // read triangles
   readScalars<int>(fp, "/cell_set[0]/node_connect_list", conn);
   
-  fprintf(stderr, "nNodes=%d, nTriangles=%d\n", 
+  fprintf(stderr, "mesh loaded: nNodes=%d, nTriangles=%d\n", 
       nNodes, nTriangles);
 
   return true;

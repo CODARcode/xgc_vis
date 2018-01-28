@@ -181,30 +181,34 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
   adios_write_byid(fileHandle, dpotId, dpot);
   
   // psi
-  adios_define_var_mesh(groupHandle, psiName.c_str(), meshName.c_str());
-  adios_define_var_centering(groupHandle, psiName.c_str(), centering.c_str());
-  int64_t psiId = adios_define_var(
-      groupHandle, 
-      psiName.c_str(), 
-      "",
-      adios_double, 
-      std::to_string(nNodes).c_str(), 
-      std::to_string(nNodes).c_str(),
-      "0");
-  adios_write_byid(fileHandle, psiId, psi);
+  if (psi != NULL) {
+    adios_define_var_mesh(groupHandle, psiName.c_str(), meshName.c_str());
+    adios_define_var_centering(groupHandle, psiName.c_str(), centering.c_str());
+    int64_t psiId = adios_define_var(
+        groupHandle, 
+        psiName.c_str(), 
+        "",
+        adios_double, 
+        std::to_string(nNodes).c_str(), 
+        std::to_string(nNodes).c_str(),
+        "0");
+    adios_write_byid(fileHandle, psiId, psi);
+  }
 
   // labels
-  adios_define_var_mesh(groupHandle, labelsName.c_str(), meshName.c_str());
-  adios_define_var_centering(groupHandle, labelsName.c_str(), centering.c_str());
-  int64_t labelsId = adios_define_var(
-      groupHandle, 
-      labelsName.c_str(), 
-      "",
-      adios_integer, 
-      std::to_string(nNodes).c_str(), 
-      std::to_string(nNodes).c_str(),
-      "0");
-  adios_write_byid(fileHandle, labelsId, labels);
+  if (labels != NULL) {
+    adios_define_var_mesh(groupHandle, labelsName.c_str(), meshName.c_str());
+    adios_define_var_centering(groupHandle, labelsName.c_str(), centering.c_str());
+    int64_t labelsId = adios_define_var(
+        groupHandle, 
+        labelsName.c_str(), 
+        "",
+        adios_integer, 
+        std::to_string(nNodes).c_str(), 
+        std::to_string(nNodes).c_str(),
+        "0");
+    adios_write_byid(fileHandle, labelsId, labels);
+  }
 
   adios_close(fileHandle);
 }
@@ -269,15 +273,14 @@ int main(int argc, char **argv)
     MPI_Abort(MPI_COMM_WORLD, 0);
   }
 
-  adios_read_init_method(read_method, MPI_COMM_WORLD, "");
-
   /// read mesh
+  adios_read_init_method(read_method, MPI_COMM_WORLD, "");
   ADIOS_FILE *meshFP = NULL;
   while (1) {
     meshFP = adios_read_open_file(filename_mesh.c_str(), ADIOS_READ_METHOD_BP, MPI_COMM_WORLD); // always use ADIOS_READ_METHOD_BP for mesh
     if (meshFP == NULL) {
-      fprintf(stderr, "failed to open mesh: %s, will retry in 1 second.\n", filename_mesh.c_str()); 
-      sleep(1);
+      fprintf(stderr, "failed to open mesh: %s, will retry in 5 seconds.\n", filename_mesh.c_str()); 
+      sleep(5);
     } else break;
   }
   adios_read_bp_reset_dimension_order(meshFP, 0);
@@ -299,12 +302,15 @@ int main(int argc, char **argv)
   }
 
   // read data
+  fprintf(stderr, "opening data stream...\n");
   ADIOS_FILE *varFP;
   if (read_method == ADIOS_READ_METHOD_BP)
     varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
   else 
-    varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
-  adios_read_bp_reset_dimension_order(varFP, 0);
+    varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_NONE, -1.0);
+
+  fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
+  // adios_read_bp_reset_dimension_order(varFP, 0);
 
   while (adios_errno != err_end_of_stream) {
     fprintf(stderr, "reading data...\n");
@@ -316,6 +322,11 @@ int main(int argc, char **argv)
     readScalars<double>(varFP, "dpot", &dpot);
 
     fprintf(stderr, "starting analysis..\n");
+   
+    fprintf(stderr, "writing original data for test.\n");
+    writeUnstructredMeshData(MPI_COMM_WORLD, "temp.bp", 
+        write_method_str, nNodes, nTriangles, coords, conn, dpot, NULL, NULL); // psi, labels);
+    fprintf(stderr, "original data written.\n");
 
     mutex_ex.lock();
     ex->setData(nPhi, dpot);

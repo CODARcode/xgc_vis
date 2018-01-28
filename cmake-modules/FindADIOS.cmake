@@ -193,7 +193,7 @@ if(ADIOS_FOUND)
             message(STATUS "Found ${_LIB} in ${_LIB_DIR}")
             list(APPEND ADIOS_LIBRARIES "${_LIB_DIR}")
         else(_LIB_DIR)
-            set(ADIOS_FOUND FALSE)
+          # set(ADIOS_FOUND FALSE)
             message(STATUS "ADIOS: Could NOT find library '${_LIB}'")
         endif(_LIB_DIR)
 
