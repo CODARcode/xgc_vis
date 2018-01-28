@@ -22,16 +22,18 @@ function requestData() {
   else connectToServer();
 }
 
-function connectToServer() {
+function connectToServer(ip, port) {
   console.log("connecting to server...");
   // ws = new WebSocket("ws://red.mcs.anl.gov:8080");
-  ws = new WebSocket(wsUri);
+  uri = 'ws://' + ip + ':' + port;
+  ws = new WebSocket(uri);
   
   // ws.binaryType = "arraybuffer";
   ws.onopen = onOpen;
   ws.onclose = onClose;
   ws.onerror = onError;
   ws.onmessage = onMessage;
+  $('#loading').show();
 }
 
 function onOpen(evt)
@@ -44,6 +46,7 @@ function onOpen(evt)
 function onClose(evt)
 {
   console.log("connection closed");
+  connectionDialog.error();
 }
 
 function onMessage(evt)
@@ -61,7 +64,23 @@ function onMessage(evt)
 
 function onError(evt)
 {
-  console.log("error");
+  connectionDialog.error();
 }
 
-connectToServer();
+(function repeatRequestingData() {
+  function repeatRequest() {
+    requestData();
+  }
+  var repeatRequesting;
+
+  updateRepeatRequestingSpeed = function(intervalSeconds) {
+    repeatRequest();
+    if (repeatRequesting != undefined) clearInterval(repeatRequesting);
+    repeatRequesting = setInterval(repeatRequest, intervalSeconds*1000);
+  };
+
+  cancelRepeatRequesting = function() {
+    if (repeatRequesting != undefined) clearInterval(repeatRequesting);
+  };
+})();
+
