@@ -224,9 +224,8 @@ int main(int argc, char **argv)
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI)")
-    ("ws", "enable websocket server")
+    ("ws,s", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
-    ("online", "online mode")
     ("h", "display this information");
   
   positional_options_description posdesc;
@@ -270,6 +269,8 @@ int main(int argc, char **argv)
     MPI_Abort(MPI_COMM_WORLD, 0);
   }
 
+  adios_read_init_method(read_method, MPI_COMM_WORLD, "");
+
   /// read mesh
   ADIOS_FILE *meshFP = NULL;
   while (1) {
@@ -299,10 +300,10 @@ int main(int argc, char **argv)
 
   // read data
   ADIOS_FILE *varFP;
-  if (vm.count("online"))
-    varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
-  else 
+  if (read_method == ADIOS_READ_METHOD_BP)
     varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
+  else 
+    varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
   adios_read_bp_reset_dimension_order(varFP, 0);
 
   while (adios_errno != err_end_of_stream) {
@@ -337,9 +338,9 @@ int main(int argc, char **argv)
     
     free(dpot);
     fprintf(stderr, "done.\n");
-    if (vm.count("online"))
+    if (read_method == ADIOS_READ_METHOD_BP) break;
+    else 
       adios_advance_step(varFP, 0, 1.0);
-    else break;
   }
   
   if (ws_thread) {
