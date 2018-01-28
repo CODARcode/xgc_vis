@@ -15,7 +15,7 @@ bool readValueInt(ADIOS_FILE *fp, const char *nm, int *val)
 }
 
 
-template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr)
+template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr, bool allocate=true)
 {
   ADIOS_VARINFO *avi = adios_inq_var(fp, var);
   if (avi == NULL) return false;
@@ -37,7 +37,8 @@ template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr)
   ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
   assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
-  *arr = (T*)malloc(sizeof(double)*nt);
+  if (allocate) 
+    *arr = (T*)malloc(sizeof(double)*nt);
 
   adios_schedule_read_byid(fp, sel, avi->varid, 0, 1, *arr);
   int retval = adios_perform_reads(fp, 1);

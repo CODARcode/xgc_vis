@@ -40,10 +40,14 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["data"] = ex->jsonfyMesh();
   } else if (incoming["type"] == "requestData") {
     outgoing["type"] = "data";
+
     mutex_ex.lock();
-    std::vector<double> dpot(ex->getData(), ex->getData() + ex->getNNodes());
+    const int nnodes = ex->getNNodes();
+    const double *ptr = ex->getData(); 
+    std::vector<double> dpot(ptr, ptr + nnodes);
     std::vector<int> labels = ex->getLabels(0);
     mutex_ex.unlock();
+    
     outgoing["data"] = dpot;
     outgoing["labels"] = labels;
   } else if (incoming["type"] == "stopServer") {
@@ -290,6 +294,7 @@ int main(int argc, char **argv)
   double *psi; 
   readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
   readScalars<double>(meshFP, "psi", &psi);
+  // adios_close(*meshFP);
   
   // starting server
   ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
@@ -305,15 +310,33 @@ int main(int argc, char **argv)
   else 
     varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
   adios_read_bp_reset_dimension_order(varFP, 0);
+    
+  double *dpot = NULL;
 
   while (adios_errno != err_end_of_stream) {
     fprintf(stderr, "reading data...\n");
 
-    int nPhi;
-    readValueInt(varFP, "nphi", &nPhi);
+    const int nPhi=1;
+    // readValueInt(varFP, "nphi", &nPhi);
+    // readScalars<double>(varFP, "dpot", &dpot);
 
-    double *dpot;
-    readScalars<double>(varFP, "dpot", &dpot);
+    ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
+    assert(avi != NULL);
+
+    adios_inq_var_stat(varFP, avi, 0, 0);
+    adios_inq_var_blockinfo(varFP, avi);
+    adios_inq_var_meshinfo(varFP, avi);
+
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {nPhi, static_cast<uint64_t>(nNodes), 1, 1};
+    ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
+    assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
+
+    if (dpot == NULL) 
+      dpot = (double*)malloc(sizeof(double)*nPhi*nNodes);
+
+    adios_schedule_read_byid(varFP, sel, avi->varid, 0, 1, dpot);
+    adios_perform_reads(varFP, 1);
+    adios_selection_delete(sel);
 
     fprintf(stderr, "starting analysis..\n");
 
@@ -336,7 +359,6 @@ int main(int argc, char **argv)
 #endif
     }
     
-    free(dpot);
     fprintf(stderr, "done.\n");
     if (read_method == ADIOS_READ_METHOD_BP) break;
     else 
@@ -347,7 +369,10 @@ int main(int argc, char **argv)
     fprintf(stderr, "shutting down wsserver...\n");
     ws_thread->join();
   }
+   
+  // adios_close(*varFP);
 
+  if (dpot != NULL) free(dpot);
   delete ex;
   ex = NULL;
   free(coords);
