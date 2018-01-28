@@ -1,5 +1,6 @@
-const wsUri = "ws://localhost:9002";
+const wsUri = "ws://192.168.0.14:9003";
 var ws;
+var data = {};
 
 function requestMesh() {
   console.log("requesting mesh...");
@@ -49,10 +50,12 @@ function onMessage(evt)
 {
   var msg = JSON.parse(evt.data);
   if (msg.type == "mesh") {
+    console.log(msg.data);
     updateMesh(msg.data);
   } else if (msg.type == "data") {
     console.log(msg.data);
     console.log(msg.labels);
+    updateData(msg.data, msg.labels);
   }
 }
 

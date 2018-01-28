@@ -75,24 +75,72 @@ function onResize() {
   cameraControls.handleResize();
 }
 
+var geom;
+var material;
 function updateMesh(mesh) {
+  data.mesh = mesh;
   console.log("updating mesh...");
-
-  var geom = new THREE.Geometry();
-  for (var i = 0; i < mesh.nNodes; i ++) {
-    geom.vertices.push(new THREE.Vector3(mesh.coords[i*2] - 1.7, mesh.coords[i*2+1], 0));
+  geom = new THREE.Geometry();
+  for (var i = 0; i < data.mesh.nNodes; i ++) {
+    geom.vertices.push(new THREE.Vector3(data.mesh.coords[i*2] - 1.7, data.mesh.coords[i*2+1], 0));
   }
-  for (var i = 0; i < mesh.nTriangles; i ++) {
-    var face = new THREE.Face3(mesh.conn[i*3], mesh.conn[i*3+1], mesh.conn[i*3+2]);
-    face.color.setRGB( Math.random(), Math.random(), Math.random() );
+  for (var i = 0; i < data.mesh.nTriangles; i ++) {
+    var face = new THREE.Face3(data.mesh.conn[i*3], data.mesh.conn[i*3+1], data.mesh.conn[i*3+2], null);// , new THREE.Color(Math.random() * 0xfffffff));
     geom.faces.push(face);
+    face.color.set(new THREE.Color(Math.random() * 0xfffffff));
   }
 
-  var material = new THREE.MeshBasicMaterial( { color: 0x000000, wireframe: false, vertexColors: THREE.FaceColors } );
+  material = new THREE.MeshBasicMaterial( {vertexColors: THREE.VertexColors, side: THREE.DoubleSide} );
   var obj = new THREE.Mesh( geom, material );
   scene.add(obj);
 
   requestData();
+}
+
+function updateData(values, labels) {
+  data.values = values;
+  data.labels = labels;
+  var range = {};
+  range.max = Math.max(...data.values);
+  range.min = Math.min(...data.values);
+  var colorScale = function(v, positive, negative, zero) {
+    var c = zero;
+    if (v > 0) c = positive * v / range.max;
+    if (v < 0) c = negative * v / range.min;
+    return new THREE.Color(c);
+  };
+  for (var i = 0; i < geom.faces.length; i ++) {
+    var face = geom.faces[i];
+    /* var l1 = data.labels[face.a];
+    var l2 = data.labels[face.b];
+    var l3 = data.labels[face.c];
+    var labelColor = new THREE.Color(0x000000);
+    if (l1 === l2 && l2 === l3) {
+      if (l1 === 0) {
+        labelColor = new THREE.Color(0x000000);
+      }
+      else if (l1 === 1) {
+        labelColor = new THREE.Color(0xff0000);
+      }
+      else {
+        labelColor = new THREE.Color(0x0000ff);
+      }
+    }
+    geom.faces[i].color.set(labelColor); */
+
+    var v1 = data.values[face.a];
+    var v2 = data.values[face.b];
+    var v3 = data.values[face.c];
+    var positive = 0x00ff00;
+    var negative = 0xff0000;
+    var zero = 0xffffff;
+    geom.faces[i].vertexColors[0] = colorScale(v1, positive, negative, zero);
+    geom.faces[i].vertexColors[1] = colorScale(v2, positive, negative, zero);
+    geom.faces[i].vertexColors[2] = colorScale(v3, positive, negative, zero);
+  }
+  geom.colorsNeedUpdate = true;
+  material.vertexColors = THREE.VertexColors;
+  material.needsUpdate = true;
 }
 
 initializeControlPanel();
