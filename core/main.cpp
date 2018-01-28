@@ -78,6 +78,12 @@ void startWebsocketServer(int port)
 
     // Start the server accept loop
     wsserver.start_accept();
+ 
+    char hostname[1024];
+    gethostname(hostname, 1024);
+    fprintf(stderr, "=================WEBSOCKET================\n");
+    fprintf(stderr, "hostname=%s\n", hostname);
+    fprintf(stderr, "==========================================\n");
 
     // Start the ASIO io_service run loop
     wsserver.run();
