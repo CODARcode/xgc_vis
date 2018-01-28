@@ -224,9 +224,9 @@ int main(int argc, char **argv)
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI)")
-    ("wsserver,w", "enable websocket server")
+    ("ws", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
-    ("standalone,s", "standalone mode")
+    ("online", "online mode")
     ("h", "display this information");
   
   positional_options_description posdesc;
@@ -286,16 +286,16 @@ int main(int argc, char **argv)
   // starting server
   ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
   
-  if (vm.count("wsserver")) {
+  if (vm.count("ws")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
   }
 
   // read data
   ADIOS_FILE *varFP;
-  if (vm.count("standalone"))
-    varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
+  if (vm.count("online"))
+    varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
   else 
-    adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
+    varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
   adios_read_bp_reset_dimension_order(varFP, 0);
 
   while (adios_errno != err_end_of_stream) {
