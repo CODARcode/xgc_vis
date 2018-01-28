@@ -221,9 +221,9 @@ int main(int argc, char **argv)
   opts.add_options()
     ("mesh,m", value<std::string>(), "mesh_file")
     ("input,i", value<std::string>(), "input_file")
-    ("output,o", value<std::string>(), "output_file")
+    ("output,o", value<std::string>()->default_value(""), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
-    ("write_method,w", value<std::string>()->default_value("NONE"), "write_method (NONE|POSIX|MPI)")
+    ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI)")
     ("wsserver,w", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
     ("standalone,s", "standalone mode")
@@ -232,7 +232,7 @@ int main(int argc, char **argv)
   positional_options_description posdesc;
   posdesc.add("mesh", 1);
   posdesc.add("input", 1);
-  posdesc.add("output", 1);
+  // posdesc.add("output", 1);
   
   variables_map vm;
   store(command_line_parser(argc, argv).options(opts)
@@ -241,7 +241,7 @@ int main(int argc, char **argv)
       .run(), vm);
   notify(vm);
 
-  if (!vm.count("mesh") || !vm.count("input") || !vm.count("output") || vm.count("h")) {
+  if (!vm.count("mesh") || !vm.count("input") || vm.count("h")) {
     std::cout << opts << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
 
     int *labels = ex->getLabels(0).data();
 
-    if (write_method_str != "NONE") {
+    if (filename_output.length() > 0) {
       fprintf(stderr, "dumping results..\n"); 
       writeUnstructredMeshData(MPI_COMM_WORLD, filename_output, write_method_str, nNodes, nTriangles, coords, conn, dpot, psi, labels);
 #if 0
