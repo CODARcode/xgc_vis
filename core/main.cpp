@@ -85,7 +85,7 @@ void startWebsocketServer(int port)
     // fprintf(stderr, "hostname=%s\n", hostname);
     fprintf(stderr, "In order to view analysis results, you need to follow two steps:\n");
     fprintf(stderr, " 1. Create a SSH tunnel on your machine:\n\n");
-    fprintf(stderr, "  $ ssh -L 9002:%s:9002 titan-internal.ccs.ornl.gov -N\n\n", hostname);
+    fprintf(stderr, "  $ ssh -L %d:%s:%d titan-internal.ccs.ornl.gov -N\n\n", port, hostname, port);
     fprintf(stderr, " On PASSWORD, you need to enter your PIN and 6-digits numbers on your token.\n\n");
     fprintf(stderr, " 2. Open your web browser (we recommend Google Chrome or Safari), and open the following webpage:\n\n   http://www.mcs.anl.gov/~hguo/xgc\n\n");
     fprintf(stderr, "If you have any technical difficulties, please contact Hanqi Guo (hguo@anl.gov) directly.\n");
@@ -271,7 +271,14 @@ int main(int argc, char **argv)
   }
 
   /// read mesh
-  ADIOS_FILE *meshFP = adios_read_open_file(filename_mesh.c_str(), ADIOS_READ_METHOD_BP, MPI_COMM_WORLD); // always use ADIOS_READ_METHOD_BP for mesh
+  ADIOS_FILE *meshFP = NULL;
+  while (1) {
+    meshFP = adios_read_open_file(filename_mesh.c_str(), ADIOS_READ_METHOD_BP, MPI_COMM_WORLD); // always use ADIOS_READ_METHOD_BP for mesh
+    if (meshFP == NULL) {
+      fprintf(stderr, "failed to open mesh: %s, will retry in 1 second.\n", filename_mesh.c_str()); 
+      sleep(1);
+    } else break;
+  }
   adios_read_bp_reset_dimension_order(meshFP, 0);
   
   int nNodes, nTriangles;
@@ -330,7 +337,9 @@ int main(int argc, char **argv)
     
     free(dpot);
     fprintf(stderr, "done.\n");
-    adios_advance_step(varFP, 0, 1.0);
+    if (vm.count("online"))
+      adios_advance_step(varFP, 0, 1.0);
+    else break;
   }
   
   if (ws_thread) {
