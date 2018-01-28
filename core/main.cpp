@@ -224,8 +224,9 @@ int main(int argc, char **argv)
     ("output,o", value<std::string>(), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("NONE"), "write_method (NONE|POSIX|MPI)")
-    ("wsserver,s", "enable websocket server")
+    ("wsserver,w", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
+    ("standalone,s", "standalone mode")
     ("h", "display this information");
   
   positional_options_description posdesc;
@@ -290,9 +291,12 @@ int main(int argc, char **argv)
   }
 
   // read data
-  // ADIOS_FILE *varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
-  ADIOS_FILE *varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_NONE, -1.0);
-  // adios_read_bp_reset_dimension_order(varFP, 0);
+  ADIOS_FILE *varFP;
+  if (vm.count("standalone"))
+    varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
+  else 
+    adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
+  adios_read_bp_reset_dimension_order(varFP, 0);
 
   while (adios_errno != err_end_of_stream) {
     fprintf(stderr, "reading data...\n");
