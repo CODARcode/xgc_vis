@@ -52,6 +52,7 @@ function onMessage(evt)
     updateMesh(msg.data);
   } else if (msg.type == "data") {
     console.log(msg.data);
+    console.log(msg.labels);
   }
 }
 
