@@ -5,8 +5,67 @@
 #include <cassert>
 #include <iostream>
 #include <boost/program_options.hpp>
+#include <websocketpp/config/asio_no_tls.hpp>
+#include <websocketpp/server.hpp>
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
+  
+typedef websocketpp::server<websocketpp::config::asio> server;
+typedef server::message_ptr message_ptr;
+
+using websocketpp::lib::placeholders::_1;
+using websocketpp::lib::placeholders::_2;
+using websocketpp::lib::bind;
+
+server wsserver;
+
+void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
+  std::cout << "onMessage called with hdl: " << hdl.lock().get()
+            << " and message: " << msg->get_payload()
+            << std::endl;
+
+  // check for a special command to instruct the server to stop listening so
+  // it can be cleanly exited.
+  if (msg->get_payload() == "stop-listening") {
+    s->stop_listening();
+    return;
+  }
+
+  try {
+    s->send(hdl, msg->get_payload(), msg->get_opcode());
+  } catch (const websocketpp::lib::error_code& e) {
+    std::cout << "Echo failed because: " << e
+              << "(" << e.message() << ")" << std::endl;
+  }
+}
+
+void startWebsocketServer(int port) 
+{
+  try {
+    // Set logging settings
+    wsserver.set_access_channels(websocketpp::log::alevel::all);
+    wsserver.clear_access_channels(websocketpp::log::alevel::frame_payload);
+
+    // Initialize Asio
+    wsserver.init_asio();
+
+    // Register our message handler
+    wsserver.set_message_handler(bind(&onMessage, &wsserver,::_1,::_2));
+
+    // Listen on port 9002
+    wsserver.listen(port);
+
+    // Start the server accept loop
+    wsserver.start_accept();
+
+    // Start the ASIO io_service run loop
+    wsserver.run();
+  } catch (websocketpp::exception const & e) {
+    std::cout << e.what() << std::endl;
+  } catch (...) {
+    std::cout << "other exception" << std::endl;
+  }
+}
 
 void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, // POSIX, MPI, or others
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
@@ -120,6 +179,8 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
 
 int main(int argc, char **argv)
 {
+  std::thread *ws_thread = NULL;
+
   MPI_Init(&argc, &argv);
   
   using namespace boost::program_options;
@@ -130,6 +191,8 @@ int main(int argc, char **argv)
     ("output,o", value<std::string>(), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("POSIX"), "write_method (POSIX|MPI)")
+    ("wsserver,s", "enable websocket server")
+    ("port,p", value<int>()->default_value(9002), "websocket server port")
     ("h", "display this information");
   
   positional_options_description posdesc;
@@ -147,6 +210,10 @@ int main(int argc, char **argv)
   if (!vm.count("mesh") || !vm.count("input") || !vm.count("output") || vm.count("h")) {
     std::cout << opts << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
+  if (vm.count("wsserver")) {
+    ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
   }
 
   const std::string filename_mesh = vm["mesh"].as<std::string>();
@@ -223,6 +290,12 @@ int main(int argc, char **argv)
   free(coords);
   free(conn);
 
+  if (ws_thread) {
+    fprintf(stderr, "shutting down wsserver...\n");
+    ws_thread->join();
+  }
+
+  fprintf(stderr, "exiting...\n");
   MPI_Finalize();
   return 0;
 }
