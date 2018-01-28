@@ -5,6 +5,10 @@ var menuText = function() {
     cameraControls.reset();
   };
   this.displayStats = false;
+  this.renderMethod = 'label';
+  this.renderWireframe = false;
+  this.autoRefreshing = false;
+  this.refreshInterval = 20;
 
   this.saveImage = function() {
     window.open( renderer.domElement.toDataURL( 'image/png' ), 'screenshot' );
@@ -43,6 +47,10 @@ var menuText = function() {
       reader.readAsText(f);
     }
   };
+
+  this.reconnect = function () {
+    connectionDialog.reconnect();
+  };
 };
 
 function initializeControlPanel () {
@@ -59,11 +67,68 @@ function initializeControlPanel () {
     if (val) $("#stats").css({visibility: "visible"});
     else $("#stats").css({visibility: "hidden"});
   });
-  f2.add(text, "saveImage");
+  // f2.add(text, "saveImage");
+  f2.add(text, 'renderMethod', ['label', 'value']).onChange(function() {
+    updateRenderMethod(text.renderMethod);
+  });
+  f2.add(text, 'renderWireframe').onChange(function() {
+    updateRenderWireframe(text.renderWireframe);
+  });
   f2.open();
 
-  var f3 = gui.addFolder("Trackball");
-  f3.add(text, "saveTrackball");
-  f3.add(text, "loadTrackball");
-  f3.add(text, "resetTrackball");
+  var f3 = gui.addFolder("Connection");
+  f3.add(text, 'autoRefreshing').onChange(function() {
+    if (text.autoRefreshing) {
+      updateRepeatRequestingSpeed(text.repeatInterval);
+    }
+    else {
+      cancelRepeatRequesting();
+    }
+  });
+  f3.add(text, 'refreshInterval', 10, 300).onFinishChange(function() {
+    updateRepeatRequestingSpeed(text.repeatInterval);
+  });
+  f3.add(text, 'reconnect');
+  f3.open();
+
+  var f4 = gui.addFolder("Trackball");
+  f4.add(text, "saveTrackball");
+  f4.add(text, "loadTrackball");
+  f4.add(text, "resetTrackball");
 };
+
+(function initialConnectDialog() {
+  $('#connect').click(function() {
+    var ip = $('#hostAdress').val();
+    var port = $('#port').val();
+    connectToServer(ip, port);
+    $('#connectDialog').modal('hide');
+    $('#loading').show();
+  });
+
+  connectionDialog = {};
+
+  connectionDialog.error = function() {
+    $('#loading').hide();
+    $('#connect-dialog-title')[0].innerHTML = 'Connection Error. Try Again';
+    $('#close-dialog').hide();
+    $('#close-dialog-cross').hide();
+    $('#connectDialog').modal('show');
+  };
+  connectionDialog.closed = function() {
+    $('#loading').hide();
+    $('#connect-dialog-title')[0].innerHTML = 'Connection Closed. Try Again';
+    $('#close-dialog').hide();
+    $('#close-dialog-cross').hide();
+    $('#connectDialog').modal('show');
+  }
+  connectionDialog.reconnect = function() {
+    $('#loading').hide();
+    $('#connect-dialog-title')[0].innerHTML = 'Reconnect to Server';
+    $('#close-dialog').show();
+    $('#close-dialog-cross').show();
+    $('#connectDialog').modal('show');
+  }
+
+  $('#connectDialog').modal('show');
+})();
