@@ -13,11 +13,15 @@
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
 
+using json = nlohmann::json;
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
 server wsserver;
+
+XGCBlobExtractor *ex = NULL;
+std::mutex mutex_ex;
 
 void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
   std::cout << "onMessage called with hdl: " << hdl.lock().get()
@@ -26,20 +30,37 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 
   // check for a special command to instruct the server to stop listening so
   // it can be cleanly exited.
-  if (msg->get_payload() == "stop-listening") {
+ 
+  json incoming = json::parse(msg->get_payload());
+  json outgoing;
+ 
+  if (incoming["type"] == "requestMesh") {
+    fprintf(stderr, "requesting mesh!\n");
+    outgoing["type"] = "mesh";
+    outgoing["data"] = ex->jsonfyMesh();
+  } else if (incoming["type"] == "requestData") {
+    outgoing["type"] = "data";
+    mutex_ex.lock();
+    std::vector<double> dpot(ex->getData(), ex->getData() + ex->getNNodes());
+    std::vector<int> labels = ex->getLabels(0);
+    mutex_ex.unlock();
+    outgoing["data"] = dpot;
+    outgoing["labels"] = labels;
+  } else if (incoming["type"] == "stopServer") {
     s->stop_listening();
     return;
   }
 
   try {
-    s->send(hdl, msg->get_payload(), msg->get_opcode());
+    // s->send(hdl, msg->get_payload(), msg->get_opcode()); // echo
+    s->send(hdl, outgoing.dump(), websocketpp::frame::opcode::text);
   } catch (const websocketpp::lib::error_code& e) {
-    std::cout << "Echo failed because: " << e
+    std::cout << "Sending failed failed because: " << e
               << "(" << e.message() << ")" << std::endl;
   }
 }
 
-void startWebsocketServer(int port) 
+void startWebsocketServer(int port)
 {
   try {
     // Set logging settings
@@ -50,7 +71,7 @@ void startWebsocketServer(int port)
     wsserver.init_asio();
 
     // Register our message handler
-    wsserver.set_message_handler(bind(&onMessage, &wsserver,::_1,::_2));
+    wsserver.set_message_handler(bind(&onMessage, &wsserver, ::_1, ::_2));
 
     // Listen on port 9002
     wsserver.listen(port);
@@ -212,10 +233,6 @@ int main(int argc, char **argv)
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-  if (vm.count("wsserver")) {
-    ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
-  }
-
   const std::string filename_mesh = vm["mesh"].as<std::string>();
   const std::string filename_input = vm["input"].as<std::string>();
   const std::string filename_output = vm["output"].as<std::string>();
@@ -259,41 +276,50 @@ int main(int argc, char **argv)
   readScalars<double>(meshFP, "psi", &psi);
   // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
   //     nNodes, nTriangles, nPhi);
-
+  
   fprintf(stderr, "reading data...\n");
   double *dpot;
   readScalars<double>(varFP, "dpot", &dpot);
 
   // writeUnstructredMeshData(MPI_COMM_WORLD, nNodes, nTriangles, coords, conn, dpot);
+  
+  ex = new XGCBlobExtractor(nNodes, nTriangles, nPhi, coords, conn);
+  
+  if (vm.count("wsserver")) {
+    ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
+  }
 
   fprintf(stderr, "starting analysis..\n");
-  XGCBlobExtractor *extractor = new XGCBlobExtractor(nNodes, nTriangles, nPhi, coords, conn);
-  extractor->setData(dpot);
-  // extractor->setPersistenceThreshold(persistence_threshold);
-  // extractor->buildContourTree3D();
-  extractor->buildContourTree2D(0);
 
-  int *labels = extractor->getLabels(0).data();
+  mutex_ex.lock();
+  ex->setData(dpot);
+  // ex->setPersistenceThreshold(persistence_threshold);
+  // ex->buildContourTree3D();
+  ex->buildContourTree2D(0);
+  mutex_ex.unlock();
+
+  int *labels = ex->getLabels(0).data();
 
   fprintf(stderr, "dumping results..\n"); 
   writeUnstructredMeshData(MPI_COMM_WORLD, filename_output, write_method_str, nNodes, nTriangles, coords, conn, dpot, psi, labels);
 #if 0
-  extractor->dumpMesh("xgc.mesh.json"); // only need to dump once
-  extractor->dumpBranchDecompositions("xgc.branches.json");
-  extractor->dumpLabels("xgc.labels.bin");
+  ex->dumpMesh("xgc.mesh.json"); // only need to dump once
+  ex->dumpBranchDecompositions("xgc.branches.json");
+  ex->dumpLabels("xgc.labels.bin");
 #endif
   
   fprintf(stderr, "done.\n"); 
-
-  delete extractor;
-  free(dpot);
-  free(coords);
-  free(conn);
-
+  
   if (ws_thread) {
     fprintf(stderr, "shutting down wsserver...\n");
     ws_thread->join();
   }
+
+  delete ex;
+  ex = NULL;
+  free(dpot);
+  free(coords);
+  free(conn);
 
   fprintf(stderr, "exiting...\n");
   MPI_Finalize();

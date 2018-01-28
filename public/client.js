@@ -2,7 +2,7 @@ const wsUri = "ws://localhost:9002";
 var ws;
 
 function requestMesh() {
-  console.log("requesting mesh");
+  console.log("requesting mesh...");
   var msg = {
     type: "requestMesh"
   };
@@ -11,7 +11,18 @@ function requestMesh() {
   else connectToServer();
 }
 
+function requestData() {
+  console.log("requesting data...");
+  var msg = {
+    type: "requestData"
+  };
+  
+  if (ws.readyState == 1) ws.send(JSON.stringify(msg));
+  else connectToServer();
+}
+
 function connectToServer() {
+  console.log("connecting to server...");
   // ws = new WebSocket("ws://red.mcs.anl.gov:8080");
   ws = new WebSocket(wsUri);
   
@@ -24,7 +35,7 @@ function connectToServer() {
 
 function onOpen(evt)
 {
-  console.log("connected to server");
+  console.log("connected to server.");
   requestMesh();
   // requestFrame(currentFrame);
 }
@@ -37,19 +48,11 @@ function onClose(evt)
 function onMessage(evt)
 {
   var msg = JSON.parse(evt.data);
-  console.log(msg);
-
-  /* 
-  if (msg.type == "dbList") {
-    updateDBList(msg.data);
+  if (msg.type == "mesh") {
+    updateMesh(msg.data);
+  } else if (msg.type == "data") {
+    console.log(msg.data);
   }
-  else if (msg.type == "dataInfo") {
-    updateDataInfo(msg.dataInfo, msg.events);
-  }
-  else if (msg.type == "vlines") {
-    updateVlines(msg.data.vlines);
-    updateDistances(msg.data.dist);
-  } */
 }
 
 function onError(evt)

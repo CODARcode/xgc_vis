@@ -6,19 +6,25 @@
 #include <vector>
 #include <set>
 #include <map>
+#include "json.hpp"
 
 class XGCBlobExtractor
 {
+  using json = nlohmann::json;
+
 public:
   XGCBlobExtractor(int nNodes, int nTriangles, int nPhi, double *coords, int *conn); 
   ~XGCBlobExtractor() {}
- 
+
+  int getNNodes() const {return nNodes;}
+
   void setData(double *dpot);
+  const double *getData() const {return dpot;}
   void setPersistenceThreshold(double threshold) {persistenceThreshold = threshold;}
 
   std::vector<int>& getLabels(int plane) {return all_labels[plane];}
 
-  void dumpMesh(const std::string& filename);
+  json jsonfyMesh() const;
   void dumpLabels(const std::string& filename);
   void dumpBranchDecompositions(const std::string& filename);
 

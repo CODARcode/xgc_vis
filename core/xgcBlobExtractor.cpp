@@ -3,7 +3,6 @@
 #include <queue>
 #include <list>
 #include "xgcBlobExtractor.h"
-#include "json.hpp"
 
 using json = nlohmann::json;
 
@@ -640,8 +639,8 @@ void XGCBlobExtractor::dumpBranchDecompositions(const std::string& filename) {
   ofs.close();
 }
 
-void XGCBlobExtractor::dumpMesh(const std::string& filename) {
-  std::ofstream ofs(filename, std::ofstream::out);
+json XGCBlobExtractor::jsonfyMesh() const { 
+  // std::ofstream ofs(filename, std::ofstream::out);
   json j;
 
   j["nPhi"] = nPhi;
@@ -651,6 +650,9 @@ void XGCBlobExtractor::dumpMesh(const std::string& filename) {
   j["coords"] = coords;
   j["conn"] = conn;
 
-  ofs << j.dump();
-  ofs.close();
+  // ss << j.dump();
+  // fs.close();
+ 
+  return j;
+  // return ss.str();
 }

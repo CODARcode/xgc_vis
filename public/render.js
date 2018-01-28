@@ -7,8 +7,8 @@ $("#stats").css({visibility: "hidden"});
 var clock = new THREE.Clock();
 var scene = new THREE.Scene();
 
-var camera = new THREE.PerspectiveCamera(30, window.innerWidth/window.innerHeight, 0.1, 1000); 
-camera.position.z = 200;
+var camera = new THREE.PerspectiveCamera(30, window.innerWidth/window.innerHeight, 0.1, 100); 
+camera.position.z = 3;
 
 var renderer = new THREE.WebGLRenderer({preserveDrawingBuffer: true});
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -73,6 +73,26 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   cameraControls.handleResize();
+}
+
+function updateMesh(mesh) {
+  console.log("updating mesh...");
+
+  var geom = new THREE.Geometry();
+  for (var i = 0; i < mesh.nNodes; i ++) {
+    geom.vertices.push(new THREE.Vector3(mesh.coords[i*2] - 1.7, mesh.coords[i*2+1], 0));
+  }
+  for (var i = 0; i < mesh.nTriangles; i ++) {
+    var face = new THREE.Face3(mesh.conn[i*3], mesh.conn[i*3+1], mesh.conn[i*3+2]);
+    face.color.setRGB( Math.random(), Math.random(), Math.random() );
+    geom.faces.push(face);
+  }
+
+  var material = new THREE.MeshBasicMaterial( { color: 0x000000, wireframe: false, vertexColors: THREE.FaceColors } );
+  var obj = new THREE.Mesh( geom, material );
+  scene.add(obj);
+
+  requestData();
 }
 
 initializeControlPanel();
