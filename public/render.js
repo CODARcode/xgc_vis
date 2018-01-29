@@ -75,24 +75,111 @@ function onResize() {
   cameraControls.handleResize();
 }
 
+var valueObject, labelObject;
 function updateMesh(mesh) {
+  data.mesh = mesh;
   console.log("updating mesh...");
-
-  var geom = new THREE.Geometry();
-  for (var i = 0; i < mesh.nNodes; i ++) {
-    geom.vertices.push(new THREE.Vector3(mesh.coords[i*2] - 1.7, mesh.coords[i*2+1], 0));
+  var valueGeometry = new THREE.Geometry();
+  var labelGeometry = new THREE.Geometry();
+  for (var i = 0; i < data.mesh.nNodes; i ++) {
+    valueGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2] - 1.7, data.mesh.coords[i*2+1], 0));
+    labelGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2] - 1.7, data.mesh.coords[i*2+1], 0));
   }
-  for (var i = 0; i < mesh.nTriangles; i ++) {
-    var face = new THREE.Face3(mesh.conn[i*3], mesh.conn[i*3+1], mesh.conn[i*3+2]);
-    face.color.setRGB( Math.random(), Math.random(), Math.random() );
-    geom.faces.push(face);
+  for (var i = 0; i < data.mesh.nTriangles; i ++) {
+    var face = new THREE.Face3(data.mesh.conn[i*3], data.mesh.conn[i*3+1], data.mesh.conn[i*3+2], null);
+    valueGeometry.faces.push(face);
+    labelGeometry.faces.push(face);
   }
 
-  var material = new THREE.MeshBasicMaterial( { color: 0x000000, wireframe: false, vertexColors: THREE.FaceColors } );
-  var obj = new THREE.Mesh( geom, material );
-  scene.add(obj);
-
+  var valueMaterial = new THREE.MeshBasicMaterial( {vertexColors: THREE.FaceColors, side: THREE.DoubleSide} );
+  var labelMaterial = new THREE.MeshBasicMaterial( {vertexColors: THREE.FaceColors, side: THREE.DoubleSide} );
+  valueObject = new THREE.Mesh(valueGeometry, valueMaterial);
+  labelObject = new THREE.Mesh(labelGeometry, labelMaterial);
+  // scene.add(valueObject);
+  scene.add(labelObject);
   requestData();
+}
+
+function updateData(values, labels) {
+  data.values = values;
+  data.labels = labels;
+  var range = {};
+  range.max = Math.max(...data.values);
+  range.min = Math.min(...data.values);
+  
+  console.log(range);
+  var count1 = 0;
+  var count2 = 0;
+  for (var i = 0; i < data.values.length; i ++) {
+    if (data.values[i] < 0) count2 ++;
+    if (data.values[i] > 0) count1 ++;
+  }
+  console.log(count1, count2);
+
+  var cs = d3.scaleLinear().domain([range.min, 0, range.max])
+      .range([d3.rgb("#ff0000"), d3.rgb('#ffffff'), d3.rgb('#0000ff')]);
+  var valueColorScale = function(v) {
+    return new THREE.Color(cs(v).toString());
+  };
+  for (var i = 0; i < valueObject.geometry.faces.length; i ++) {
+
+    // update value color
+    var face = valueObject.geometry.faces[i];
+    var v1 = data.values[face.a];
+    var v2 = data.values[face.b];
+    var v3 = data.values[face.c];
+    if (valueObject.geometry.faces[i].vertexColors.length == 0) {
+      valueObject.geometry.faces[i].vertexColors.push(valueColorScale(v1));
+      valueObject.geometry.faces[i].vertexColors.push(valueColorScale(v2));
+      valueObject.geometry.faces[i].vertexColors.push(valueColorScale(v3));
+    }
+    else {
+      valueObject.geometry.faces[i].vertexColors[0].set(valueColorScale(v1));
+      valueObject.geometry.faces[i].vertexColors[1].set(valueColorScale(v2));
+      valueObject.geometry.faces[i].vertexColors[2].set(valueColorScale(v3));
+    }
+
+    // update label color
+    var l1 = data.labels[face.a];
+    var l2 = data.labels[face.b];
+    var l3 = data.labels[face.c];
+    var labelColor = new THREE.Color(0x000000);
+    if (l1 === l2 && l2 === l3) {
+      if (l1 === 0) {
+        labelColor = new THREE.Color(0x000000);
+      }
+      else if (l1 === 1) {
+        labelColor = new THREE.Color(0xff0000);
+      }
+      else {
+        labelColor = new THREE.Color(0x0000ff);
+      }
+    }
+    labelObject.geometry.faces[i].color.set(labelColor);
+  }
+  valueObject.geometry.colorsNeedUpdate = true;
+  valueObject.material.needsUpdate = true;
+  labelObject.geometry.colorsNeedUpdate = true;
+  labelObject.material.needsUpdate = true;
+  $('#loading').hide();
+}
+
+function updateRenderMethod(method) {
+  console.log(method);
+  if (method === 'label') {
+    scene.remove(valueObject);
+    scene.add(labelObject);
+  }
+  else if (method === 'value'){
+    scene.remove(labelObject);
+    scene.add(valueObject);
+  }
+}
+
+function updateRenderWireframe(renderWireframe) {
+  valueObject.material.wireframe = renderWireframe;
+  valueObject.geometry.colorsNeedUpdate = true;
+  valueObject.material.needsUpdate = true;
 }
 
 initializeControlPanel();

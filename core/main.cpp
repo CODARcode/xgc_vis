@@ -317,8 +317,8 @@ int main(int argc, char **argv)
   
   double *dpot = NULL;
 
-  adios_read_bp_reset_dimension_order(varFP, 0);
-  fprintf(stderr, "dimension_order_reset.\n");
+  // adios_read_bp_reset_dimension_order(varFP, 0);
+  // fprintf(stderr, "dimension_order_reset.\n");
   while (adios_errno != err_end_of_stream) {
     fprintf(stderr, "reading data...\n");
 
@@ -333,8 +333,11 @@ int main(int argc, char **argv)
     adios_inq_var_blockinfo(varFP, avi);
     adios_inq_var_meshinfo(varFP, avi);
 
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {nPhi, static_cast<uint64_t>(nNodes), 1, 1};
+    // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {nPhi, static_cast<uint64_t>(nNodes), 1, 1};
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), nPhi, 1, 1};
     ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
+    // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
+
     assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
     if (dpot == NULL) 
@@ -345,11 +348,13 @@ int main(int argc, char **argv)
     adios_selection_delete(sel);
 
     fprintf(stderr, "starting analysis..\n");
-   
+  
+#if 0
     fprintf(stderr, "writing original data for test.\n");
     writeUnstructredMeshData(MPI_COMM_WORLD, "temp.bp", 
         write_method_str, nNodes, nTriangles, coords, conn, dpot, NULL, NULL); // psi, labels);
     fprintf(stderr, "original data written.\n");
+#endif
 
     mutex_ex.lock();
     ex->setData(nPhi, dpot);
