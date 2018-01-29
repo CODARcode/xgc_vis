@@ -255,7 +255,7 @@ int main(int argc, char **argv)
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI)")
     ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
-    ("ws,s", "enable websocket server")
+    ("server,s", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
     ("help,h", "display this information");
   
@@ -354,7 +354,7 @@ int main(int argc, char **argv)
   // starting server
   ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
   
-  if (vm.count("ws")) {
+  if (vm.count("server")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
   }
 
@@ -376,7 +376,8 @@ int main(int argc, char **argv)
   while (1) {
     if (single_input) {
       if (adios_errno == err_end_of_stream) break;
-      fprintf(stderr, "reading data, time_index=%lu\n", current_time_index ++);
+      current_time_index ++;
+      fprintf(stderr, "reading data, time_index=%lu\n", current_time_index);
     } else { // multiple input;
       if (current_time_index >= input_filename_list.size()) {
         fprintf(stderr, "all done.\n");

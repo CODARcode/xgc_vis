@@ -534,9 +534,14 @@ ct_checkContext(ctx);
                     }
                 }
             }
-            
+           
+            while (1)
             {    /* remove leaf */
                 ctComponent *succ = leaf->succ;
+                if (succ == NULL) {
+                  fprintf(stderr, "error occured.\n");
+                  break;
+                }
                 ctComponent *other, *otherSucc, *garbage;
 
                 ctComponent_prune( leaf );
@@ -562,6 +567,7 @@ ct_checkContext(ctx);
                 }
         
                 /*ctComponent_delete(leaf);*/
+                break;
             }
         }
     }
