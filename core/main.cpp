@@ -62,12 +62,14 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["type"] = "data";
 
     mutex_ex.lock();
+    const size_t timestep = ex->getTimestep();
     const int nnodes = ex->getNNodes();
     const double *ptr = ex->getData(); 
     std::vector<double> dpot(ptr, ptr + nnodes);
     std::vector<int> labels = ex->getLabels(0);
     mutex_ex.unlock();
-    
+   
+    outgoing["timestep"] = timestep;
     outgoing["data"] = dpot;
     outgoing["labels"] = labels;
   } else if (incoming["type"] == "stopServer") {
@@ -435,7 +437,7 @@ int main(int argc, char **argv)
 #endif
 
     mutex_ex.lock();
-    ex->setData(nPhi, dpot);
+    ex->setData(current_time_index, nPhi, dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     ex->buildContourTree2D(0);

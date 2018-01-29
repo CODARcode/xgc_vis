@@ -10,7 +10,8 @@ XGCBlobExtractor::XGCBlobExtractor(int nNodes_, int nTriangles_, double *coords_
   nNodes(nNodes_), nTriangles(nTriangles_), nPhi(1), 
   coords(coords_, coords_ + nNodes_*2), 
   conn(conn_, conn_ + 3*nTriangles_),
-  persistenceThreshold(0)
+  persistenceThreshold(0),
+  timestep(0)
 {
   // init nodeGraph
   nodeGraph.clear();
@@ -596,8 +597,9 @@ void XGCBlobExtractor::extractExtremum(int plane, double *dpot_)
   }
 }
 
-void XGCBlobExtractor::setData(int nPhi_, double *dpot_)
+void XGCBlobExtractor::setData(size_t timestep_, int nPhi_, double *dpot_)
 {
+  timestep = timestep;
   nPhi = nPhi_;
   dpot = dpot_;
 
