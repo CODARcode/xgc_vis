@@ -120,7 +120,7 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
   adios_delete_vardefs(groupHandle);
   adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
 
-  // fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
+  fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
 
   const std::string pointsName = "points";
   const std::string numPointsName = "numPoints";
@@ -141,10 +141,14 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
       (char*)"2",
       groupHandle, 
       meshName.c_str());
+  
+  fprintf(stderr, "[1]\n");
 
   // points
   adios_define_var(groupHandle, numPointsName.c_str(), "", adios_integer, 0, 0, 0);
+  fprintf(stderr, "[2]\n");
   adios_write(fileHandle, numPointsName.c_str(), &nNodes);
+  fprintf(stderr, "[3]\n");
 
   int64_t ptId = adios_define_var(
       groupHandle, 
@@ -154,7 +158,9 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
       std::string(numPointsName + ",2").c_str(), 
       std::string(numPointsName + ",2").c_str(), 
       "0,0");
+  fprintf(stderr, "[4]\n");
   adios_write_byid(fileHandle, ptId, &coords[0]);
+  fprintf(stderr, "[5]\n");
 
   // cells
   adios_define_var(groupHandle, numCellsName.c_str(), "", adios_integer, 0, 0, 0);
@@ -349,7 +355,7 @@ int main(int argc, char **argv)
   while (1) {
     if (single_input) {
       if (adios_errno == err_end_of_stream) break;
-      fprintf(stderr, "reading data...\n");
+      fprintf(stderr, "reading data, time_index=%lu\n", current_time_index ++);
     } else { // multiple input;
       if (current_time_index >= input_filename_list.size()) {
         fprintf(stderr, "all done.\n");
@@ -359,8 +365,7 @@ int main(int argc, char **argv)
       fprintf(stderr, "reading data from %s\n", current_input_filename.c_str());
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
-    
->>>>>>> 24ca7defc66d1670f9430a37dff5b51bf36eab54
+
     const int nPhi=1;
     // readValueInt(varFP, "nphi", &nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
@@ -386,14 +391,27 @@ int main(int argc, char **argv)
     adios_perform_reads(varFP, 1);
     adios_selection_delete(sel);
 
+#if 0
+    if (current_time_index < 10) {
+      fprintf(stderr, "skipping timestep %lu.\n", current_time_index);
+      adios_advance_step(varFP, 0, 1.0);
+      continue;
+    }
+#endif
+
     fprintf(stderr, "starting analysis..\n");
   
-#if 0
+#if 1
+    std::stringstream ssfilename;
+    ssfilename << "original-" << current_time_index << ".bp";
     fprintf(stderr, "writing original data for test.\n");
-    writeUnstructredMeshData(MPI_COMM_WORLD, "temp.bp", 
+    writeUnstructredMeshData(MPI_COMM_WORLD, ssfilename.str().c_str(), 
         write_method_str, nNodes, nTriangles, coords, conn, dpot, NULL, NULL); // psi, labels);
     fprintf(stderr, "original data written.\n");
 #endif
+      
+    adios_advance_step(varFP, 0, 1.0);
+    continue;
 
     mutex_ex.lock();
     ex->setData(nPhi, dpot);
