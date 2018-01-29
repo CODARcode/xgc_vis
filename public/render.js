@@ -17,6 +17,7 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0xffffff, 1);
 document.body.appendChild(renderer.domElement);
+renderer.domElement.id = 'webGL-canvas';
 
 var pointLight = new THREE.PointLight(0xffffff);
 pointLight.position.x = 100;
@@ -30,6 +31,11 @@ var directionalLight = new THREE.DirectionalLight(0xffffff);
 scene.add(directionalLight);
 
 var controls = new THREE.OrbitControls( camera, renderer.domElement );
+controls.enableRotate = false;
+controls.mouseButtons = {
+  ZOOM: THREE.MOUSE.MIDDLE,
+  PAN: THREE.MOUSE.LEFT
+}
 var raycaster = new THREE.Raycaster();
 var mousePos = new THREE.Vector2();
 
@@ -75,6 +81,9 @@ function onResize() {
 var valueObject, labelObject;
 var circleObject;
 function updateMesh(mesh) {
+  while(scene.children.length > 0){ 
+    scene.remove(scene.children[0]); 
+  }
   data.mesh = mesh;
   console.log("updating mesh...");
   var valueGeometry = new THREE.Geometry();
@@ -201,6 +210,7 @@ function updateData(values, labels, timestep) {
   else {
     $('#timestep-div').hide();
   }
+  doneRendering = true;
 }
 
 function updateRenderMethod(method) {
@@ -230,6 +240,8 @@ initializeControlPanel();
 render();
 
 function onDocumentMouseMove(event) {
+  if (isDialogShown()) return;
+  if (data.values == undefined) return;
   mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
   mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
   raycaster.setFromCamera( mouse, camera );
@@ -243,18 +255,23 @@ function onDocumentMouseMove(event) {
       $('.info-tooltip').show();
       $('.info-tooltip').css('left', event.clientX);
       $('.info-tooltip').css('top', event.clientY - parseFloat($('.info-tooltip').css('height')));
+      $('#webGL-canvas').addClass('pointer-class');
+      scene.add(circleObject);
     }
     else {
       $('.info-tooltip').hide();
+      $('#webGL-canvas').removeClass('pointer-class');
+      scene.remove(circleObject);
     }
   }
   else {
     $('.info-tooltip').hide();
+    $('#webGL-canvas').removeClass('pointer-class');
+    scene.remove(circleObject);
   }
 }
 
 function hitFace(face, event) {
-  if (data.values == undefined) return;
   // calculate closest point 
   var mouseX = event.clientX;
   var mouseY = event.clientY;
@@ -300,6 +317,8 @@ function hitFace(face, event) {
   $('.info-coords')[0].innerHTML = '(' + formatToOne(c[0]) + ', ' + formatToOne(c[1]) + ')';
   $('.info-values')[0].innerHTML = formatToOne(v);
   $('.info-labels')[0].innerHTML = l;
+  circleObject.geometry = new THREE.CircleGeometry(.001, 32);
+  circleObject.geometry.translate(c[0], c[1], 0);
   return true;
 }
 

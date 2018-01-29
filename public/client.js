@@ -12,7 +12,10 @@ function requestMesh() {
   else connectToServer();
 }
 
+var doneRendering = true;
 function requestData() {
+  if (!doneRendering) return;
+  doneRendering = false;
   console.log("requesting data...");
   var msg = {
     type: "requestData"
@@ -64,8 +67,7 @@ function onMessage(evt)
     console.log(msg.data);
     updateMesh(msg.data);
   } else if (msg.type == "data") {
-    console.log(msg.data);
-    console.log(msg.labels);
+    console.log(msg);
     updateData(msg.data, msg.labels, msg.timestep);
   }
 }
@@ -75,12 +77,14 @@ function onError(evt)
   connectionDialog.error();
 }
 
+function isDialogShown() {
+  return $('#connectDialog').hasClass('show');
+}
+
 globalStatus = {};
 (function repeatRequestingData() {
   function repeatRequest() {
-    // if (globalStatus.isRendering) return;
-    var isDialogShown = $('#connectDialog').hasClass('show');
-    if (isDialogShown) return;
+    if (isDialogShown()) return;
     requestData();
   }
   var repeatRequesting;

@@ -17,6 +17,14 @@ var menuText = function() {
   this.reconnect = function () {
     connectionDialog.reconnect();
   };
+
+  this.refresh = function() {
+    requestData();
+  }
+
+  this.resetCamera = function() {
+    controls.reset();
+  }
 };
 
 function initializeControlPanel () {
@@ -40,9 +48,11 @@ function initializeControlPanel () {
   f2.add(text, 'renderWireframe').onChange(function() {
     updateRenderWireframe(text.renderWireframe);
   });
+  f2.add(text, 'resetCamera');
   f2.open();
 
   var f3 = gui.addFolder("Connection");
+  f3.add(text, 'refresh');
   f3.add(text, 'autoRefreshing').onChange(function() {
     if (text.autoRefreshing) {
       updateRepeatRequestingSpeed(text.refreshInterval);
@@ -61,12 +71,15 @@ function initializeControlPanel () {
 };
 
 (function initialConnectDialog() {
-  $('#connect').click(function() {
+  var clickConnect = function() {
     var ip = $('#hostAdress').val();
     var port = $('#port').val();
     connectToServer(ip, port);
     $('#connectDialog').modal('hide');
     $('#loading').show();
+  };
+  $('#connect').click(function() {
+    clickConnect();
   });
 
   connectionDialog = {};
@@ -93,5 +106,14 @@ function initializeControlPanel () {
     $('#connectDialog').modal('show');
   }
 
+  document.querySelector('#connectDialog').addEventListener('keypress', function (e) {
+      var key = e.which || e.keyCode;
+      if (key === 13) { // 13 is enter
+        console.log('connect');
+        clickConnect();
+      }
+  });
+
   $('#connectDialog').modal('show');
 })();
+
