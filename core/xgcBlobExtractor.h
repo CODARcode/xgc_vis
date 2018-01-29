@@ -17,8 +17,9 @@ public:
   ~XGCBlobExtractor() {}
 
   int getNNodes() const {return nNodes;}
+  size_t getTimestep() const {return timestep;}
 
-  void setData(int nPhi, double *dpot);
+  void setData(size_t timestep, int nPhi, double *dpot);
   const double *getData() const {return dpot;}
   void setPersistenceThreshold(double threshold) {persistenceThreshold = threshold;}
 
@@ -51,6 +52,7 @@ private: // mesh
   int nNodes, nTriangles, nPhi;
 
 private: // data
+  size_t timestep;
   double *dpot;
 
 private: // parameters
