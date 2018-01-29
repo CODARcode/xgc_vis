@@ -2,6 +2,7 @@
 #include <adios.h>
 #include <adios_read.h>
 #include <adios_error.h>
+#include <glob.h>
 #include <cassert>
 #include <iostream>
 #include <boost/program_options.hpp>
@@ -225,40 +226,64 @@ int main(int argc, char **argv)
   opts.add_options()
     ("mesh,m", value<std::string>(), "mesh_file")
     ("input,i", value<std::string>(), "input_file")
+    ("pattern", value<std::string>(), "input file pattern, e.g. 'xgc.3d.*.bp'.  only works for BP.")
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI)")
     ("ws,s", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
-    ("h", "display this information");
-  
-  positional_options_description posdesc;
-  posdesc.add("mesh", 1);
-  posdesc.add("input", 1);
-  // posdesc.add("output", 1);
+    ("help,h", "display this information");
   
   variables_map vm;
   store(command_line_parser(argc, argv).options(opts)
-      .positional(posdesc)
       .style(command_line_style::unix_style | command_line_style::allow_long_disguise)
       .run(), vm);
   notify(vm);
 
-  if (!vm.count("mesh") || !vm.count("input") || vm.count("h")) {
+  if (!vm.count("mesh") || vm.count("h") || !(vm.count("input") || vm.count("pattern"))) {
     std::cout << opts << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
+  std::vector<std::string> input_filename_list;
+  if (vm.count("pattern")) {
+    const std::string pattern = vm["pattern"].as<std::string>();
+    glob_t results; 
+    glob(pattern.c_str(), 0, NULL, &results); 
+    for (int i=0; i<results.gl_pathc; i++)
+      input_filename_list.push_back(results.gl_pathv[i]); 
+    globfree(&results);
+
+    if (input_filename_list.empty()) {
+      fprintf(stderr, "FATAL: cannot find any data file matching '%s'\n", pattern.c_str());
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+  }
+
   const std::string filename_mesh = vm["mesh"].as<std::string>();
-  const std::string filename_input = vm["input"].as<std::string>();
   const std::string filename_output = vm["output"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
   const std::string write_method_str = vm["write_method"].as<std::string>();
+  std::string filename_input;
+  bool single_input = false;
+  if (vm.count("input")) {
+    filename_input = vm["input"].as<std::string>();
+    single_input = true;
+  }
 
   fprintf(stderr, "==========================================\n");
   fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
-  fprintf(stderr, "filename_input=%s\n", filename_input.c_str());
-  fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
+  if (single_input) {
+    fprintf(stderr, "filename_input=%s\n", filename_input.c_str());
+  } else {
+    fprintf(stderr, "filename_input_pattern=%s\n", vm["pattern"].as<std::string>().c_str());
+    for (int i=0; i<input_filename_list.size(); i++) 
+      fprintf(stderr, "filename_input_%d=%s\n", i, input_filename_list[i].c_str());
+  }
+  if (filename_output.size() > 0) 
+    fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
+  else 
+    fprintf(stderr, "filename_output=(null)\n");
   fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
   fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
   fprintf(stderr, "==========================================\n");
@@ -305,17 +330,31 @@ int main(int argc, char **argv)
 
   // read data
   ADIOS_FILE *varFP;
-  if (read_method == ADIOS_READ_METHOD_BP)
-    varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
-  else 
-    varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
+  if (single_input > 0) {
+    if (read_method == ADIOS_READ_METHOD_BP)
+      varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
+    else 
+      varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
+  }
   // adios_read_bp_reset_dimension_order(varFP, 0);
     
   double *dpot = NULL;
+  size_t current_file_index = 0; // only for multiple inputs.
 
-  while (adios_errno != err_end_of_stream) {
-    fprintf(stderr, "reading data...\n");
-
+  while (1) {
+    if (single_input) {
+      if (adios_errno == err_end_of_stream) break;
+      fprintf(stderr, "reading data...\n");
+    } else { // multiple input;
+      if (current_file_index >= input_filename_list.size()) {
+        fprintf(stderr, "all done.\n");
+        break;
+      }
+      const std::string &current_input_filename = input_filename_list[ current_file_index ++ ];
+      fprintf(stderr, "reading data from %s\n", current_input_filename.c_str());
+      varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
+    }
+    
     const int nPhi=1;
     // readValueInt(varFP, "nphi", &nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
@@ -363,9 +402,11 @@ int main(int argc, char **argv)
     }
     
     fprintf(stderr, "done.\n");
-    if (read_method == ADIOS_READ_METHOD_BP) break;
-    else 
-      adios_advance_step(varFP, 0, 1.0);
+
+    if (single_input) {
+      if (read_method == ADIOS_READ_METHOD_BP) break;
+      else adios_advance_step(varFP, 0, 1.0);
+    }
   }
   
   if (ws_thread) {
