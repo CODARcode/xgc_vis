@@ -142,13 +142,9 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
       groupHandle, 
       meshName.c_str());
   
-  fprintf(stderr, "[1]\n");
-
   // points
   adios_define_var(groupHandle, numPointsName.c_str(), "", adios_integer, 0, 0, 0);
-  fprintf(stderr, "[2]\n");
   adios_write(fileHandle, numPointsName.c_str(), &nNodes);
-  fprintf(stderr, "[3]\n");
 
   int64_t ptId = adios_define_var(
       groupHandle, 
@@ -158,9 +154,7 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
       std::string(numPointsName + ",2").c_str(), 
       std::string(numPointsName + ",2").c_str(), 
       "0,0");
-  fprintf(stderr, "[4]\n");
   adios_write_byid(fileHandle, ptId, &coords[0]);
-  fprintf(stderr, "[5]\n");
 
   // cells
   adios_define_var(groupHandle, numCellsName.c_str(), "", adios_integer, 0, 0, 0);
@@ -222,6 +216,7 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
   }
 
   adios_close(fileHandle);
+  adios_finalize(0);
 }
 
 
@@ -409,8 +404,10 @@ int main(int argc, char **argv)
         write_method_str, nNodes, nTriangles, coords, conn, dpot, NULL, NULL); // psi, labels);
     fprintf(stderr, "original data written.\n");
 #endif
-      
-    adios_advance_step(varFP, 0, 1.0);
+  
+    // FIXME
+    if (read_method == ADIOS_READ_METHOD_BP) continue;
+    else adios_advance_step(varFP, 0, 1.0);
     continue;
 
     mutex_ex.lock();
