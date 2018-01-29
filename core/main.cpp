@@ -396,19 +396,18 @@ int main(int argc, char **argv)
 
     fprintf(stderr, "starting analysis..\n");
   
-#if 1
+#if 0
     std::stringstream ssfilename;
     ssfilename << "original-" << current_time_index << ".bp";
     fprintf(stderr, "writing original data for test.\n");
     writeUnstructredMeshData(MPI_COMM_WORLD, ssfilename.str().c_str(), 
         write_method_str, nNodes, nTriangles, coords, conn, dpot, NULL, NULL); // psi, labels);
     fprintf(stderr, "original data written.\n");
-#endif
-  
     // FIXME
     if (read_method == ADIOS_READ_METHOD_BP) continue;
     else adios_advance_step(varFP, 0, 1.0);
     continue;
+#endif
 
     mutex_ex.lock();
     ex->setData(nPhi, dpot);
