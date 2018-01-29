@@ -268,6 +268,7 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
   std::vector<int> labels(nNodes, 0);
  
   // minimum streamers
+  int count = 1;
   for (int i=0; i<std::min((size_t)nStreamers, branchPersistences.size()); i++) {
     size_t extremum;
     if (branchPersistences[i].first == root)
@@ -276,16 +277,17 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
       extremum = branchPersistences[i].first->extremum;
 
     double val_extremum = value(extremum, d);
-    const int myid = -1; // id++; // -i
+    const int myid = -(count ++); // id++; // -i
     int count = flood2D(extremum, myid, labels, val_extremum, percentage*val_extremum, d); // presumably the val is less than 0
     // fprintf(stderr, "count=%d\n", count);
   }
 
   // maximum streamers
+  count = 1;
   for (int i=branchPersistences.size()-1; i>branchPersistences.size()-nStreamers-1; i--) {
     size_t extremum = branchPersistences[i].first->extremum; // maximum
     double val_extremum = value(extremum, d);
-    const int myid = 1; // id++;
+    const int myid = count ++; // id++;
     int count = flood2D(extremum, myid, labels, val_extremum*percentage, val_extremum, d);
     // fprintf(stderr, "count=%d\n", count);
   }
@@ -589,6 +591,8 @@ void XGCBlobExtractor::setData(int nPhi_, double *dpot_)
 {
   nPhi = nPhi_;
   dpot = dpot_;
+
+  branchSet.clear();
 
 #if 0
   for (int i=0; i<nNodes; i++) {
