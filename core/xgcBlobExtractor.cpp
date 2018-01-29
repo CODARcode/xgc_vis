@@ -327,13 +327,17 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
   data.nPhi = nPhi;
 
   fprintf(stderr, "[2] sorting\n");
-  std::sort(totalOrder.begin(), totalOrder.end(),
+  std::stable_sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         // fprintf(stderr, "%.08e, %.08e\n", data.dpot[v0], data.dpot[v1]);
         return data.dpot[v0] < data.dpot[v1];
         // if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
         // else return data.dpot[v0] < data.dpot[v1];
       });
+
+  // for (int i=0; i<nNodes; i++) 
+  //   fprintf(stdout, "%lu\n", totalOrder[i]);
+    // fprintf(stdout, "%0.8e\n", dpot[i]);
 
   fprintf(stderr, "[3] creating context\n");
   ctContext *ctx = ct_init(
