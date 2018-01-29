@@ -40,6 +40,8 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["type"] = "mesh";
     outgoing["data"] = ex->jsonfyMesh();
   } else if (incoming["type"] == "requestData") {
+    // int client_current_time_index = incoming["client_current_time_index"];
+
     outgoing["type"] = "data";
 
     mutex_ex.lock();
@@ -430,6 +432,7 @@ int main(int argc, char **argv)
     
     fprintf(stderr, "done.\n");
 
+    // sleep(6);
     if (single_input) {
       if (read_method == ADIOS_READ_METHOD_BP) break;
       else adios_advance_step(varFP, 0, 1.0);
