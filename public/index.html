@@ -5,6 +5,7 @@
     <link rel="stylesheet" type="text/css" href="bootstrap.min.css">
     <script src="js/jquery-3.1.0.min.js"></script>
     <script src="js/three.min.js"></script>
+    <script src="js/OrbitControls.js"></script>
     <script src="js/stats.min.js"></script>
     <script src="js/TrackballControls.js"></script>
     <script src="js/FileSaver.min.js"></script>
@@ -51,6 +52,37 @@
       <img id='loading-pic' src='img/avatar-black.gif' />
     </div>
 
+    <div id='legend-div'>
+        <svg id='label-legend'>
+          <rect class='label-legend-rect outer' x='10' y='0' width='250' height='20'></rect>
+          <rect class='label-legend-rect negative' x='10' y='0' width='100' height='20'></rect>
+          <rect class='label-legend-rect zero' x='110' y='0' width='50' height='20'></rect>
+          <rect class='label-legend-rect positive' x='160' y='0' width='100' height='20'></rect>
+          <text x='10' y='35'>-1</text>
+          <text x='260' y='35' text-anchor='end'>+1</text>
+        </svg>
+        <svg id='value-legend'>
+          <linearGradient id="mainGradient">
+            <stop class="stop-left" offset="0"></stop>
+            <stop class="stop-middle" offset=".5"></stop>
+            <stop class="stop-right" offset="1"></stop>
+          </linearGradient>
+          <rect class='value-legend-rect' x='10' y='0' width='250' height='20'></rect>
+          <text id='min-value-text' x='10' y='35'>xxx</text>
+          <text id='zero-value-text' x='135' y='35' text-anchor='middle'>0</text>
+          <text id='max-value-text' x='260' y='35' text-anchor='end'>xxx</text>
+        </svg>
+        <div id='timestep-div'>
+          timestep = <span id='timestep-value'></span>
+        </div>
+    </div>
+
+    <div class='info-tooltip'>
+      <div class='info-name'>node #<span class='info-indices'></span></div>
+      <div class='info-name'><span class='info-coords'></span></div>
+      <div class='info-name'>value = <span class='info-values'></span></div>
+      <div class='info-name'>labels = <span class='info-labels'></span></div>
+    </div>
 
   </body>
     

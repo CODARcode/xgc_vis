@@ -5,47 +5,13 @@ var menuText = function() {
     cameraControls.reset();
   };
   this.displayStats = false;
-  this.renderMethod = 'label';
+  this.renderMethod = 'value';
   this.renderWireframe = false;
   this.autoRefreshing = false;
   this.refreshInterval = 20;
 
   this.saveImage = function() {
     window.open( renderer.domElement.toDataURL( 'image/png' ), 'screenshot' );
-  };
-
-  this.saveTrackball = function () {
-    var trac = {
-      target: cameraControls.target,
-      position: cameraControls.object.position,
-      up: cameraControls.object.up
-    };
-    var blob = new Blob([JSON.stringify(trac)], {type: "text/plain;charset=utf-8"});
-    saveAs(blob, "camera.json");
-  };
-
-  this.loadTrackball = function () {
-    if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
-      alert('The File APIs are not fully supported in this browser.');
-      return;
-    }
-
-    var evt = document.createEvent("MouseEvents");
-    evt.initEvent("click", true, false);
-    file_open.dispatchEvent(evt);
-    file_open.onchange = function() {
-      var path = file_open.value;
-      var f = file_open.files[0];
-      var reader = new FileReader();
-      
-      reader.onload = function(evt) {
-        var str = evt.target.result;
-        var trac = JSON.parse(str);
-        cameraControls.load(trac.target, trac.position, trac.up);
-      }
-
-      reader.readAsText(f);
-    }
   };
 
   this.reconnect = function () {
@@ -68,7 +34,7 @@ function initializeControlPanel () {
     else $("#stats").css({visibility: "hidden"});
   });
   // f2.add(text, "saveImage");
-  f2.add(text, 'renderMethod', ['label', 'value']).onChange(function() {
+  f2.add(text, 'renderMethod', ['value', 'label']).onChange(function() {
     updateRenderMethod(text.renderMethod);
   });
   f2.add(text, 'renderWireframe').onChange(function() {
@@ -79,22 +45,19 @@ function initializeControlPanel () {
   var f3 = gui.addFolder("Connection");
   f3.add(text, 'autoRefreshing').onChange(function() {
     if (text.autoRefreshing) {
-      updateRepeatRequestingSpeed(text.repeatInterval);
+      updateRepeatRequestingSpeed(text.refreshInterval);
     }
     else {
       cancelRepeatRequesting();
     }
   });
   f3.add(text, 'refreshInterval', 10, 300).onFinishChange(function() {
-    updateRepeatRequestingSpeed(text.repeatInterval);
+    if (text.autoRefreshing) {
+      updateRepeatRequestingSpeed(text.refreshInterval);
+    }
   });
   f3.add(text, 'reconnect');
   f3.open();
-
-  var f4 = gui.addFolder("Trackball");
-  f4.add(text, "saveTrackball");
-  f4.add(text, "loadTrackball");
-  f4.add(text, "resetTrackball");
 };
 
 (function initialConnectDialog() {

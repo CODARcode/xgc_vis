@@ -6,6 +6,8 @@ $("#stats").css({visibility: "hidden"});
 
 var clock = new THREE.Clock();
 var scene = new THREE.Scene();
+var targetList = [];
+var mouse = { x: 0, y: 0 };
 
 var camera = new THREE.PerspectiveCamera(30, window.innerWidth/window.innerHeight, 0.1, 100); 
 camera.position.z = 3;
@@ -27,12 +29,7 @@ scene.add(pointLight);
 var directionalLight = new THREE.DirectionalLight(0xffffff);
 scene.add(directionalLight);
 
-cameraControls = new THREE.TrackballControls(camera, renderer.domElement);
-cameraControls.target.set(0, 0, 0);
-cameraControls.zoomSpeed = 0.04;
-cameraControls.panSpeed = 0.04;
-// cameraControls.addEventListener("change", render); // not working.. sigh
-
+var controls = new THREE.OrbitControls( camera, renderer.domElement );
 var raycaster = new THREE.Raycaster();
 var mousePos = new THREE.Vector2();
 
@@ -44,14 +41,14 @@ function render() {
   stats.begin();
 
   raycaster.setFromCamera(mousePos, camera);
-  var intersects = raycaster.intersectObjects(scene.children);
+  // var intersects = raycaster.intersectObjects(scene.children);
   // for (i=0; i<intersects.length; i++)
   //   intersects[i].object.material.color.set(0xff0000);
 
   // scene
   var delta = clock.getDelta();
   requestAnimationFrame(render);
-  cameraControls.update(delta);
+  // cameraControls.update(delta);
   directionalLight.position.copy(camera.position);
   renderer.render(scene, camera);
 
@@ -72,107 +69,154 @@ function onResize() {
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  cameraControls.handleResize();
+  // cameraControls.handleResize();
 }
 
 var valueObject, labelObject;
+var circleObject;
 function updateMesh(mesh) {
   data.mesh = mesh;
   console.log("updating mesh...");
   var valueGeometry = new THREE.Geometry();
   var labelGeometry = new THREE.Geometry();
   for (var i = 0; i < data.mesh.nNodes; i ++) {
-    valueGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2] - 1.7, data.mesh.coords[i*2+1], 0));
     labelGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2] - 1.7, data.mesh.coords[i*2+1], 0));
+    valueGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2] - 1.7, data.mesh.coords[i*2+1], 0));
   }
   for (var i = 0; i < data.mesh.nTriangles; i ++) {
-    var face = new THREE.Face3(data.mesh.conn[i*3], data.mesh.conn[i*3+1], data.mesh.conn[i*3+2], null);
-    valueGeometry.faces.push(face);
-    labelGeometry.faces.push(face);
+    labelGeometry.faces.push(new THREE.Face3(data.mesh.conn[i*3], data.mesh.conn[i*3+1], data.mesh.conn[i*3+2], null));
+    valueGeometry.faces.push(new THREE.Face3(data.mesh.conn[i*3], data.mesh.conn[i*3+1], data.mesh.conn[i*3+2], null));
+    valueGeometry.faces[i].vertexColors.push(new THREE.Color(0xffffff));
+    valueGeometry.faces[i].vertexColors.push(new THREE.Color(0xffffff));
+    valueGeometry.faces[i].vertexColors.push(new THREE.Color(0xffffff));
   }
 
-  var valueMaterial = new THREE.MeshBasicMaterial( {vertexColors: THREE.FaceColors, side: THREE.DoubleSide} );
   var labelMaterial = new THREE.MeshBasicMaterial( {vertexColors: THREE.FaceColors, side: THREE.DoubleSide} );
-  valueObject = new THREE.Mesh(valueGeometry, valueMaterial);
+  var valueMaterial = new THREE.MeshBasicMaterial( {vertexColors: THREE.FaceColors, side: THREE.DoubleSide} );
   labelObject = new THREE.Mesh(labelGeometry, labelMaterial);
-  // scene.add(valueObject);
-  scene.add(labelObject);
+  valueObject = new THREE.Mesh(valueGeometry, valueMaterial);
+  if (!menuText.renderMethod || menuText.renderMethod === 'value') {
+    targetList.push(valueObject);
+    scene.add(valueObject);
+  }
+  else {
+    targetList.push(labelObject);
+    scene.add(labelObject);
+  }
   requestData();
+
+  var circleGeometry = new THREE.CircleGeometry(.001, 32);
+  var circleMaterial = new THREE.MeshBasicMaterial( { color: 0xffff00 } );
+  circleObject = new THREE.Mesh(circleGeometry, circleMaterial);
+  scene.add(circleObject);
 }
 
-function updateData(values, labels) {
+function updateData(values, labels, timestep) {
+  var red = '#b82e2e';
+  var green = '#109618';
+  var blue = '#3366cc';
+  var white = '#ffffff';
+  var black = '#000000';
+  var redHex = 0xb82e2e;
+  var greenHex = 0x109618;
+  var blueHex = 0x3366cc;
+  var whiteHex = 0xffffff;
+  var blackHex = 0x000000;
+
   data.values = values;
   data.labels = labels;
-  var range = {};
-  range.max = Math.max(...data.values);
-  range.min = Math.min(...data.values);
+  data.timestep = timestep;
   
+  /* value color scale */
+  var range = { max : 0, min : 0};
+  data.values.forEach(function(d) {
+    if (d > range.max) range.max = d;
+    if (d < range.min) range.min = d;
+  });
   console.log(range);
-  var count1 = 0;
-  var count2 = 0;
-  for (var i = 0; i < data.values.length; i ++) {
-    if (data.values[i] < 0) count2 ++;
-    if (data.values[i] > 0) count1 ++;
-  }
-  console.log(count1, count2);
-
   var cs = d3.scaleLinear().domain([range.min, 0, range.max])
-      .range([d3.rgb("#ff0000"), d3.rgb('#ffffff'), d3.rgb('#0000ff')]);
+      .range([d3.rgb(blue), d3.rgb(white), d3.rgb(red)]);
   var valueColorScale = function(v) {
     return new THREE.Color(cs(v).toString());
   };
+
+  /* value color legend */
+  var formatToOne = d3.format(".1e");
+  d3.select('#min-value-text').text(formatToOne(range.min));
+  d3.select('#max-value-text').text(formatToOne(range.max));
+
+  /* label color scale */
+  var labelRange = {};
+  data.values.forEach(function(d) {
+    if (d > labelRange.max) labelRange.max = d;
+    if (d < labelRange.min) labelRange.min = d;
+  });
+  console.log(labelRange);
+  var cs2 = d3.scaleLinear().domain([labelRange.min, 0, labelRange.max])
+      .range([d3.rgb(green), d3.rgb(black), d3.rgb(red)]);
+  var labelColorScale = function(l) {
+    return new THREE.Color(cs2(l).toString());
+  };
+
   for (var i = 0; i < valueObject.geometry.faces.length; i ++) {
-
-    // update value color
     var face = valueObject.geometry.faces[i];
-    var v1 = data.values[face.a];
-    var v2 = data.values[face.b];
-    var v3 = data.values[face.c];
-    if (valueObject.geometry.faces[i].vertexColors.length == 0) {
-      valueObject.geometry.faces[i].vertexColors.push(valueColorScale(v1));
-      valueObject.geometry.faces[i].vertexColors.push(valueColorScale(v2));
-      valueObject.geometry.faces[i].vertexColors.push(valueColorScale(v3));
-    }
-    else {
-      valueObject.geometry.faces[i].vertexColors[0].set(valueColorScale(v1));
-      valueObject.geometry.faces[i].vertexColors[1].set(valueColorScale(v2));
-      valueObject.geometry.faces[i].vertexColors[2].set(valueColorScale(v3));
-    }
-
     // update label color
     var l1 = data.labels[face.a];
     var l2 = data.labels[face.b];
     var l3 = data.labels[face.c];
-    var labelColor = new THREE.Color(0x000000);
+    var labelColor = new THREE.Color(blackHex);
     if (l1 === l2 && l2 === l3) {
+      // labelColor = labelColorScale(l1);
       if (l1 === 0) {
-        labelColor = new THREE.Color(0x000000);
+        labelColor = new THREE.Color(blackHex);
       }
-      else if (l1 === 1) {
-        labelColor = new THREE.Color(0xff0000);
+      else if (l1 > 0) {
+        labelColor = new THREE.Color(redHex);
       }
       else {
-        labelColor = new THREE.Color(0x0000ff);
+        labelColor = new THREE.Color(blueHex);
       }
     }
     labelObject.geometry.faces[i].color.set(labelColor);
+
+    // update value color
+    var v1 = data.values[face.a];
+    var v2 = data.values[face.b];
+    var v3 = data.values[face.c];
+    valueObject.geometry.faces[i].vertexColors[0].set(valueColorScale(v1));
+    valueObject.geometry.faces[i].vertexColors[1].set(valueColorScale(v2));
+    valueObject.geometry.faces[i].vertexColors[2].set(valueColorScale(v3));
   }
   valueObject.geometry.colorsNeedUpdate = true;
   valueObject.material.needsUpdate = true;
   labelObject.geometry.colorsNeedUpdate = true;
   labelObject.material.needsUpdate = true;
   $('#loading').hide();
+  $('#legend-div').show();
+
+  if (data.timestep != undefined) {
+    $('#timestep-div').show();
+    $('#timestep-value')[0].innerHTML = data.timestep;
+  }
+  else {
+    $('#timestep-div').hide();
+  }
 }
 
 function updateRenderMethod(method) {
-  console.log(method);
   if (method === 'label') {
     scene.remove(valueObject);
     scene.add(labelObject);
+    $('#value-legend').hide();
+    $('#label-legend').show();
+    targetList = [labelObject];
   }
   else if (method === 'value'){
     scene.remove(labelObject);
     scene.add(valueObject);
+    $('#value-legend').show();
+    $('#label-legend').hide();
+    targetList = [valueObject];
   }
 }
 
@@ -184,3 +228,79 @@ function updateRenderWireframe(renderWireframe) {
 
 initializeControlPanel();
 render();
+
+function onDocumentMouseMove(event) {
+  mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+  mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+  raycaster.setFromCamera( mouse, camera );
+
+  var intersects = raycaster.intersectObjects(targetList);
+
+  if ( intersects.length > 0 ) {
+    var face = intersects[0].face;  
+    var show = hitFace(face, event);
+    if (show) {
+      $('.info-tooltip').show();
+      $('.info-tooltip').css('left', event.clientX);
+      $('.info-tooltip').css('top', event.clientY - parseFloat($('.info-tooltip').css('height')));
+    }
+    else {
+      $('.info-tooltip').hide();
+    }
+  }
+  else {
+    $('.info-tooltip').hide();
+  }
+}
+
+function hitFace(face, event) {
+  if (data.values == undefined) return;
+  // calculate closest point 
+  var mouseX = event.clientX;
+  var mouseY = event.clientY;
+  var i1 = face.a;
+  var i2 = face.b;
+  var i3 = face.c;
+  var c1 = [data.mesh.coords[i1*2] - 1.7, data.mesh.coords[i1*2+1]];
+  var c2 = [data.mesh.coords[i2*2] - 1.7, data.mesh.coords[i2*2+1]];
+  var c3 = [data.mesh.coords[i3*2] - 1.7, data.mesh.coords[i3*2+1]];
+  var v1 = data.values[i1];
+  var v2 = data.values[i2];
+  var v3 = data.values[i3];
+  var l1 = data.labels[i1];
+  var l2 = data.labels[i2];
+  var l3 = data.labels[i3];
+  var squareC1 = (mouseX - c1[0])*(mouseX - c1[0]) + (mouseY - c1[1])*(mouseY - c1[1]);
+  var squareC2 = (mouseX - c2[0])*(mouseX - c2[0]) + (mouseY - c2[1])*(mouseY - c2[1]);
+  var squareC3 = (mouseX - c3[0])*(mouseX - c3[0]) + (mouseY - c3[1])*(mouseY - c3[1]);
+  var i, c, v, l; 
+  if (squareC1 > squareC2 && squareC1 > squareC3) {
+    i = i1;
+    c = c1;
+    v = v1;
+    l = l1;
+  }
+  else if (squareC2 > squareC1 && squareC2 > squareC3) {
+    i = i2;
+    c = c2;
+    v = v2;
+    l = l2;
+  }
+  else {
+    i = i3;
+    c = c3;
+    v = v3;
+    l = l3;
+  }
+  if (l == 0) {
+    return false;
+  }
+  var formatToOne = d3.format(".1e");
+  $('.info-indices')[0].innerHTML = i;
+  $('.info-coords')[0].innerHTML = '(' + formatToOne(c[0]) + ', ' + formatToOne(c[1]) + ')';
+  $('.info-values')[0].innerHTML = formatToOne(v);
+  $('.info-labels')[0].innerHTML = l;
+  return true;
+}
+
+document.addEventListener( 'mousemove', onDocumentMouseMove, false );

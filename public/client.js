@@ -17,6 +17,8 @@ function requestData() {
   var msg = {
     type: "requestData"
   };
+  if (data.timestep != undefined) 
+    msg['client_current_timestep'] = data.timestep;
   
   if (ws.readyState == 1) ws.send(JSON.stringify(msg));
   else connectToServer();
@@ -27,6 +29,12 @@ function connectToServer(ip, port) {
   // ws = new WebSocket("ws://red.mcs.anl.gov:8080");
   uri = 'ws://' + ip + ':' + port;
   ws = new WebSocket(uri);
+
+  setTimeout(function () {
+    if (ws.readyState != 0 && ws.readyState != 1) {
+        ws.onerror();
+    }
+  }, 3000);
   
   // ws.binaryType = "arraybuffer";
   ws.onopen = onOpen;
@@ -58,7 +66,7 @@ function onMessage(evt)
   } else if (msg.type == "data") {
     console.log(msg.data);
     console.log(msg.labels);
-    updateData(msg.data, msg.labels);
+    updateData(msg.data, msg.labels, msg.timestep);
   }
 }
 
@@ -67,13 +75,18 @@ function onError(evt)
   connectionDialog.error();
 }
 
+globalStatus = {};
 (function repeatRequestingData() {
   function repeatRequest() {
+    // if (globalStatus.isRendering) return;
+    var isDialogShown = $('#connectDialog').hasClass('show');
+    if (isDialogShown) return;
     requestData();
   }
   var repeatRequesting;
 
   updateRepeatRequestingSpeed = function(intervalSeconds) {
+    if (!Number.isInteger(intervalSeconds)) return;
     repeatRequest();
     if (repeatRequesting != undefined) clearInterval(repeatRequesting);
     repeatRequesting = setInterval(repeatRequest, intervalSeconds*1000);

@@ -76,3 +76,75 @@ canvas {width: 100%; height: 100%}
 #close-dialog, #close-dialog-cross {
   display: none;
 }
+
+#legend-div {
+  position: absolute;
+  z-index: 100000;
+  right: 0;
+  bottom: 0;
+  width: 270px;
+  height: 100px;
+  background-color: rgba(255, 255, 255, 0.3);
+  padding-top: 10px;
+  display: none;
+}
+
+#value-legend,
+#label-legend {
+  width: 270px;
+  height: 50px;
+}
+
+#label-legend{
+  display: none;
+}
+
+.value-legend-rect {
+  fill: url(#mainGradient);
+  stroke: black;
+}
+
+.stop-left {
+  stop-color: #3366cc;  /* blue */
+}
+
+.stop-middle {
+  stop-color: #ffffff;  /* white */
+}
+
+.stop-right {
+  stop-color: #b82e2e;  /* red */
+}
+
+.label-legend-rect.negative {
+  fill: #3366cc;
+}
+
+.label-legend-rect.zero {
+  fill: #000000;
+}
+
+.label-legend-rect.positive {
+  fill: #b82e2e;
+}
+
+.label-legend-rect.outer {
+  stroke: black;
+}
+
+#timestep-div {
+  padding-left: 10px;
+  display: none;
+}
+
+.info-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 99999999;
+  background-color: rgba(255, 255, 255, .95);
+  padding: 8px 12px;
+  transition: x .25s ease-out;
+  transition: y .25s ease-out;
+  border-radius: 3px;
+  box-shadow: 2px 2px 10px #888888;
+}
