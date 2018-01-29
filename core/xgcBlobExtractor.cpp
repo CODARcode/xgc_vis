@@ -278,7 +278,7 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
       extremum = branchPersistences[i].first->extremum;
 
     double val_extremum = value(extremum, d);
-    const int myid = -(count ++); // id++; // -i
+    const int myid = -1; // -(count ++); // id++; // -i
     int count = flood2D(extremum, myid, labels, val_extremum, percentage*val_extremum, d); // presumably the val is less than 0
     // fprintf(stderr, "count=%d\n", count);
   }
@@ -288,7 +288,7 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
   for (int i=branchPersistences.size()-1; i>branchPersistences.size()-nStreamers-1; i--) {
     size_t extremum = branchPersistences[i].first->extremum; // maximum
     double val_extremum = value(extremum, d);
-    const int myid = count ++; // id++;
+    const int myid = 1; // count ++; // id++;
     int count = flood2D(extremum, myid, labels, val_extremum*percentage, val_extremum, d);
     // fprintf(stderr, "count=%d\n", count);
   }
