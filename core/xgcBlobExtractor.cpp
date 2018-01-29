@@ -599,7 +599,7 @@ void XGCBlobExtractor::extractExtremum(int plane, double *dpot_)
 
 void XGCBlobExtractor::setData(size_t timestep_, int nPhi_, double *dpot_)
 {
-  timestep = timestep;
+  timestep = timestep_;
   nPhi = nPhi_;
   dpot = dpot_;
 
