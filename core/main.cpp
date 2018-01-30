@@ -126,7 +126,26 @@ void startWebsocketServer(int port)
   }
 }
 
-void writeUnstructredMeshDataFile(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, // POSIX, MPI, or others
+#if 0
+void openUnstructuredMeshDataFile(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams, 
+    int nNodes, int nTriangles, double *coords, int *conn, uint64_t &groupHandle, uint64_t &fileHandle) 
+{
+  const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
+  groupHandle = -1;
+  fileHandle = -1;
+
+  adios_init_noxml(comm);
+  adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
+  adios_select_method(groupHandle, writeMethod.c_str(), writeMethodParams.c_str(), "");
+  adios_define_schema_version(groupHandle, (char*)"1.1");
+  adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
+
+  adios_delete_vardefs(groupHandle);
+  adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
+}
+#endif
+
+void writeUnstructredMeshDataFile(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
   const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
@@ -141,7 +160,7 @@ void writeUnstructredMeshDataFile(MPI_Comm comm, const std::string& fileName, co
   adios_delete_vardefs(groupHandle);
   adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
 
-  fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
+  // fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
 
   const std::string pointsName = "points";
   const std::string numPointsName = "numPoints";
@@ -261,6 +280,7 @@ int main(int argc, char **argv)
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI|DIMES)")
+    ("write_method_params", value<std::string>()->default_value(""), "write_method_params")
     ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
     ("server,s", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
@@ -302,6 +322,7 @@ int main(int argc, char **argv)
   const std::string filename_output = vm["output"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
   const std::string write_method_str = vm["write_method"].as<std::string>();
+  const std::string write_method_params_str = vm["write_method_params"].as<std::string>();
   std::string filename_input;
   bool single_input = false;
   if (vm.count("input")) {
@@ -331,6 +352,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "filename_output=(null)\n");
   fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
   fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
+  fprintf(stderr, "write_method_params=%s\n", write_method_params_str.c_str());
   fprintf(stderr, "==========================================\n");
 
   ADIOS_READ_METHOD read_method;
@@ -459,12 +481,12 @@ int main(int argc, char **argv)
 
     if (filename_output.length() > 0) {
       fprintf(stderr, "dumping results..\n");
-      if (stage_output) {
+      if (0) { // TODO: stage_output
         // TODO
       } else {
         std::stringstream ss_filename;
         ss_filename << filename_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
-        writeUnstructredMeshDataFile(MPI_COMM_WORLD, ss_filename.str(), write_method_str, 
+        writeUnstructredMeshDataFile(MPI_COMM_WORLD, ss_filename.str(), write_method_str, write_method_params_str,
             nNodes, nTriangles, coords, conn, dpot, psi, labels);
       }
     }

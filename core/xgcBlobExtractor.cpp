@@ -315,7 +315,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
 {
   fprintf(stderr, "building contour tree for plane %d, nNodes=%d\n", plane, nNodes);
 
-  fprintf(stderr, "[1] preparing data\n");
+  // fprintf(stderr, "[1] preparing data\n");
   std::vector<size_t> totalOrder; 
   for (int i=0; i<nNodes; i++) 
     totalOrder.push_back(i);
@@ -326,7 +326,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
   data.nNodes = nNodes;
   data.nPhi = nPhi;
 
-  fprintf(stderr, "[2] sorting\n");
+  // fprintf(stderr, "[2] sorting\n");
   std::stable_sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         // fprintf(stderr, "%.08e, %.08e\n", data.dpot[v0], data.dpot[v1]);
@@ -339,7 +339,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
   //   fprintf(stdout, "%lu\n", totalOrder[i]);
     // fprintf(stdout, "%0.8e\n", dpot[i]);
 
-  fprintf(stderr, "[3] creating context\n");
+  // fprintf(stderr, "[3] creating context\n");
   ctContext *ctx = ct_init(
       nNodes, 
       &totalOrder.front(),  
@@ -349,13 +349,13 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
 
   // ct_priorityFunc(ctx, volumePriority);
 
-  fprintf(stderr, "[4] sweep and merge\n");
+  // fprintf(stderr, "[4] sweep and merge\n");
   ct_sweepAndMerge(ctx);
   ctBranch *root = ct_decompose(ctx);
   ctBranch **branchMap = ct_branchMap(ctx);
   
   // build branchSet
-  fprintf(stderr, "[5] building branchSet\n");
+  // fprintf(stderr, "[5] building branchSet\n");
   std::map<ctBranch*, size_t> branchSet;
   size_t nBranches = 0;
   for (int i=0; i<nNodes; i++) {
@@ -368,14 +368,14 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
 
   // simplifyBranchDecompositionByNumbers(root, branchSet, 50, &data); // TODO
   // addExtremumFromBranchDecomposition(plane, root, root, &data);
-  fprintf(stderr, "[6] extract streamers\n");
+  // fprintf(stderr, "[6] extract streamers\n");
   extractStreamers(plane, root, branchSet, 80, 0.1, &data); // TODO
 
   // printContourTree(root);
 
-  fprintf(stderr, "[7] cleaning up ctx\n");
+  // fprintf(stderr, "[7] cleaning up ctx\n");
   ct_cleanup(ctx);
-  fprintf(stderr, "[8] contour tree done\n");
+  // fprintf(stderr, "[8] contour tree done\n");
 }
 
 void XGCBlobExtractor::buildContourTree3D()
