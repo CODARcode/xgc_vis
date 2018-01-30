@@ -126,7 +126,7 @@ void startWebsocketServer(int port)
   }
 }
 
-void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, // POSIX, MPI, or others
+void writeUnstructredMeshDataFile(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, // POSIX, MPI, or others
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
   const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
@@ -260,7 +260,7 @@ int main(int argc, char **argv)
     ("pattern", value<std::string>(), "input file pattern, e.g. 'xgc.3d.*.bp'.  only works for BP.")
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
-    ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI)")
+    ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI|DIMES)")
     ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
     ("server,s", "enable websocket server")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
@@ -307,6 +307,13 @@ int main(int argc, char **argv)
   if (vm.count("input")) {
     filename_input = vm["input"].as<std::string>();
     single_input = true;
+  }
+
+  bool stage_output = false;
+  if (vm.count("output") && write_method_str == "DIMES")
+    stage_output = true;
+  else {
+    stage_output = false;
   }
 
   fprintf(stderr, "==========================================\n");
@@ -451,13 +458,15 @@ int main(int argc, char **argv)
     int *labels = ex->getLabels(0).data();
 
     if (filename_output.length() > 0) {
-      fprintf(stderr, "dumping results..\n"); 
-      writeUnstructredMeshData(MPI_COMM_WORLD, filename_output, write_method_str, nNodes, nTriangles, coords, conn, dpot, psi, labels);
-#if 0
-      ex->dumpMesh("xgc.mesh.json"); // only need to dump once
-      ex->dumpBranchDecompositions("xgc.branches.json");
-      ex->dumpLabels("xgc.labels.bin");
-#endif
+      fprintf(stderr, "dumping results..\n");
+      if (stage_output) {
+        // TODO
+      } else {
+        std::stringstream ss_filename;
+        ss_filename << filename_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
+        writeUnstructredMeshDataFile(MPI_COMM_WORLD, ss_filename.str(), write_method_str, 
+            nNodes, nTriangles, coords, conn, dpot, psi, labels);
+      }
     }
     
     fprintf(stderr, "done.\n");
