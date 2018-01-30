@@ -137,120 +137,7 @@ void startWebsocketServer(int port)
   }
 }
 
-void openUnstructuredMeshDataFile(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams, 
-    int nNodes, int nTriangles, double *coords, int *conn, double *psi, int64_t &fileHandle, int64_t &dpotId, int64_t &labelsId)
-{
-  const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
-  int64_t groupHandle = -1;
-
-  adios_init_noxml(comm);
-  adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
-  adios_select_method(groupHandle, writeMethod.c_str(), writeMethodParams.c_str(), "");
-  adios_define_schema_version(groupHandle, (char*)"1.1");
-  adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
-
-  adios_delete_vardefs(groupHandle);
-  adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
-  
-  adios_define_mesh_unstructured(
-      (char*)pointsName.c_str(), 
-      (char*)cellsName.c_str(), 
-      (char*)numCellsName.c_str(), 
-      (char*)cellShape.c_str(), 
-      (char*)numPointsName.c_str(), 
-      (char*)"2",
-      groupHandle, 
-      meshName.c_str());
-  
-  // points
-  adios_define_var(groupHandle, numPointsName.c_str(), "", adios_integer, 0, 0, 0);
-  adios_write(fileHandle, numPointsName.c_str(), &nNodes);
-
-  int64_t ptId = adios_define_var(
-      groupHandle, 
-      pointsName.c_str(), 
-      "", 
-      adios_double, 
-      std::string(numPointsName + ",2").c_str(), 
-      std::string(numPointsName + ",2").c_str(), 
-      "0,0");
-  adios_write_byid(fileHandle, ptId, &coords[0]);
-
-  // cells
-  adios_define_var(groupHandle, numCellsName.c_str(), "", adios_integer, 0, 0, 0);
-  adios_write(fileHandle, numCellsName.c_str(), &nTriangles);
-
-  const int ptsInCell = 3;
-  std::string cellDim = std::to_string(nTriangles) + "," + std::to_string(ptsInCell);
-  int64_t cellId = adios_define_var(
-      groupHandle, 
-      cellsName.c_str(), 
-      "", 
-      adios_integer, 
-      cellDim.c_str(),
-      cellDim.c_str(), 
-      "0,0");
-  adios_write_byid(fileHandle, cellId, &conn[0]);
-  
-  // dpot
-  adios_define_var_mesh(groupHandle, dpotName.c_str(), meshName.c_str());
-  adios_define_var_centering(groupHandle, dpotName.c_str(), centering.c_str());
-  dpotId = adios_define_var(
-      groupHandle, 
-      dpotName.c_str(), 
-      "",
-      adios_double, 
-      std::to_string(nNodes).c_str(), 
-      std::to_string(nNodes).c_str(),
-      "0");
-  
-  // psi
-  adios_define_var_mesh(groupHandle, psiName.c_str(), meshName.c_str());
-  adios_define_var_centering(groupHandle, psiName.c_str(), centering.c_str());
-  int64_t psiId = adios_define_var(
-      groupHandle, 
-      psiName.c_str(), 
-      "",
-      adios_double, 
-      std::to_string(nNodes).c_str(), 
-      std::to_string(nNodes).c_str(),
-      "0");
-  adios_write_byid(fileHandle, psiId, psi);
- 
-  // labels
-  adios_define_var_mesh(groupHandle, labelsName.c_str(), meshName.c_str());
-  adios_define_var_centering(groupHandle, labelsName.c_str(), centering.c_str());
-  labelsId = adios_define_var(
-      groupHandle, 
-      labelsName.c_str(), 
-      "",
-      adios_double, // adios_integer, 
-      std::to_string(nNodes).c_str(), 
-      std::to_string(nNodes).c_str(),
-      "0");
-  // adios_write_byid(fileHandle, labelsId, d_labels);
-}
-
-void writeUnstructredMeshData(int64_t fileHandle, int64_t dpotId, int64_t labelsId, int nNodes, int nTriangles, double *dpot, int *labels)
-{
-  // dpot
-  adios_write_byid(fileHandle, dpotId, dpot);
-
-  // labels
-  if (labels != NULL) {
-    double *d_labels = (double*)malloc(sizeof(double)*nNodes);
-    for (int i=0; i<nNodes; i++) 
-      d_labels[i] = static_cast<double>(labels[i]);
-
-    adios_write_byid(fileHandle, labelsId, d_labels);
-    free(d_labels);
-  }
-
-  // adios_close(fileHandle);
-  // adios_finalize(0);
-}
-
-void writeUnstructredMeshDataFile_Legacy(int timestep, MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
+void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
   const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
@@ -377,6 +264,7 @@ int main(int argc, char **argv)
     ("input,i", value<std::string>(), "input_file")
     ("pattern", value<std::string>(), "input file pattern, e.g. 'xgc.3d.*.bp'.  only works for BP.")
     ("output,o", value<std::string>()->default_value(""), "output_file")
+    ("output_prefix", value<std::string>()->default_value(""), "output file prefix (e.g. 'features' will generate features.%05d.bp)")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI|DIMES)")
     ("write_method_params", value<std::string>()->default_value(""), "write_method_params")
@@ -419,6 +307,7 @@ int main(int argc, char **argv)
 
   const std::string filename_mesh = vm["mesh"].as<std::string>();
   const std::string filename_output = vm["output"].as<std::string>();
+  const std::string prefix_output = vm["output_prefix"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
   const std::string write_method_str = vm["write_method"].as<std::string>();
   const std::string write_method_params_str = vm["write_method_params"].as<std::string>();
@@ -440,7 +329,9 @@ int main(int argc, char **argv)
   }
   if (filename_output.size() > 0) 
     fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
-  else 
+  else if (prefix_output.size() > 0)
+    fprintf(stderr, "prefix_output=%s\n", prefix_output.c_str());
+  else
     fprintf(stderr, "filename_output=(null)\n");
   fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
   fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
@@ -479,13 +370,6 @@ int main(int argc, char **argv)
   readScalars<double>(meshFP, "psi", &psi);
   // adios_close(*meshFP);
 
-#if 0
-  int64_t fileHandleOutput, dpotIdOutput, labelsIdOutput;
-  if (filename_output.size() > 0) 
-    openUnstructuredMeshDataFile(MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
-        nNodes, nTriangles, coords, conn, psi, fileHandleOutput, dpotIdOutput, labelsIdOutput);
-#endif
-  
   // starting server
   ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
   
@@ -580,16 +464,14 @@ int main(int argc, char **argv)
 
     if (filename_output.length() > 0) {
       fprintf(stderr, "writing results for timestep %d\n", current_time_index); 
-#if 0
-      writeUnstructredMeshData(fileHandleOutput, dpotIdOutput, labelsIdOutput, 
-          nNodes, nTriangles, dpot, labels); 
-#endif
-#if 1 // legacy single files
-      // std::stringstream ss_filename;
-      // ss_filename << filename_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
-      writeUnstructredMeshDataFile_Legacy(current_time_index, MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
+      writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
           nNodes, nTriangles, coords, conn, dpot, psi, labels);
-#endif
+    } else if (prefix_output.length() > 0) {
+      fprintf(stderr, "writing results for timestep %d\n", current_time_index); 
+      std::stringstream ss_filename;
+      ss_filename << prefix_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
+      writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, ss_filename.str(), write_method_str, write_method_params_str,
+          nNodes, nTriangles, coords, conn, dpot, psi, labels);
     }
     
     fprintf(stderr, "done.\n");
