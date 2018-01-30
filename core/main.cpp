@@ -223,17 +223,22 @@ void writeUnstructredMeshData(MPI_Comm comm, const std::string& fileName, const 
 
   // labels
   if (labels != NULL) {
+    double *d_labels = (double*)malloc(sizeof(double)*nNodes);
+    for (int i=0; i<nNodes; i++) 
+      d_labels[i] = static_cast<double>(labels[i]);
+
     adios_define_var_mesh(groupHandle, labelsName.c_str(), meshName.c_str());
     adios_define_var_centering(groupHandle, labelsName.c_str(), centering.c_str());
     int64_t labelsId = adios_define_var(
         groupHandle, 
         labelsName.c_str(), 
         "",
-        adios_integer, 
+        adios_double, // adios_integer, 
         std::to_string(nNodes).c_str(), 
         std::to_string(nNodes).c_str(),
         "0");
-    adios_write_byid(fileHandle, labelsId, labels);
+    adios_write_byid(fileHandle, labelsId, d_labels);
+    free(d_labels);
   }
 
   adios_close(fileHandle);
