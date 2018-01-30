@@ -12,6 +12,17 @@
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
   
+const std::string pointsName = "points";
+const std::string numPointsName = "numPoints";
+const std::string cellsName = "cells";
+const std::string numCellsName = "numCells";
+const std::string cellShape = "triangle"; // FIXME
+const std::string dpotName = "dpot";
+const std::string psiName = "psi";
+const std::string labelsName = "labels";
+const std::string centering = "point";
+
+  
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
 
@@ -126,13 +137,11 @@ void startWebsocketServer(int port)
   }
 }
 
-#if 0
 void openUnstructuredMeshDataFile(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams, 
-    int nNodes, int nTriangles, double *coords, int *conn, uint64_t &groupHandle, uint64_t &fileHandle) 
+    int nNodes, int nTriangles, double *coords, int *conn, double *psi, int64_t &fileHandle, int64_t &dpotId, int64_t &labelsId)
 {
   const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
-  groupHandle = -1;
-  fileHandle = -1;
+  int64_t groupHandle = -1;
 
   adios_init_noxml(comm);
   adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
@@ -142,10 +151,106 @@ void openUnstructuredMeshDataFile(MPI_Comm comm, const std::string& fileName, co
 
   adios_delete_vardefs(groupHandle);
   adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
-}
-#endif
+  
+  adios_define_mesh_unstructured(
+      (char*)pointsName.c_str(), 
+      (char*)cellsName.c_str(), 
+      (char*)numCellsName.c_str(), 
+      (char*)cellShape.c_str(), 
+      (char*)numPointsName.c_str(), 
+      (char*)"2",
+      groupHandle, 
+      meshName.c_str());
+  
+  // points
+  adios_define_var(groupHandle, numPointsName.c_str(), "", adios_integer, 0, 0, 0);
+  adios_write(fileHandle, numPointsName.c_str(), &nNodes);
 
-void writeUnstructredMeshDataFile(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
+  int64_t ptId = adios_define_var(
+      groupHandle, 
+      pointsName.c_str(), 
+      "", 
+      adios_double, 
+      std::string(numPointsName + ",2").c_str(), 
+      std::string(numPointsName + ",2").c_str(), 
+      "0,0");
+  adios_write_byid(fileHandle, ptId, &coords[0]);
+
+  // cells
+  adios_define_var(groupHandle, numCellsName.c_str(), "", adios_integer, 0, 0, 0);
+  adios_write(fileHandle, numCellsName.c_str(), &nTriangles);
+
+  const int ptsInCell = 3;
+  std::string cellDim = std::to_string(nTriangles) + "," + std::to_string(ptsInCell);
+  int64_t cellId = adios_define_var(
+      groupHandle, 
+      cellsName.c_str(), 
+      "", 
+      adios_integer, 
+      cellDim.c_str(),
+      cellDim.c_str(), 
+      "0,0");
+  adios_write_byid(fileHandle, cellId, &conn[0]);
+  
+  // dpot
+  adios_define_var_mesh(groupHandle, dpotName.c_str(), meshName.c_str());
+  adios_define_var_centering(groupHandle, dpotName.c_str(), centering.c_str());
+  dpotId = adios_define_var(
+      groupHandle, 
+      dpotName.c_str(), 
+      "",
+      adios_double, 
+      std::to_string(nNodes).c_str(), 
+      std::to_string(nNodes).c_str(),
+      "0");
+  
+  // psi
+  adios_define_var_mesh(groupHandle, psiName.c_str(), meshName.c_str());
+  adios_define_var_centering(groupHandle, psiName.c_str(), centering.c_str());
+  int64_t psiId = adios_define_var(
+      groupHandle, 
+      psiName.c_str(), 
+      "",
+      adios_double, 
+      std::to_string(nNodes).c_str(), 
+      std::to_string(nNodes).c_str(),
+      "0");
+  adios_write_byid(fileHandle, psiId, psi);
+ 
+  // labels
+  adios_define_var_mesh(groupHandle, labelsName.c_str(), meshName.c_str());
+  adios_define_var_centering(groupHandle, labelsName.c_str(), centering.c_str());
+  labelsId = adios_define_var(
+      groupHandle, 
+      labelsName.c_str(), 
+      "",
+      adios_double, // adios_integer, 
+      std::to_string(nNodes).c_str(), 
+      std::to_string(nNodes).c_str(),
+      "0");
+  // adios_write_byid(fileHandle, labelsId, d_labels);
+}
+
+void writeUnstructredMeshData(int64_t fileHandle, int64_t dpotId, int64_t labelsId, int nNodes, int nTriangles, double *dpot, int *labels)
+{
+  // dpot
+  adios_write_byid(fileHandle, dpotId, dpot);
+
+  // labels
+  if (labels != NULL) {
+    double *d_labels = (double*)malloc(sizeof(double)*nNodes);
+    for (int i=0; i<nNodes; i++) 
+      d_labels[i] = static_cast<double>(labels[i]);
+
+    adios_write_byid(fileHandle, labelsId, d_labels);
+    free(d_labels);
+  }
+
+  // adios_close(fileHandle);
+  // adios_finalize(0);
+}
+
+void writeUnstructredMeshDataFile_Legacy(MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
   const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
@@ -161,16 +266,6 @@ void writeUnstructredMeshDataFile(MPI_Comm comm, const std::string& fileName, co
   adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
 
   // fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
-
-  const std::string pointsName = "points";
-  const std::string numPointsName = "numPoints";
-  const std::string cellsName = "cells";
-  const std::string numCellsName = "numCells";
-  const std::string cellShape = "triangle"; // FIXME
-  const std::string dpotName = "dpot";
-  const std::string psiName = "psi";
-  const std::string labelsName = "labels";
-  const std::string centering = "point";
 
   adios_define_mesh_unstructured(
       (char*)pointsName.c_str(), 
@@ -330,13 +425,6 @@ int main(int argc, char **argv)
     single_input = true;
   }
 
-  bool stage_output = false;
-  if (vm.count("output") && write_method_str == "DIMES")
-    stage_output = true;
-  else {
-    stage_output = false;
-  }
-
   fprintf(stderr, "==========================================\n");
   fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
   if (single_input) {
@@ -386,6 +474,11 @@ int main(int argc, char **argv)
   readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
   readScalars<double>(meshFP, "psi", &psi);
   // adios_close(*meshFP);
+
+  int64_t fileHandleOutput, dpotIdOutput, labelsIdOutput;
+  if (filename_output.size() > 0) 
+  openUnstructuredMeshDataFile(MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
+      nNodes, nTriangles, coords, conn, psi, fileHandleOutput, dpotIdOutput, labelsIdOutput);
   
   // starting server
   ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
@@ -480,15 +573,15 @@ int main(int argc, char **argv)
     int *labels = ex->getLabels(0).data();
 
     if (filename_output.length() > 0) {
-      fprintf(stderr, "dumping results..\n");
-      if (0) { // TODO: stage_output
-        // TODO
-      } else {
-        std::stringstream ss_filename;
-        ss_filename << filename_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
-        writeUnstructredMeshDataFile(MPI_COMM_WORLD, ss_filename.str(), write_method_str, write_method_params_str,
-            nNodes, nTriangles, coords, conn, dpot, psi, labels);
-      }
+      fprintf(stderr, "writing results for timestep %d\n", current_time_index); 
+      writeUnstructredMeshData(fileHandleOutput, dpotIdOutput, labelsIdOutput, 
+          nNodes, nTriangles, dpot, labels); 
+#if 0 // legacy single files
+      std::stringstream ss_filename;
+      ss_filename << filename_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
+      writeUnstructredMeshDataFile_Legacy(MPI_COMM_WORLD, ss_filename.str(), write_method_str, write_method_params_str,
+          nNodes, nTriangles, coords, conn, dpot, psi, labels);
+#endif
     }
     
     fprintf(stderr, "done.\n");
@@ -498,6 +591,11 @@ int main(int argc, char **argv)
       if (read_method == ADIOS_READ_METHOD_BP) break;
       else adios_advance_step(varFP, 0, 1.0);
     }
+  }
+    
+  if (filename_output.length() > 0) {
+    adios_close(fileHandleOutput);
+    adios_finalize(0);
   }
   
   if (ws_thread) {
