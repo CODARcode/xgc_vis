@@ -265,6 +265,8 @@ int main(int argc, char **argv)
     ("pattern", value<std::string>(), "input file pattern, e.g. 'xgc.3d.*.bp'.  only works for BP.")
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("output_prefix", value<std::string>()->default_value(""), "output file prefix (e.g. 'features' will generate features.%05d.bp)")
+    ("output_branches,o", value<std::string>()->default_value(""), "output_branches")
+    ("output_prefix_branches,o", value<std::string>()->default_value(""), "output_prefix_branches")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI|DIMES)")
     ("write_method_params", value<std::string>()->default_value(""), "write_method_params")
@@ -307,7 +309,9 @@ int main(int argc, char **argv)
 
   const std::string filename_mesh = vm["mesh"].as<std::string>();
   const std::string filename_output = vm["output"].as<std::string>();
-  const std::string prefix_output = vm["output_prefix"].as<std::string>();
+  const std::string filename_output_branches = vm["output_branches"].as<std::string>();
+  const std::string output_prefix = vm["output_prefix"].as<std::string>();
+  const std::string output_prefix_branches = vm["output_prefix_branches"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
   const std::string write_method_str = vm["write_method"].as<std::string>();
   const std::string write_method_params_str = vm["write_method_params"].as<std::string>();
@@ -329,8 +333,8 @@ int main(int argc, char **argv)
   }
   if (filename_output.size() > 0) 
     fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
-  else if (prefix_output.size() > 0)
-    fprintf(stderr, "prefix_output=%s\n", prefix_output.c_str());
+  else if (output_prefix.size() > 0)
+    fprintf(stderr, "output_prefix=%s\n", output_prefix.c_str());
   else
     fprintf(stderr, "filename_output=(null)\n");
   fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
@@ -463,15 +467,27 @@ int main(int argc, char **argv)
     int *labels = ex->getLabels(0).data();
 
     if (filename_output.length() > 0) {
-      fprintf(stderr, "writing results for timestep %d\n", current_time_index); 
+      fprintf(stderr, "writing results for to %s\n", filename_output.c_str()); 
       writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
           nNodes, nTriangles, coords, conn, dpot, psi, labels);
-    } else if (prefix_output.length() > 0) {
-      fprintf(stderr, "writing results for timestep %d\n", current_time_index); 
+    } else if (output_prefix.length() > 0) {
       std::stringstream ss_filename;
-      ss_filename << prefix_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
+      ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
+      fprintf(stderr, "writing results for timestep %zu to %s\n", 
+          current_time_index, ss_filename.str().c_str()); 
       writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, ss_filename.str(), write_method_str, write_method_params_str,
           nNodes, nTriangles, coords, conn, dpot, psi, labels);
+    }
+
+    if (filename_output_branches.length() > 0) {
+      fprintf(stderr, "writing branch decompositions to %s\n", filename_output_branches.c_str());
+      ex->dumpBranches(filename_output_branches);
+    } else if (output_prefix_branches.length() > 0) {
+      std::stringstream ss_filename;
+      ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << current_time_index << ".json";
+      fprintf(stderr, "writing branch decompositions for timestep %zu to %s\n", 
+          current_time_index, ss_filename.str().c_str()); 
+      ex->dumpBranches(ss_filename.str());
     }
     
     fprintf(stderr, "done.\n");

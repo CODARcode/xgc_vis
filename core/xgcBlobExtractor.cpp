@@ -141,7 +141,7 @@ static void printContourTree(ctBranch* b)
     printContourTree(c);
 }
 
-json branch2json(ctBranch* b, std::map<ctBranch*, size_t> &branchSet, void *d)
+static json branch2json(ctBranch* b, std::map<ctBranch*, size_t> &branchSet, void *d)
 {
   json j;
 
@@ -356,7 +356,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
   
   // build branchSet
   // fprintf(stderr, "[5] building branchSet\n");
-  std::map<ctBranch*, size_t> branchSet;
+  // std::map<ctBranch*, size_t> branchSet;
   size_t nBranches = 0;
   for (int i=0; i<nNodes; i++) {
     if (branchMap[i] == NULL) continue;
@@ -650,21 +650,27 @@ void XGCBlobExtractor::dumpLabels(const std::string& filename)
   fclose(fp);
 }
 
+void XGCBlobExtractor::dumpBranches(const std::string &filename)
+{
+  std::ofstream ofs(filename, std::ofstream::out);
+  ofs << jsonfyBranches().dump();
+  ofs.close();
+}
 
-void XGCBlobExtractor::dumpBranchDecompositions(const std::string& filename) {
+json XGCBlobExtractor::jsonfyBranches() // const std::string& filename) 
+{
   XGCData data;
   data.nodeGraph = &nodeGraph;
   data.dpot = dpot;
   data.nNodes = nNodes;
   data.nPhi = nPhi;
 
-  std::ofstream ofs(filename, std::ofstream::out);
   json jresults;
   for (std::map<ctBranch*, size_t>::iterator it = branchSet.begin();  it != branchSet.end();  it ++) {
     jresults[it->second] = branch2json(it->first, branchSet, &data);
   }
-  ofs << jresults.dump();
-  ofs.close();
+  
+  return jresults;
 }
 
 json XGCBlobExtractor::jsonfyMesh() const { 
