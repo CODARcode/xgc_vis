@@ -268,7 +268,7 @@ int main(int argc, char **argv)
     ("output_branches,o", value<std::string>()->default_value(""), "output_branches")
     ("output_prefix_branches,o", value<std::string>()->default_value(""), "output_prefix_branches")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
-    ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI|DIMES)")
+    ("write_method,w", value<std::string>()->default_value("BIN"), "write_method (POSIX|MPI|DIMES|BIN), bin for raw binary")
     ("write_method_params", value<std::string>()->default_value(""), "write_method_params")
     ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
     ("server,s", "enable websocket server")
@@ -308,19 +308,21 @@ int main(int argc, char **argv)
   }
 
   const std::string filename_mesh = vm["mesh"].as<std::string>();
-  const std::string filename_output = vm["output"].as<std::string>();
-  const std::string filename_output_branches = vm["output_branches"].as<std::string>();
   const std::string output_prefix = vm["output_prefix"].as<std::string>();
   const std::string output_prefix_branches = vm["output_prefix_branches"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
   const std::string write_method_str = vm["write_method"].as<std::string>();
   const std::string write_method_params_str = vm["write_method_params"].as<std::string>();
+  std::string filename_output = vm["output"].as<std::string>();
+  std::string filename_output_branches = vm["output_branches"].as<std::string>();
   std::string filename_input;
   bool single_input = false;
   if (vm.count("input")) {
     filename_input = vm["input"].as<std::string>();
     single_input = true;
   }
+
+  bool write_binary = (vm["write_method"].as<std::string>() == "BIN"); 
 
   fprintf(stderr, "==========================================\n");
   fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
@@ -443,19 +445,6 @@ int main(int argc, char **argv)
     }
 
     fprintf(stderr, "starting analysis..\n");
-  
-#if 0
-    std::stringstream ssfilename;
-    ssfilename << "original-" << current_time_index << ".bp";
-    fprintf(stderr, "writing original data for test.\n");
-    writeUnstructredMeshData(MPI_COMM_WORLD, ssfilename.str().c_str(), 
-        write_method_str, nNodes, nTriangles, coords, conn, dpot, NULL, NULL); // psi, labels);
-    fprintf(stderr, "original data written.\n");
-    // FIXME
-    if (read_method == ADIOS_READ_METHOD_BP) continue;
-    else adios_advance_step(varFP, 0, 1.0);
-    continue;
-#endif
 
     mutex_ex.lock();
     ex->setData(current_time_index, nPhi, dpot);
@@ -464,30 +453,36 @@ int main(int argc, char **argv)
     ex->buildContourTree2D(0);
     mutex_ex.unlock();
 
+    // write labels
     int *labels = ex->getLabels(0).data();
-
-    if (filename_output.length() > 0) {
-      fprintf(stderr, "writing results for to %s\n", filename_output.c_str()); 
-      writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
-          nNodes, nTriangles, coords, conn, dpot, psi, labels);
-    } else if (output_prefix.length() > 0) {
+    if (output_prefix.length() > 0) {
       std::stringstream ss_filename;
-      ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
+      ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << current_time_index 
+        << (write_binary ? ".bin" : ".bp");
+      filename_output = ss_filename.str();
+    }
+      
+    if (filename_output.length() > 0) {
       fprintf(stderr, "writing results for timestep %zu to %s\n", 
-          current_time_index, ss_filename.str().c_str()); 
-      writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, ss_filename.str(), write_method_str, write_method_params_str,
-          nNodes, nTriangles, coords, conn, dpot, psi, labels);
+          current_time_index, filename_output.c_str());
+      if (write_binary)
+        ex->dumpLabels(filename_output);
+      else 
+        writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
+            nNodes, nTriangles, coords, conn, dpot, psi, labels);
+    }
+   
+    // write branches
+    if (output_prefix_branches.length() > 0) {
+      std::stringstream ss_filename;
+      ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << current_time_index << ".json";
+      filename_output_branches = ss_filename.str();
     }
 
     if (filename_output_branches.length() > 0) {
-      fprintf(stderr, "writing branch decompositions to %s\n", filename_output_branches.c_str());
-      ex->dumpBranches(filename_output_branches);
-    } else if (output_prefix_branches.length() > 0) {
-      std::stringstream ss_filename;
-      ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << current_time_index << ".json";
       fprintf(stderr, "writing branch decompositions for timestep %zu to %s\n", 
-          current_time_index, ss_filename.str().c_str()); 
-      ex->dumpBranches(ss_filename.str());
+          current_time_index, filename_output_branches.c_str()); 
+      ex->dumpBranches(filename_output_branches);
     }
     
     fprintf(stderr, "done.\n");
