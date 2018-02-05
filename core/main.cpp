@@ -390,13 +390,15 @@ int main(int argc, char **argv)
   size_t current_time_index = 0; // only for multiple inputs.
 
   // output
-  int64_t groupHandle = -1; 
-  adios_init_noxml(MPI_COMM_WORLD);
-  adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
-  adios_select_method(groupHandle, write_method_str.c_str(), "", "");
-  adios_define_schema_version(groupHandle, (char*)"1.1");
-  adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
-  adios_delete_vardefs(groupHandle);
+  int64_t groupHandle = -1;
+  if (!write_binary) {
+    adios_init_noxml(MPI_COMM_WORLD);
+    adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
+    adios_select_method(groupHandle, write_method_str.c_str(), "", "");
+    adios_define_schema_version(groupHandle, (char*)"1.1");
+    adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
+    adios_delete_vardefs(groupHandle);
+  }
 
   while (1) {
     if (single_input) {
