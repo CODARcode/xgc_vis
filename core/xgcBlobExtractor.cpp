@@ -261,7 +261,7 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
   }
   branchPersistences.push_back(std::make_pair<const ctBranch*, double>(root, value(root->saddle, d) - value(root->extremum, d)));
 
-  std::sort(branchPersistences.begin(), branchPersistences.end(), 
+  std::stable_sort(branchPersistences.begin(), branchPersistences.end(), 
     [](std::pair<const ctBranch*, double> p0, std::pair<const ctBranch*, double> p1) {
       return p0.second < p1.second;
     });
@@ -392,7 +392,7 @@ void XGCBlobExtractor::buildContourTree3D()
   data.nNodes = nNodes;
   data.nPhi = nPhi;
   
-  std::sort(totalOrder.begin(), totalOrder.end(),
+  std::stable_sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         return data.dpot[v0] < data.dpot[v1];
         // if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
@@ -650,25 +650,40 @@ void XGCBlobExtractor::dumpLabels(const std::string& filename)
   fclose(fp);
 }
 
-void XGCBlobExtractor::dumpBranches(const std::string &filename)
+void XGCBlobExtractor::dumpBranches(const std::string &filename, size_t top)
 {
   std::ofstream ofs(filename, std::ofstream::out);
-  ofs << jsonfyBranches().dump();
+  ofs << jsonfyBranches(top).dump();
   ofs.close();
 }
 
-json XGCBlobExtractor::jsonfyBranches() // const std::string& filename) 
+json XGCBlobExtractor::jsonfyBranches(size_t top) // const std::string& filename) 
 {
   XGCData data;
   data.nodeGraph = &nodeGraph;
   data.dpot = dpot;
   data.nNodes = nNodes;
   data.nPhi = nPhi;
+  void *d = &data;
+  
+  std::vector<std::pair<const ctBranch*, double> > branchPersistences;
+  for (auto &kv : branchSet) {
+    branchPersistences.push_back(std::make_pair<const ctBranch*, double>(kv.first, 
+          fabs(value(kv.first->extremum, d) - value(kv.first->saddle, d))));
+  }
+
+  std::stable_sort(branchPersistences.begin(), branchPersistences.end(), 
+    [](std::pair<const ctBranch*, double> p0, std::pair<const ctBranch*, double> p1) {
+      return p0.second > p1.second; // reversed
+    });
 
   json jresults;
-  for (std::map<ctBranch*, size_t>::iterator it = branchSet.begin();  it != branchSet.end();  it ++) {
-    jresults[it->second] = branch2json(it->first, branchSet, &data);
-  }
+  // for (std::map<ctBranch*, size_t>::iterator it = branchSet.begin();  it != branchSet.end();  it ++) 
+  //   jresults[it->second] = branch2json(it->first, branchSet, &data);
+  
+  if (top == 0) top = branchPersistences.size();
+  for (int i = 0; i < top; i ++) 
+    jresults.push_back( branch2json((ctBranch*)branchPersistences[i].first, branchSet, d) );
   
   return jresults;
 }

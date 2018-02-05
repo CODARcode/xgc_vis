@@ -26,10 +26,10 @@ public:
   std::vector<int>& getLabels(int plane) {return all_labels[plane];}
 
   json jsonfyMesh() const;
-  json jsonfyBranches(); 
+  json jsonfyBranches(size_t top=0); 
 
   void dumpLabels(const std::string& filename);
-  void dumpBranches(const std::string& filename);
+  void dumpBranches(const std::string& filename, size_t top=0);
 
 public: 
   void buildContourTree2D(int plane);
