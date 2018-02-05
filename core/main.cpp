@@ -22,6 +22,7 @@ const std::string psiName = "psi";
 const std::string labelsName = "labels";
 const std::string centering = "point";
 
+const std::string groupName = "xgc_blobs", meshName = "xgc_mesh2D";
   
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
@@ -137,20 +138,10 @@ void startWebsocketServer(int port)
   }
 }
 
-void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
+void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHandle, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
-  const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
-  int64_t groupHandle = -1, fileHandle = -1;
-
-  adios_init_noxml(comm);
-  adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
-  adios_select_method(groupHandle, writeMethod.c_str(), "", "");
-  adios_define_schema_version(groupHandle, (char*)"1.1");
-  adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
-
-  adios_delete_vardefs(groupHandle);
-  // adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
+  int64_t fileHandle = -1;
   adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), (timestep == 1 ? "w" : "a"), comm);
 
   // fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
@@ -247,7 +238,7 @@ void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, const std::string
   }
 
   adios_close(fileHandle);
-  adios_finalize(0);
+  // adios_finalize(0);
 }
 
 
@@ -398,6 +389,15 @@ int main(int argc, char **argv)
   double *dpot = NULL;
   size_t current_time_index = 0; // only for multiple inputs.
 
+  // output
+  int64_t groupHandle = -1; 
+  adios_init_noxml(MPI_COMM_WORLD);
+  adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
+  adios_select_method(groupHandle, write_method_str.c_str(), "", "");
+  adios_define_schema_version(groupHandle, (char*)"1.1");
+  adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
+  adios_delete_vardefs(groupHandle);
+
   while (1) {
     if (single_input) {
       if (adios_errno == err_end_of_stream) break;
@@ -468,7 +468,7 @@ int main(int argc, char **argv)
       if (write_binary)
         ex->dumpLabels(filename_output);
       else 
-        writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
+        writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
             nNodes, nTriangles, coords, conn, dpot, psi, labels);
     }
    
@@ -513,6 +513,7 @@ int main(int argc, char **argv)
   ex = NULL;
   free(coords);
   free(conn);
+  adios_finalize(0);
 
   fprintf(stderr, "exiting...\n");
   MPI_Finalize();
