@@ -6,7 +6,8 @@
 #include <vector>
 #include <set>
 #include <map>
-#include "json.hpp"
+#include <json.hpp>
+#include "common/FeatureTransitionMatrix.h"
 
 class XGCBlobExtractor
 {
@@ -65,6 +66,9 @@ private: // analysis
   std::map<int, std::vector<int> > maximum, minimum;
   std::map<int, std::vector<int> > all_labels;
   std::map<ctBranch*, size_t> branchSet;
+
+public:
+  FeatureTransitionMatrix relateFeatures(int *labels0, int *labels1);
 }; 
 
 #endif
