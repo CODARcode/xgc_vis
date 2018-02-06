@@ -16,6 +16,7 @@ struct FeatureSequence {
   // int lhs_event, rhs_event;
 };
 
+#if 0
 namespace diy {
   template <> struct Serialization<FeatureSequence> {
     static void save(diy::BinaryBuffer& bb, const FeatureSequence& m) {
@@ -37,5 +38,6 @@ namespace diy {
     }
   };
 }
+#endif
 
 #endif

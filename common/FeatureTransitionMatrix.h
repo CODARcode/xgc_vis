@@ -9,7 +9,7 @@
 #include "common/FeatureEvents.h"
 
 class FeatureTransitionMatrix {
-  friend class diy::Serialization<FeatureTransitionMatrix>;
+  // friend class diy::Serialization<FeatureTransitionMatrix>;
 public:
   FeatureTransitionMatrix();
   FeatureTransitionMatrix(int t0, int t1, int n0, int n1);
@@ -65,6 +65,7 @@ public:
 
 
 ///////////
+#if 0
 namespace diy {
   template <> struct Serialization<FeatureTransitionMatrix> {
     static void save(diy::BinaryBuffer& bb, const FeatureTransitionMatrix& m) {
@@ -90,5 +91,6 @@ namespace diy {
     }
   };
 }
+#endif
 
 #endif

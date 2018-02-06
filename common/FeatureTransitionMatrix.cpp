@@ -2,6 +2,7 @@
 #include <sstream>
 #include <cstdio>
 #include <climits>
+#include <cmath>
 #include <cassert>
 
 FeatureTransitionMatrix::FeatureTransitionMatrix() :

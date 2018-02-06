@@ -5,9 +5,19 @@
 #include <set>
 #include <cassert>
 #include <cstring>
-#include "common/diy-ext.hpp"
-#include "random_color.h"
-#include "graph_color.h"
+// #include "common/diy-ext.hpp"
+#include "RandomColor.h"
+#include "GraphColor.h"
+
+// mem alloc for 2D arrays
+#define malloc2D(name, xDim, yDim, type) do {               \
+    name = (type **)malloc(xDim * sizeof(type *));          \
+    assert(name != NULL);                                   \
+    name[0] = (type *)malloc(xDim * yDim * sizeof(type));   \
+    assert(name[0] != NULL);                                \
+    for (size_t i = 1; i < xDim; i++)                       \
+        name[i] = name[i-1] + yDim;                         \
+} while (0)
 
 FeatureTransition::FeatureTransition()
 {

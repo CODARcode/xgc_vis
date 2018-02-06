@@ -12,7 +12,7 @@
 
 class FeatureTransition 
 {
-  friend class diy::Serialization<FeatureTransition>;
+  // friend class diy::Serialization<FeatureTransition>;
 public:
   FeatureTransition();
   ~FeatureTransition();
@@ -74,6 +74,7 @@ private:
   std::mutex _mutex;
 };
 
+#if 0
 /////////
 namespace diy {
   template <> struct Serialization<FeatureTransition> {
@@ -100,5 +101,6 @@ namespace diy {
     }
   };
 }
+#endif
 
 #endif

@@ -49,3 +49,4 @@ if (XGCVIS_BUILD_CONVERTER)
 endif ()
 
 add_subdirectory (third_party/libtourtre)
+add_subdirectory (common)
