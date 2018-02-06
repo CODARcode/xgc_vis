@@ -5,10 +5,8 @@
 #include <vector>
 #include <map>
 #include <set>
-#include "def.h"
+#include "common/Interval.h"
 #include "common/FeatureEvents.h"
-
-typedef std::pair<int, int> Interval;
 
 class FeatureTransitionMatrix {
   friend class diy::Serialization<FeatureTransitionMatrix>;

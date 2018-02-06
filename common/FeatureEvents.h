@@ -1,20 +1,20 @@
-#ifndef _VORTEX_EVENTS_H
-#define _VORTEX_EVENTS_H
+#ifndef _FEATURE_EVENTS_H
+#define _FEATURE_EVENTS_H
 
 #include <vector>
 #include "common/Interval.h"
 
 enum {
-  VORTEX_EVENT_DUMMY = 0,
-  VORTEX_EVENT_BIRTH = 1,
-  VORTEX_EVENT_DEATH = 2,
-  VORTEX_EVENT_MERGE = 3,
-  VORTEX_EVENT_SPLIT = 4,
-  VORTEX_EVENT_RECOMBINATION = 5, 
-  VORTEX_EVENT_COMPOUND = 6
+  FEATURE_EVENT_DUMMY = 0,
+  FEATURE_EVENT_BIRTH = 1,
+  FEATURE_EVENT_DEATH = 2,
+  FEATURE_EVENT_MERGE = 3,
+  FEATURE_EVENT_SPLIT = 4,
+  FEATURE_EVENT_RECOMBINATION = 5, 
+  FEATURE_EVENT_COMPOUND = 6
 };
 
-struct VortexEvent {
+struct FeatureEvent {
   int if0, if1;
   int type;
   std::set<int> lhs, rhs; // local ids.
@@ -30,8 +30,8 @@ struct VortexEvent {
 };
 
 namespace diy {
-  template <> struct Serialization<VortexEvent> {
-    static void save(diy::BinaryBuffer& bb, const VortexEvent& m) {
+  template <> struct Serialization<FeatureEvent> {
+    static void save(diy::BinaryBuffer& bb, const FeatureEvent& m) {
       diy::save(bb, m.if0);
       diy::save(bb, m.if1);
       diy::save(bb, m.type);
@@ -39,7 +39,7 @@ namespace diy {
       diy::save(bb, m.rhs);
     }
 
-    static void load(diy::BinaryBuffer&bb, VortexEvent& m) {
+    static void load(diy::BinaryBuffer&bb, FeatureEvent& m) {
       diy::load(bb, m.if0);
       diy::load(bb, m.if1);
       diy::load(bb, m.type);

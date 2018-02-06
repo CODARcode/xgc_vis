@@ -125,19 +125,19 @@ void FeatureTransitionMatrix::Modularize()
 
     int event; 
     if (lhs.size() == 1 && rhs.size() == 1) {
-      event = VORTEX_EVENT_DUMMY;
+      event = FEATURE_EVENT_DUMMY;
     } else if (lhs.size() == 0 && rhs.size() == 1) {
-      event = VORTEX_EVENT_BIRTH;
+      event = FEATURE_EVENT_BIRTH;
     } else if (lhs.size() == 1 && rhs.size() == 0) {
-      event = VORTEX_EVENT_DEATH;
+      event = FEATURE_EVENT_DEATH;
     } else if (lhs.size() == 1 && rhs.size() == 2) {
-      event = VORTEX_EVENT_SPLIT;
+      event = FEATURE_EVENT_SPLIT;
     } else if (lhs.size() == 2 && rhs.size() == 1) { 
-      event = VORTEX_EVENT_MERGE;
+      event = FEATURE_EVENT_MERGE;
     } else if (lhs.size() == 2 && rhs.size() == 2) { 
-      event = VORTEX_EVENT_RECOMBINATION;
+      event = FEATURE_EVENT_RECOMBINATION;
     } else {
-      event = VORTEX_EVENT_COMPOUND;
+      event = FEATURE_EVENT_COMPOUND;
     }
 
     _lhss.push_back(lhs);

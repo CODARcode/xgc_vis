@@ -1,4 +1,4 @@
-#include "VortexTransition.h"
+#include "FeatureTransition.h"
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -8,18 +8,17 @@
 #include "common/diy-ext.hpp"
 #include "random_color.h"
 #include "graph_color.h"
-#include "def.h"
 
-VortexTransition::VortexTransition()
+FeatureTransition::FeatureTransition()
 {
 }
 
-VortexTransition::~VortexTransition()
+FeatureTransition::~FeatureTransition()
 {
 }
 
 #if WITH_ROCKSDB
-bool VortexTransition::LoadFromDB(rocksdb::DB* db)
+bool FeatureTransition::LoadFromDB(rocksdb::DB* db)
 {
   std::string buf;
   rocksdb::Status s; 
@@ -42,7 +41,7 @@ bool VortexTransition::LoadFromDB(rocksdb::DB* db)
       rocksdb::Status s = db->Get(rocksdb::ReadOptions(), ss.str(), &buf);
       if (!s.ok()) fprintf(stderr, "Key not found, %s\n", ss.str().c_str());
 
-      VortexTransitionMatrix mat;
+      FeatureTransitionMatrix mat;
       diy::unserialize(buf, mat);
       AddMatrix(mat);
     }
@@ -56,7 +55,7 @@ bool VortexTransition::LoadFromDB(rocksdb::DB* db)
 }
 #endif
 
-void VortexTransition::LoadFromFile(const std::string& dataname, int ts, int tl)
+void FeatureTransition::LoadFromFile(const std::string& dataname, int ts, int tl)
 {
 #if 0 // FIXME
   _ts = ts;
@@ -66,7 +65,7 @@ void VortexTransition::LoadFromFile(const std::string& dataname, int ts, int tl)
     std::stringstream ss;
     ss << dataname << ".match." << i << "." << i+1;
 
-    VortexTransitionMatrix tm;
+    FeatureTransitionMatrix tm;
     if (!tm.LoadFromFile(ss.str())) {
       fprintf(stderr, "cannot open file %s\n", ss.str().c_str());
       tm.SetToDummy();
@@ -86,7 +85,7 @@ void VortexTransition::LoadFromFile(const std::string& dataname, int ts, int tl)
 }
 
 #define HUMAN_READABLE 0
-std::string VortexTransition::NodeToString(int i, int j) const
+std::string FeatureTransition::NodeToString(int i, int j) const
 {
   using namespace std;
   stringstream ss;
@@ -98,7 +97,7 @@ std::string VortexTransition::NodeToString(int i, int j) const
   return ss.str();
 }
 
-void VortexTransition::SaveToDotFile(const std::string& filename) const
+void FeatureTransition::SaveToDotFile(const std::string& filename) const
 {
   using namespace std;
   ofstream ofs(filename.c_str());
@@ -113,7 +112,7 @@ void VortexTransition::SaveToDotFile(const std::string& filename) const
 #if 0 // FIXME TODO
 #if 1
   for (int t=_ts; t<_ts+_tl-1; t++) {
-    const VortexTransitionMatrix &tm = Matrix(t); 
+    const FeatureTransitionMatrix &tm = Matrix(t); 
     for (int i=0; i<tm.n0(); i++) {
       for (int j=0; j<tm.n1(); j++) {
         int weight = 1;
@@ -136,7 +135,7 @@ void VortexTransition::SaveToDotFile(const std::string& filename) const
 #else
   // iteration over sequences
   for (int i=0; i<_seqs.size(); i++) {
-    const VortexSequence &seq = _seqs[i];
+    const FeatureSequence &seq = _seqs[i];
     for (int k=0; k<seq.lids.size(); k++) {
       const int t = seq.ts + k;
       const int weight = seq.tl;
@@ -202,12 +201,12 @@ void VortexTransition::SaveToDotFile(const std::string& filename) const
 #endif
 }
 
-VortexTransitionMatrix& VortexTransition::Matrix(Interval I)
+FeatureTransitionMatrix& FeatureTransition::Matrix(Interval I)
 {
   return _matrices[I];
 }
 
-void VortexTransition::AddMatrix(const VortexTransitionMatrix& m)
+void FeatureTransition::AddMatrix(const FeatureTransitionMatrix& m)
 {
   if (!m.Valid()) return;
   
@@ -215,17 +214,17 @@ void VortexTransition::AddMatrix(const VortexTransitionMatrix& m)
   _matrices[m.GetInterval()] = m;
 }
 
-int VortexTransition::NewVortexSequence(int its)
+int FeatureTransition::NewFeatureSequence(int its)
 {
-  VortexSequence vs;
+  FeatureSequence vs;
   vs.its = its;
   vs.itl = 0;
-  // vs.lhs_event = vs.rhs_event = VORTEX_EVENT_DUMMY;
+  // vs.lhs_event = vs.rhs_event = FEATURE_EVENT_DUMMY;
   _seqs.push_back(vs);
   return _seqs.size() - 1;
 }
 
-int VortexTransition::lvid2gvid(int t, int lid) const
+int FeatureTransition::lvid2gvid(int t, int lid) const
 {
   std::pair<int, int> key = std::make_pair(t, lid);
   std::map<std::pair<int,int>,int>::const_iterator it = _seqmap.find(key);
@@ -235,7 +234,7 @@ int VortexTransition::lvid2gvid(int t, int lid) const
     return it->second;
 }
 
-int VortexTransition::gvid2lvid(int frame, int gvid) const
+int FeatureTransition::gvid2lvid(int frame, int gvid) const
 {
   std::pair<int, int> key = std::make_pair(frame, gvid);
   std::map<std::pair<int, int>,int>::const_iterator it = _invseqmap.find(key);
@@ -245,25 +244,25 @@ int VortexTransition::gvid2lvid(int frame, int gvid) const
     return it->second;
 }
 
-void VortexTransition::SequenceColor(int gid, unsigned char &r, unsigned char &g, unsigned char &b) const
+void FeatureTransition::SequenceColor(int gid, unsigned char &r, unsigned char &g, unsigned char &b) const
 {
   r = _seqs[gid].r;
   g = _seqs[gid].g;
   b = _seqs[gid].b;
 }
 
-void VortexTransition::ConstructSequence()
+void FeatureTransition::ConstructSequence()
 {
   for (int i=0; i<_frames.size()-1; i++) {
     Interval I(_frames[i], _frames[i+1]);
     // fprintf(stderr, "processing interval {%d, %d}\n", I.first, I.second);
 
-    VortexTransitionMatrix &tm = Matrix(I);
+    FeatureTransitionMatrix &tm = Matrix(I);
     assert(tm.Valid());
 
     if (i == 0) { // initial
       for (int k=0; k<tm.n0(); k++) {
-        int gid = NewVortexSequence(i);
+        int gid = NewFeatureSequence(i);
         _seqs[gid].itl ++;
         _seqs[gid].lids.push_back(k);
         _seqmap[std::make_pair(i, k)] = gid;
@@ -286,7 +285,7 @@ void VortexTransition::ConstructSequence()
       } else { // some events, need re-ID
         for (std::set<int>::iterator it=rhs.begin(); it!=rhs.end(); it++) {
           int r = *it; 
-          int gid = NewVortexSequence(i+1);
+          int gid = NewFeatureSequence(i+1);
           _seqs[gid].itl ++;
           _seqs[gid].lids.push_back(r);
           _seqmap[std::make_pair(i+1, r)] = gid;
@@ -295,9 +294,9 @@ void VortexTransition::ConstructSequence()
       }
 
       // build events
-      // if (event >= VORTEX_EVENT_MERGE) {
-      if (event > VORTEX_EVENT_DUMMY) {
-        VortexEvent e;
+      // if (event >= FEATURE_EVENT_MERGE) {
+      if (event > FEATURE_EVENT_DUMMY) {
+        FeatureEvent e;
         e.if0 = i; 
         e.if1 = i+1;
         e.type = event;
@@ -312,13 +311,13 @@ void VortexTransition::ConstructSequence()
   SequenceGraphColoring(); 
 }
 
-void VortexTransition::PrintSequence() const
+void FeatureTransition::PrintSequence() const
 {
   for (int i=0; i<_events.size(); i++) {
-    const VortexEvent& e = _events[i];
+    const FeatureEvent& e = _events[i];
     std::stringstream ss;
     ss << "interval={" << _frames[e.if0] << ", " << _frames[e.if1] << "}, ";
-    ss << "type=" << VortexEvent::TypeToString(e.type) << ", ";
+    ss << "type=" << FeatureEvent::TypeToString(e.type) << ", ";
     ss << "lhs={";
 
     int j = 0;
@@ -351,7 +350,7 @@ void VortexTransition::PrintSequence() const
 
 
 #if 0
-      if (event >= VORTEX_EVENT_MERGE) { // FIXME: other events
+      if (event >= FEATURE_EVENT_MERGE) { // FIXME: other events
         for (int u=0; u<lhs.size(); u++) {
           const int lgid = _seqmap[std::make_tuple(i, lhs[u])];
           _seqs[lgid].rhs_event = event;
@@ -378,7 +377,7 @@ void VortexTransition::PrintSequence() const
       }
 #endif
 
-void VortexTransition::RandomColorSchemes()
+void FeatureTransition::RandomColorSchemes()
 {
   std::vector<unsigned char> colors;
   generate_random_colors(_seqs.size(), colors);
@@ -390,7 +389,7 @@ void VortexTransition::RandomColorSchemes()
   }
 }
 
-void VortexTransition::SequenceGraphColoring()
+void FeatureTransition::SequenceGraphColoring()
 {
   using namespace std;
 
@@ -422,7 +421,7 @@ void VortexTransition::SequenceGraphColoring()
     if (t>=_frames.size()-1) continue; 
     int lhs_lid = _seqs[i].lids.back();
     Interval interval = std::make_pair(_frames[t], _frames[t+1]);
-    VortexTransitionMatrix &mat = _matrices[interval];
+    FeatureTransitionMatrix &mat = _matrices[interval];
     for (int k=0; k<mat.n1(); k++) {
       if (mat(lhs_lid, k)) {
         int rhs_lid = k;
@@ -455,7 +454,7 @@ void VortexTransition::SequenceGraphColoring()
   free(cids);
 }
 
-int VortexTransition::NVortices(int frame) const
+int FeatureTransition::NVortices(int frame) const
 {
   std::map<int, int>::const_iterator it = _nvortices_per_frame.find(frame);
 

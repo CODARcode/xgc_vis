@@ -1,11 +1,11 @@
-#ifndef _VORTEX_SEQUENCE_H
-#define _VORTEX_SEQUENCE_H
+#ifndef _FEATURE_SEQUENCE_H
+#define _FEATURE_SEQUENCE_H
 
 #include <vector>
 #include <map>
-#include "common/VortexTransition.h"
+#include "common/FeatureTransition.h"
 
-struct VortexSequence {
+struct FeatureSequence {
   // int ts, tl; // start and duration
   int its, itl;  // start and duration (index of frames)
   std::vector<int> lids; // local ids
@@ -17,8 +17,8 @@ struct VortexSequence {
 };
 
 namespace diy {
-  template <> struct Serialization<VortexSequence> {
-    static void save(diy::BinaryBuffer& bb, const VortexSequence& m) {
+  template <> struct Serialization<FeatureSequence> {
+    static void save(diy::BinaryBuffer& bb, const FeatureSequence& m) {
       diy::save(bb, m.its);
       diy::save(bb, m.itl);
       diy::save(bb, m.lids);
@@ -27,7 +27,7 @@ namespace diy {
       diy::save(bb, m.b);
     }
 
-    static void load(diy::BinaryBuffer&bb, VortexSequence& m) {
+    static void load(diy::BinaryBuffer&bb, FeatureSequence& m) {
       diy::load(bb, m.its);
       diy::load(bb, m.itl);
       diy::load(bb, m.lids);
