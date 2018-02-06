@@ -1,22 +1,22 @@
-#ifndef _VORTEX_TRANSITION_MATRIX_H
-#define _VORTEX_TRANSITION_MATRIX_H
+#ifndef _FEATURE_TRANSITION_MATRIX_H
+#define _FEATURE_TRANSITION_MATRIX_H
 
 #include <string>
 #include <vector>
 #include <map>
 #include <set>
 #include "def.h"
-#include "common/diy-ext.hpp"
-#include "common/VortexEvents.h"
-#include "common/Interval.h"
+#include "common/FeatureEvents.h"
 
-class VortexTransitionMatrix {
-  friend class diy::Serialization<VortexTransitionMatrix>;
+typedef std::pair<int, int> Interval;
+
+class FeatureTransitionMatrix {
+  friend class diy::Serialization<FeatureTransitionMatrix>;
 public:
-  VortexTransitionMatrix();
-  VortexTransitionMatrix(int t0, int t1, int n0, int n1);
-  VortexTransitionMatrix(Interval, int n0, int n1);
-  ~VortexTransitionMatrix();
+  FeatureTransitionMatrix();
+  FeatureTransitionMatrix(int t0, int t1, int n0, int n1);
+  FeatureTransitionMatrix(Interval, int n0, int n1);
+  ~FeatureTransitionMatrix();
 
 public: // IO
   void SetToDummy() {_n0 = _n1 = 0; _match.clear();}
@@ -68,8 +68,8 @@ public:
 
 ///////////
 namespace diy {
-  template <> struct Serialization<VortexTransitionMatrix> {
-    static void save(diy::BinaryBuffer& bb, const VortexTransitionMatrix& m) {
+  template <> struct Serialization<FeatureTransitionMatrix> {
+    static void save(diy::BinaryBuffer& bb, const FeatureTransitionMatrix& m) {
       diy::save(bb, m._interval);
       diy::save(bb, m._n0);
       diy::save(bb, m._n1);
@@ -80,7 +80,7 @@ namespace diy {
       diy::save(bb, m.moving_speeds);
     }
 
-    static void load(diy::BinaryBuffer&bb, VortexTransitionMatrix& m) {
+    static void load(diy::BinaryBuffer&bb, FeatureTransitionMatrix& m) {
       diy::load(bb, m._interval);
       diy::load(bb, m._n0);
       diy::load(bb, m._n1);

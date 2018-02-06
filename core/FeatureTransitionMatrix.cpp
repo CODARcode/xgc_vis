@@ -1,27 +1,27 @@
-#include "VortexTransitionMatrix.h"
+#include "FeatureTransitionMatrix.h"
 #include <sstream>
 #include <cstdio>
 #include <climits>
 #include <cassert>
 
-VortexTransitionMatrix::VortexTransitionMatrix() :
+FeatureTransitionMatrix::FeatureTransitionMatrix() :
   _n0(INT_MAX), _n1(INT_MAX)
 {
 }
 
-VortexTransitionMatrix::VortexTransitionMatrix(int t0, int t1, int n0, int n1) :
+FeatureTransitionMatrix::FeatureTransitionMatrix(int t0, int t1, int n0, int n1) :
   _interval(std::make_pair(t0, t1)), 
   _n0(n0), _n1(n1)
 {
   _match.resize(_n0*_n1);
 }
 
-VortexTransitionMatrix::~VortexTransitionMatrix()
+FeatureTransitionMatrix::~FeatureTransitionMatrix()
 {
 }
 
 #if 0
-std::string VortexTransitionMatrix::MatrixFileName(const std::string& dataname, int t0, int t1) const
+std::string FeatureTransitionMatrix::MatrixFileName(const std::string& dataname, int t0, int t1) const
 {
   std::stringstream ss;
   ss << dataname << ".match." << t0 << "." << t1;
@@ -29,27 +29,27 @@ std::string VortexTransitionMatrix::MatrixFileName(const std::string& dataname, 
 }
 #endif
 
-int VortexTransitionMatrix::operator()(int i, int j) const
+int FeatureTransitionMatrix::operator()(int i, int j) const
 {
   return _match[i*n1() + j];
 }
 
-int& VortexTransitionMatrix::operator()(int i, int j)
+int& FeatureTransitionMatrix::operator()(int i, int j)
 {
   return _match[i*n1() + j];
 }
 
-int VortexTransitionMatrix::at(int i, int j) const
+int FeatureTransitionMatrix::at(int i, int j) const
 {
   return _match[i*n1() + j];
 }
 
-int& VortexTransitionMatrix::at(int i, int j)
+int& FeatureTransitionMatrix::at(int i, int j)
 {
   return _match[i*n1() + j];
 }
 
-int VortexTransitionMatrix::colsum(int j) const
+int FeatureTransitionMatrix::colsum(int j) const
 {
   int sum = 0;
   for (int i=0; i<n0(); i++)
@@ -57,7 +57,7 @@ int VortexTransitionMatrix::colsum(int j) const
   return sum;
 }
 
-int VortexTransitionMatrix::rowsum(int i) const 
+int FeatureTransitionMatrix::rowsum(int i) const 
 {
   int sum = 0;
   for (int j=0; j<n1(); j++) 
@@ -65,7 +65,7 @@ int VortexTransitionMatrix::rowsum(int i) const
   return sum;
 }
 
-void VortexTransitionMatrix::GetModule(int i, std::set<int> &lhs, std::set<int> &rhs, int &event) const
+void FeatureTransitionMatrix::GetModule(int i, std::set<int> &lhs, std::set<int> &rhs, int &event) const
 {
   if (i>=_lhss.size()) return;
 
@@ -74,7 +74,7 @@ void VortexTransitionMatrix::GetModule(int i, std::set<int> &lhs, std::set<int> 
   event = _events[i];
 }
 
-void VortexTransitionMatrix::Normalize()
+void FeatureTransitionMatrix::Normalize()
 {
   if (NModules() == 0) Modularize();
   for (int i=0; i<NModules(); i++) {
@@ -88,7 +88,7 @@ void VortexTransitionMatrix::Normalize()
   }
 }
 
-void VortexTransitionMatrix::Modularize()
+void FeatureTransitionMatrix::Modularize()
 {
   const int n = n0() + n1();
 
@@ -148,7 +148,7 @@ void VortexTransitionMatrix::Modularize()
   moving_speeds.resize(_n0, NAN);
 }
 
-void VortexTransitionMatrix::Print() const
+void FeatureTransitionMatrix::Print() const
 {
   fprintf(stderr, "Interval={%d, %d}, n0=%d, n1=%d\n", 
       _interval.first, _interval.second, _n0, _n1);
@@ -161,7 +161,7 @@ void VortexTransitionMatrix::Print() const
   }
 }
 
-void VortexTransitionMatrix::SaveAscii(const std::string& filename) const 
+void FeatureTransitionMatrix::SaveAscii(const std::string& filename) const 
 {
   FILE *fp = fopen(filename.c_str(), "w");
   
