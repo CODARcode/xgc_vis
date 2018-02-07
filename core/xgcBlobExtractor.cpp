@@ -252,7 +252,23 @@ int XGCBlobExtractor::flood2D(size_t seed, int id, std::vector<int> &labels, dou
 
   return count;
 }
+
+std::vector<int> XGCBlobExtractor::getFlattenedLabels(int plane)
+{
+  const std::vector<int>& labels = all_labels[plane];
+  const std::vector<int>& signs = all_signs[plane];
+  std::vector<int> flattened(nNodes, 0);
   
+  for (size_t i = 0; i < nNodes; i ++) {
+    const int id = labels[i];
+    if (id == INT_MAX) continue;
+    else if (signs[id] > 0) flattened[i] = 1;
+    else if (signs[id] < 0) flattened[i] = -1;
+  }
+
+  return flattened;
+}
+
 void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBranch*, size_t>& branchSet, int nStreamers, double percentage, void *d)
 {
   std::vector<std::pair<const ctBranch*, double> > branchPersistences;
@@ -266,10 +282,11 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
       return p0.second < p1.second;
     });
 
-  std::vector<int> labels(nNodes, 0);
+  std::vector<int> labels(nNodes, INT_MAX);
+  std::vector<int> signs;
  
   // minimum streamers
-  int count = 1;
+  int count = 0;
   for (int i=0; i<std::min((size_t)nStreamers, branchPersistences.size()); i++) {
     size_t extremum;
     if (branchPersistences[i].first == root)
@@ -278,22 +295,24 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
       extremum = branchPersistences[i].first->extremum;
 
     double val_extremum = value(extremum, d);
-    const int myid = -1; // -(count ++); // id++; // -i
+    const int myid = count ++; // -(count ++); // id++; // -i
     int count = flood2D(extremum, myid, labels, val_extremum, percentage*val_extremum, d); // presumably the val is less than 0
+    signs.push_back(-1);
     // fprintf(stderr, "count=%d\n", count);
   }
 
   // maximum streamers
-  count = 1;
   for (int i=branchPersistences.size()-1; i>branchPersistences.size()-nStreamers-1; i--) {
     size_t extremum = branchPersistences[i].first->extremum; // maximum
     double val_extremum = value(extremum, d);
-    const int myid = 1; // count ++; // id++;
+    const int myid = count ++; // count ++; // id++;
     int count = flood2D(extremum, myid, labels, val_extremum*percentage, val_extremum, d);
+    signs.push_back(1);
     // fprintf(stderr, "count=%d\n", count);
   }
 
   all_labels[plane] = labels;
+  all_signs[plane] = signs;
 }
 
 

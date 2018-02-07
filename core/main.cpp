@@ -78,7 +78,7 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     const int nnodes = ex->getNNodes();
     const double *ptr = ex->getData(); 
     std::vector<double> dpot(ptr, ptr + nnodes);
-    std::vector<int> labels = ex->getLabels(0);
+    std::vector<int> labels = ex->getFlattenedLabels(0); // ex->getLabels(0);
     mutex_ex.unlock();
    
     outgoing["timestep"] = timestep;

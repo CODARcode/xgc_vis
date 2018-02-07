@@ -25,6 +25,7 @@ public:
   void setPersistenceThreshold(double threshold) {persistenceThreshold = threshold;}
 
   std::vector<int>& getLabels(int plane) {return all_labels[plane];}
+  std::vector<int> getFlattenedLabels(int plane);
 
   json jsonfyMesh() const;
   json jsonfyBranches(size_t top=0); 
@@ -64,7 +65,7 @@ private: // parameters
 private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
-  std::map<int, std::vector<int> > all_labels;
+  std::map<int, std::vector<int> > all_labels, all_signs;
   std::map<ctBranch*, size_t> branchSet;
 
 public:
