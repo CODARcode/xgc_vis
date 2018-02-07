@@ -33,7 +33,7 @@ public:
   void dumpLabels(const std::string& filename);
   void dumpBranches(const std::string& filename, size_t top=0);
 
-public: 
+public:
   void buildContourTree2D(int plane);
   void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
   void simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::map<ctBranch*, size_t> &branchSet, int nLimit, void *d);
@@ -69,7 +69,8 @@ private: // analysis
   std::map<ctBranch*, size_t> branchSet;
 
 public:
-  FeatureTransitionMatrix relateFeatures(int *labels0, int *labels1);
+  FeatureTransitionMatrix relateFeatures(const std::vector<int> &labels0, const std::vector<int> &signs0, 
+      const std::vector<int> &labels1, const std::vector<int> &sings1);
 }; 
 
 #endif

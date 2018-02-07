@@ -12,6 +12,7 @@ class FeatureTransitionMatrix {
   // friend class diy::Serialization<FeatureTransitionMatrix>;
 public:
   FeatureTransitionMatrix();
+  FeatureTransitionMatrix(int n0, int n1);
   FeatureTransitionMatrix(int t0, int t1, int n0, int n1);
   FeatureTransitionMatrix(Interval, int n0, int n1);
   ~FeatureTransitionMatrix();

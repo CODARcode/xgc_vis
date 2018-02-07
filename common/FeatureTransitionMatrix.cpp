@@ -10,6 +10,12 @@ FeatureTransitionMatrix::FeatureTransitionMatrix() :
 {
 }
 
+FeatureTransitionMatrix::FeatureTransitionMatrix(int n0, int n1) :
+  _n0(n0), _n1(n1)
+{
+  _match.resize(n0*n1);
+}
+
 FeatureTransitionMatrix::FeatureTransitionMatrix(int t0, int t1, int n0, int n1) :
   _interval(std::make_pair(t0, t1)), 
   _n0(n0), _n1(n1)
