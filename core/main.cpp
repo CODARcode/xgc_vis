@@ -364,9 +364,9 @@ int main(int argc, char **argv)
 
   fprintf(stderr, "reading mesh...\n");
   double *coords;
-  int *conn;
-  double *psi; 
-  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
+  int *conn, *nextNode;
+  double *psi;
+  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn, &nextNode);
   readScalars<double>(meshFP, "psi", &psi);
   // adios_close(*meshFP);
 
@@ -518,6 +518,7 @@ int main(int argc, char **argv)
   ex = NULL;
   free(coords);
   free(conn);
+  free(nextNode);
   adios_finalize(0);
 
   fprintf(stderr, "exiting...\n");

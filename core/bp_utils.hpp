@@ -47,7 +47,7 @@ template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr, 
   return avi->ndim;
 }
 
-bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **coords, int **conn) 
+bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **coords, int **conn, int **nextNode) 
 {
   // read number of nodes and triangles
   readValueInt(fp, "n_n", &nNodes);
@@ -58,6 +58,9 @@ bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **c
 
   // read triangles
   readScalars<int>(fp, "/cell_set[0]/node_connect_list", conn);
+
+  // read nextNode
+  readScalars<int>(fp, "nextnode", nextNode);
   
   fprintf(stderr, "mesh loaded: nNodes=%d, nTriangles=%d\n", 
       nNodes, nTriangles);
