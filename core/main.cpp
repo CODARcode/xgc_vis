@@ -142,7 +142,10 @@ void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHand
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
   int64_t fileHandle = -1;
-  adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), (timestep == 1 ? "w" : "a"), comm);
+  if (writeMethod == "POSIX" || writeMethod == "MPI")
+    adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
+  else 
+    adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), (timestep == 1 ? "w" : "a"), comm);
 
   // fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
 
