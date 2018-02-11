@@ -28,13 +28,15 @@ public:
   std::vector<int> getFlattenedLabels(int plane);
 
   json jsonfyMesh() const;
-  json jsonfyBranches(size_t top=0); 
+  json jsonfyBranches(std::map<ctBranch*, size_t> &branchSet, size_t top=0); 
 
   void dumpLabels(const std::string& filename);
-  void dumpBranches(const std::string& filename, size_t top=0);
+  void dumpBranches(const std::string& filename, std::map<ctBranch*, size_t>&, size_t top=0);
 
 public:
-  void buildContourTree2D(int plane);
+  void buildContourTree2DAll();
+
+  std::map<ctBranch*, size_t> buildContourTree2D(int plane);
   void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
   void simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::map<ctBranch*, size_t> &branchSet, int nLimit, void *d);
   void buildSegmentation(ctBranch *b, std::vector<int> &labels, void*); 
@@ -66,7 +68,7 @@ private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
   std::map<int, std::vector<int> > all_labels, all_signs;
-  std::map<ctBranch*, size_t> branchSet;
+  // std::map<ctBranch*, size_t> branchSet;
 
 public:
   FeatureTransitionMatrix relateFeatures(const std::vector<int> &labels0, const std::vector<int> &signs0, 

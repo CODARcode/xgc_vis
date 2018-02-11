@@ -455,7 +455,7 @@ int main(int argc, char **argv)
     ex->setData(current_time_index, nPhi, dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
-    ex->buildContourTree2D(0);
+    std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
     mutex_ex.unlock();
 
     // write labels
@@ -487,7 +487,7 @@ int main(int argc, char **argv)
     if (filename_output_branches.length() > 0) {
       fprintf(stderr, "writing branch decompositions for timestep %zu to %s\n", 
           current_time_index, filename_output_branches.c_str()); 
-      ex->dumpBranches(filename_output_branches);
+      ex->dumpBranches(filename_output_branches, branchSet);
     }
     
     fprintf(stderr, "done.\n");

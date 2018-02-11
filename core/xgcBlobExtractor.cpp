@@ -330,7 +330,7 @@ RESTART:
     }
 }
 
-void XGCBlobExtractor::buildContourTree2D(int plane)
+std::map<ctBranch*, size_t> XGCBlobExtractor::buildContourTree2D(int plane)
 {
   fprintf(stderr, "building contour tree for plane %d, nNodes=%d\n", plane, nNodes);
 
@@ -375,7 +375,7 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
   
   // build branchSet
   // fprintf(stderr, "[5] building branchSet\n");
-  // std::map<ctBranch*, size_t> branchSet;
+  std::map<ctBranch*, size_t> branchSet;
   size_t nBranches = 0;
   for (int i=0; i<nNodes; i++) {
     if (branchMap[i] == NULL) continue;
@@ -395,8 +395,11 @@ void XGCBlobExtractor::buildContourTree2D(int plane)
   // fprintf(stderr, "[7] cleaning up ctx\n");
   ct_cleanup(ctx);
   // fprintf(stderr, "[8] contour tree done\n");
+
+  return branchSet;
 }
 
+#if 0
 void XGCBlobExtractor::buildContourTree3D()
 {
   fprintf(stderr, "building contour tree over 3D...\n");
@@ -492,6 +495,7 @@ void XGCBlobExtractor::buildContourTree3D()
 
   fprintf(stderr, "built contour tree over 3D.\n");
 }
+#endif
 
 void XGCBlobExtractor::buildSegmentation3D(ctBranch *b, std::vector<int> &labels, void *d)
 {
@@ -626,8 +630,6 @@ void XGCBlobExtractor::setData(size_t timestep_, int nPhi_, double *dpot_)
   nPhi = nPhi_;
   dpot = dpot_;
 
-  branchSet.clear();
-
 #if 0
   for (int i=0; i<nNodes; i++) {
     dpot[i] = dpot[i] * 10; // * 1e14 + (double)rand()/RAND_MAX;
@@ -665,18 +667,19 @@ void XGCBlobExtractor::dumpLabels(const std::string& filename)
 {
   FILE *fp = fopen(filename.c_str(), "wb");
   for (int i=0; i<nPhi; i++) 
-    fwrite(all_labels[i].data(), sizeof(size_t), nNodes, fp);
+    if (all_labels.find(i) != all_labels.end())
+      fwrite(all_labels[i].data(), sizeof(size_t), nNodes, fp);
   fclose(fp);
 }
 
-void XGCBlobExtractor::dumpBranches(const std::string &filename, size_t top)
+void XGCBlobExtractor::dumpBranches(const std::string &filename, std::map<ctBranch*, size_t> &branchSet, size_t top)
 {
   std::ofstream ofs(filename, std::ofstream::out);
-  ofs << jsonfyBranches(top).dump();
+  ofs << jsonfyBranches(branchSet, top).dump();
   ofs.close();
 }
 
-json XGCBlobExtractor::jsonfyBranches(size_t top) // const std::string& filename) 
+json XGCBlobExtractor::jsonfyBranches(std::map<ctBranch*, size_t> &branchSet, size_t top) // const std::string& filename) 
 {
   XGCData data;
   data.nodeGraph = &nodeGraph;
