@@ -387,7 +387,7 @@ int main(int argc, char **argv)
       varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
     fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
   }
-  // adios_read_bp_reset_dimension_order(varFP, 0);
+  adios_read_bp_reset_dimension_order(varFP, 0);
     
   double *dpot = NULL;
   size_t current_time_index = 0; // only for multiple inputs.
@@ -418,8 +418,8 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
 
-    const int nPhi=1;
-    // readValueInt(varFP, "nphi", &nPhi);
+    int nPhi = 1;
+    readValueInt(varFP, "nphi", &nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
 
     ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
@@ -429,8 +429,8 @@ int main(int argc, char **argv)
     adios_inq_var_blockinfo(varFP, avi);
     adios_inq_var_meshinfo(varFP, avi);
 
-    // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {nPhi, static_cast<uint64_t>(nNodes), 1, 1};
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), nPhi, 1, 1};
+    // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), static_cast<uint64_t>(nPhi), 1, 1};
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nPhi), static_cast<uint64_t>(nNodes), 1, 1};
     ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
     // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
 
@@ -456,6 +456,7 @@ int main(int argc, char **argv)
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
+    // ex->buildContourTree2DAll();
     mutex_ex.unlock();
 
     // write labels
