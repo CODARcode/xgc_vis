@@ -248,7 +248,7 @@ int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTrian
     QuadNode *q = S.top();
     S.pop();
 
-    fprintf(stderr, "checking %p\n", q);
+    // fprintf(stderr, "checking %p\n", q);
     
     if (q->isLeaf()) {
       const int id = q->elements[0]->id;
