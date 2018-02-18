@@ -1,10 +1,13 @@
 #include "volren.cuh"
+#include "bvh.cuh"
 
+__device__ __host__
 bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
 {
   return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
 }
 
+__device__ __host__
 bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float &alpha, float &beta, float &gamma) 
 {
   alpha = ((q.y1 - q.y2)*(x - q.x2) + (q.x2 - q.x1)*(y - q.y2)) /
@@ -16,6 +19,7 @@ bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float &alpha
   return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
 
+__device__ __host__
 int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, float x, float y, float &alpha, float &beta, float &gamma)
 {
   if (q->triangleId >= 0) { //leaf node
@@ -32,6 +36,7 @@ int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, 
   return -1;
 }
 
+__device__ __host__
 int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float &alpha, float &beta, float &gamma)
 {
   // float alpha, beta, gamma;
@@ -60,6 +65,7 @@ int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float &alpha, floa
   return -1;
 }
 
+__device__ __host__
 float QuadNodeD_sample(QuadNodeD *nodes, float x, float y, float *scalar) {
   float alpha, beta, gamma;
   int i = QuadNodeD_locatePoint(nodes, x, y, alpha, beta, gamma);

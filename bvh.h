@@ -5,6 +5,7 @@
 #include <vector>
 #include <cfloat>
 #include <cstdlib>
+#include "bvh.cuh"
 
 template <typename T>
 inline T min3(T x, T y, T z) {
@@ -34,20 +35,6 @@ struct AABB {
     fprintf(stderr, "A={%f, %f}, B={%f, %f}, centroid={%f, %f}\n", 
         A[0], A[1], B[0], B[1], C[0], C[1]);
   }
-};
-
-struct QuadNodeD {
-  // tree
-  int parentId;
-  int childrenIds[4];
-
-  // bounds
-  float Ax, Ay, Bx, By;
-
-  // triangle
-  int triangleId; // -1 if the node if not leaf
-  int i0, i1, i2;
-  float x0, y0, x1, y1, x2, y2;
 };
 
 struct QuadNode {

@@ -14,6 +14,11 @@ find_package (VTK REQUIRED)
 find_package (Qt4 REQUIRED COMPONENTS QtCore QtGui QtOpenGL)
 find_package (ADIOS REQUIRED)
 
+find_package (CUDA REQUIRED)
+
+# set (CUDA_NVCC_FLAGS "-arch=sm_30;-std=c++11")
+set (CUDA_PROPAGATE_HOST_FLAGS OFF)
+
 add_subdirectory (libtourtre)
 
 include (${VTK_USE_FILE})
@@ -24,7 +29,7 @@ include_directories (
   ${PROJECT_SOURCE_DIR}/libtourtre/include
 )
 
-add_executable (main main.cpp widget.cpp trackball.cpp bvh.cpp)
+cuda_add_executable (main main.cpp widget.cpp trackball.cpp bvh.cpp volren.cu)
 target_link_libraries (main tourtre ${ADIOS_LIBRARIES} ${ZLIB_LIBRARIES} ${QT_LIBRARIES} ${GLUT_LIBRARY} ${GLEW_LIBRARY} ${OPENGL_LIBRARIES})
 set_target_properties (main PROPERTIES AUTOMOC ON)
 
