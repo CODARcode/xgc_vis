@@ -171,7 +171,7 @@ ReadScalarData(ADIOS_FILE *fp, const char *var, vtkDataArray **arr)
 static vtkDataSet *
 ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
 {
-  // int numPlanes = numPhi+1;
+  int numPlanes = numPhi+1;
   // const int numPlanes = numPhi;
   double dPhi = 2.0*M_PI/(double)(numPhi);
 
@@ -209,6 +209,7 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
   coords->Delete();
   pts->Delete();
 
+#if 0
   //Create wedges.
   int *connPtr = (int *)(conn->GetVoidPointer(0));
   vtkIdType wedge[6];
@@ -233,12 +234,14 @@ ReadMesh(ADIOS_FILE *fp, int numNodes, int numTris, int numPhi)
     }
   }
   conn->Delete();
+#endif
  
-#if 0
+#if 1
   //Create triangles.
-  // int *connPtr = (int *)(conn->GetVoidPointer(0));
+  int *connPtr = (int *)(conn->GetVoidPointer(0));
   vtkIdType triangle[6]; 
-  for (int i = 0; i < numPlanes-1; i++)
+  // for (int i = 0; i < numPlanes-1; i++)
+  for (int i=0; i<1; i++)
   {
     for (int p = 0; p < numTris*3; p+=3)
     {

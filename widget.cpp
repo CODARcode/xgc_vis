@@ -82,6 +82,13 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
     updateGL();
     break;
 
+  case Qt::Key_P: {
+    QString filename = QFileDialog::getSaveFileName(this, "save to png", "./", "*.png");
+    if (filename.isEmpty()) return;
+    QImage img = grabFrameBuffer(false);
+    img.save(filename);
+  }
+
   default: break;
   }
 }
@@ -285,6 +292,7 @@ void CGLWidget::renderSinglePlane()
 
   glColor3f(0, 0, 0);
 
+  glScalef(0.4, 0.4, 0.4);
   glTranslatef(-1.7, 0, 0);
 
   if (toggle_mesh) {
@@ -340,9 +348,16 @@ void CGLWidget::setTriangularMesh(int nNodes_, int nTriangles_, int nPhi_, doubl
   nodeGraph.resize(nNodes);
   for (int i=0; i<nTriangles; i++) {
     int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    if (i0 == i1 || i1 == i2 || i2 == i0) 
+      fprintf(stderr, "WARN : triangle %d, conn={%d, %d, %d}\n", i, i0, i1, i2);
+    if (i0 == i1 && i1 == i2)
+      fprintf(stderr, "FATAL: triangle %d, conn={%d, %d, %d}\n", i, i0, i1, i2);
     nodeGraph[i0].insert(i1);
+    nodeGraph[i0].insert(i2);
     nodeGraph[i1].insert(i2);
+    nodeGraph[i1].insert(i0);
     nodeGraph[i2].insert(i0);
+    nodeGraph[i2].insert(i1);
   }
 }
 
@@ -597,7 +612,7 @@ RESTART:
     }
 }
 
-void CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::map<ctBranch*, size_t> &branchSet, int nLimit, void *d) // no more than a number
+std::set<ctBranch*> CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::map<ctBranch*, size_t> &branchSet, int nLimit, void *d) // no more than a number
 {
   float minPriority; // default is persistence
   ctBranch *minPriorityBranch = NULL; 
@@ -606,6 +621,9 @@ void CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::
   for (auto &kv : branchSet) {
     branchList.push_back(kv.first);
   }
+
+  std::set<size_t> removed_labels;
+  std::set<ctBranch*> removed_branches;
 
   branchList.sort(
       [&d](ctBranch* b0, ctBranch* b1) {
@@ -634,11 +652,16 @@ void CGLWidget::simplifyBranchDecompositionByNumbers(ctBranch* rootBranch, std::
     // qDebug() << "priority =" << minPriority << "branch =" << minPriorityBranch; 
 
     if (minPriorityBranch == rootBranch) break; 
-    ctBranch *parentBranch = minPriorityBranch->parent; 
+    ctBranch *parentBranch = minPriorityBranch->parent;
+
+    removed_branches.insert(minPriorityBranch);
+    removed_labels.insert(branchSet[minPriorityBranch]);
 
     ctBranchList_remove(&parentBranch->children, minPriorityBranch); 
     branchSet.erase(minPriorityBranch); 
   }
+
+  return removed_branches;
 }
 
 void CGLWidget::buildContourTree(int plane, double *dpot_)
@@ -655,7 +678,7 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
   data.nNodes = nNodes;
   data.nPhi = nPhi;
 
-  std::sort(totalOrder.begin(), totalOrder.end(),
+  std::stable_sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         return data.dpot[v0] < data.dpot[v1];
         // if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
@@ -685,10 +708,42 @@ void CGLWidget::buildContourTree(int plane, double *dpot_)
     }
   }
 
+  for (auto &kv : branchSet) {
+    label_colors[kv.second] = QColor(rand()%256, rand()%256, rand()%256);
+  }
+
   // simplifyBranchDecompositionByThreshold(root, 3e-10, &data);
-  simplifyBranchDecompositionByNumbers(root, branchSet, 50, &data);
+  std::set<ctBranch*> removed_branches = simplifyBranchDecompositionByNumbers(root, branchSet, nLimit, &data);
   // addExtremumFromBranchDecomposition(plane, root, root, &data);
-  extractStreamers(plane, root, branchSet, 10, 0.1, &data);
+  // extractStreamers(plane, root, branchSet, 80, 0.1, &data);
+
+  double diff = 0, total = 0;
+  size_t count_simplified = 0;
+
+  std::vector<size_t> labels(nNodes); 
+  for (size_t i=0; i<nNodes; i++) {
+    ctBranch *b = branchMap[i];
+    ctBranch *bp = NULL;
+    while (removed_branches.find(b) != removed_branches.end()) {
+      bp = b;
+      b = b->parent;
+    }
+    labels[i] = branchSet[b];
+      
+    double &src = data.dpot[i];
+    total += src*src;
+    if (bp != NULL) {
+      double dst = value(bp->saddle, &data);
+      // fprintf(stderr, "src=%f, dst=%f\n", src, dst);
+      diff += src*src - dst*dst;
+      src = dst;
+      count_simplified ++;
+    }
+  }
+  all_labels[plane] = labels;
+
+  fprintf(stderr, "total=%f, diff=%f, loss=%f, count_simplified=%zu\n", 
+      total, diff, diff/total, count_simplified);
 
 #if 0 // 2D topology segmentation
   std::vector<size_t> labels(nNodes, 0);
@@ -720,7 +775,7 @@ void CGLWidget::buildContourTree3D(double *dpot_)
   data.nNodes = nNodes;
   data.nPhi = nPhi;
   
-  std::sort(totalOrder.begin(), totalOrder.end(),
+  std::stable_sort(totalOrder.begin(), totalOrder.end(),
       [&data](size_t v0, size_t v1) {
         return data.dpot[v0] < data.dpot[v1];
         // if (fabs(data.dpot[v0] - data.dpot[v1]) < 1e-5) return v0 < v1; 
@@ -740,7 +795,6 @@ void CGLWidget::buildContourTree3D(double *dpot_)
   ctArc **arcMap = ct_arcMap(ctx);
 
 #if 0
-#if 1
   std::map<ctArc*, size_t> arcSet;
   size_t nArcs = 0;
   for (int i=0; i<nNodes*nPhi; i++) {
@@ -768,24 +822,28 @@ void CGLWidget::buildContourTree3D(double *dpot_)
     if (branchSet.find(branchMap[i]) == branchSet.end()) {
       size_t branchId = nBranches ++;
       branchSet[branchMap[i]] = branchId;
-      fprintf(stderr, "branchId=%d, %p\n", branchId, branchMap[i]);
-      label_colors[branchId] = QColor(rand()%256, rand()%256, rand()%256);
     }
   }
+  for (auto &kv : branchSet) 
+    label_colors[kv.second] = QColor(rand()%256, rand()%256, rand()%256);
+ 
+  std::set<ctBranch*> removed_branches = simplifyBranchDecompositionByNumbers(root, branchSet, nLimit, &data);
  
   for (int i=0; i<nPhi; i++) {
     std::vector<size_t> labels(nNodes, 0);
     for (int j=0; j<nNodes; j++) {
-      size_t branchId = branchSet[branchMap[i*nNodes + j]];
+      ctBranch *b = branchMap[i*nNodes + j];
+      while (removed_branches.find(b) != removed_branches.end())
+        b = b->parent;
+      size_t branchId = branchSet[b];
       labels[j] = branchId;
     }
     all_labels[i] = labels;
   }
 #endif
-#endif
 
-#if 1
-  simplifyBranchDecompositionByThreshold(root, 20, &data);
+#if 0
+  // simplifyBranchDecompositionByThreshold(root, nLimit, &data);
   
   std::vector<size_t> labels(nNodes*nPhi, 0);
   buildSegmentation3D(root, labels, &data);
@@ -966,11 +1024,11 @@ void CGLWidget::extractStreamersFromExtremum(int plane, double *dpot, double per
   all_labels[plane] = labels;
 }
 
-
-void CGLWidget::setData(double *dpot)
+void CGLWidget::updateDpot(double *dpot)
 {
   // const float min = -100, max = 100;
-  const float min = -1e-9, max = 1e-9;
+  const float min = -50, max = 50;
+  // const float min = -1e-9, max = 1e-9;
 
   f_colors.clear();
 
@@ -986,12 +1044,20 @@ void CGLWidget::setData(double *dpot)
       }
     }
   }
+}
 
+void CGLWidget::setData(double *dpot)
+{
+  // updateDpot(dpot);
   // buildContourTree3D(dpot);
 
-  // for (int i=0; i<nPhi; i++) {
+#if 0
   for (int i=0; i<nPhi; i++) {
+  // for (int i=0; i<nPhi; i++) {
     buildContourTree(i, dpot); 
-    // extractExtremum(i, dpot); // dpot + i*nNodes);
+    extractExtremum(i, dpot); // dpot + i*nNodes);
   }
+#endif
+
+  updateDpot(dpot);
 }

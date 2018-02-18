@@ -31,6 +31,9 @@ public:
 
   void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
   void setData(double *dpot);
+  void updateDpot(double *dpot);
+
+  void setNLimit(size_t n) {nLimit = n;}
 
 protected:
   void initializeGL(); 
@@ -52,7 +55,7 @@ private:
   void buildContourTree(int plane, double *dpot);
   void addExtremumFromBranchDecomposition(int plane, ctBranch *root, ctBranch *b, void *);
   void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
-  void simplifyBranchDecompositionByNumbers(ctBranch* root, std::map<ctBranch*, size_t>&, int nLimit, void *);
+  std::set<ctBranch*> simplifyBranchDecompositionByNumbers(ctBranch* root, std::map<ctBranch*, size_t>&, int nLimit, void *);
   void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*);
 
   void buildContourTree3D(double *dpot); 
@@ -84,9 +87,11 @@ private: // mesh
   std::vector<float> f_vertices;
   std::vector<float> f_colors;
 
-  std::map<int, QColor> label_colors;
+  std::map<size_t, QColor> label_colors;
 
 private: // analysis
+  size_t nLimit;
+
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
   std::map<int, std::vector<size_t> > all_labels;

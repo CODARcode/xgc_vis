@@ -2,7 +2,7 @@
 #include <adios.h>
 #include <adios_read.h>
 #include <cassert>
-
+#include <cfloat>
 #include <QApplication>
 #include "widget.h"
 
@@ -51,7 +51,7 @@ template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr)
   return avi->ndim;
 }
 
-bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **coords, int **conn) 
+bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **coords, int **conn, int **nextNode) 
 {
   // read number of nodes and triangles
   readValueInt(fp, "n_n", &nNodes);
@@ -62,8 +62,11 @@ bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **c
 
   // read triangles
   readScalars<int>(fp, "/cell_set[0]/node_connect_list", conn);
+
+  // read nextNode
+  readScalars<int>(fp, "nextnode", nextNode);
   
-  fprintf(stderr, "nNodes=%d, nTriangles=%d\n", 
+  fprintf(stderr, "mesh loaded: nNodes=%d, nTriangles=%d\n", 
       nNodes, nTriangles);
 
   return true;
@@ -72,6 +75,230 @@ bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **c
 void writeVTK(const int nNodes, const int nTriangles, double *coords, int *conn) 
 {
 
+}
+
+template <typename T>
+inline T min3(T x, T y, T z) {
+  return std::min(std::min(x, y), z);
+}
+
+template <typename T>
+inline T max3(T x, T y, T z) {
+  return std::max(std::max(x, y), z);
+}
+
+struct AABB {
+  int id = 0;
+  double A[2] = {FLT_MAX, FLT_MAX}, B[2] = {FLT_MIN, FLT_MIN};
+  double C[2] = {0, 0}; // centroid
+
+  bool contains(const double *X) {
+    return X[0] >= A[0] && X[0] < B[0] && X[1] >= A[1] && X[1] < B[1];
+  }
+
+  void updateCentroid() {
+    C[0] = (A[0] + B[0]) / 2;
+    C[1] = (A[1] + B[1]) / 2;
+  }
+
+  void print() const {
+    fprintf(stderr, "A={%f, %f}, B={%f, %f}, centroid={%f, %f}\n", 
+        A[0], A[1], B[0], B[1], C[0], C[1]);
+  }
+};
+
+struct QuadNode {
+  QuadNode *parent = NULL;
+  QuadNode *children[4] = {NULL};
+  AABB aabb;
+  std::vector<AABB*> elements; 
+
+  bool isLeaf() const {
+    return elements.size() > 0;
+    // return children[0] == NULL && children[1] == NULL 
+    //   && children[2] == NULL && children[3] == NULL;
+  }
+
+  void updateBounds() {
+    for (int i=0; i<elements.size(); i++) {
+      AABB *aabb1 = elements[i];
+      aabb.A[0] = std::min(aabb.A[0], aabb1->A[0]);
+      aabb.A[1] = std::min(aabb.A[1], aabb1->A[1]);
+      aabb.B[0] = std::max(aabb.B[0], aabb1->B[0]);
+      aabb.B[1] = std::max(aabb.B[1], aabb1->B[1]);
+    }
+    aabb.updateCentroid();
+  }
+
+  void print() const {
+    fprintf(stderr, "parent=%p, A={%f, %f}, B={%f, %f}, centroid={%f, %f}, children={%p, %p, %p, %p}, element=%d\n", 
+        parent, aabb.A[0], aabb.A[1], aabb.B[0], aabb.B[1], aabb.C[0], aabb.C[1], 
+        children[0], children[1], children[2], children[3], 
+        elements.empty() ? -1 : elements[0]->id);
+  }
+};
+
+void traverseQuadNode(QuadNode *q)
+{
+  q->print();
+  for (int j=0; j<4; j++) 
+    if (q->children[j] != NULL) 
+      traverseQuadNode(q->children[j]);
+}
+
+void subdivideQuadNode(QuadNode *q) 
+{
+  if (q->elements.size() <= 1) {
+    q->updateBounds();
+    return;
+  }
+
+  // fprintf(stderr, "subdividing %p, parent=%p, #elements=%zu\n", q, q->parent, q->elements.size());
+  for (int j=0; j<4; j++) {
+    q->children[j] = new QuadNode;
+    q->children[j]->parent = q;
+  }
+
+  // left-bottom
+  q->children[0]->aabb.A[0] = q->aabb.A[0];
+  q->children[0]->aabb.A[1] = q->aabb.A[1];
+  q->children[0]->aabb.B[0] = q->aabb.C[0];
+  q->children[0]->aabb.B[1] = q->aabb.C[1];
+  q->children[0]->aabb.updateCentroid();
+ 
+  // right-bottom
+  q->children[1]->aabb.A[0] = q->aabb.C[0];
+  q->children[1]->aabb.A[1] = q->aabb.A[1];
+  q->children[1]->aabb.B[0] = q->aabb.B[0];
+  q->children[1]->aabb.B[1] = q->aabb.C[1];
+  q->children[1]->aabb.updateCentroid();
+  
+  // right-top
+  q->children[2]->aabb.A[0] = q->aabb.C[0];
+  q->children[2]->aabb.A[1] = q->aabb.C[1];
+  q->children[2]->aabb.B[0] = q->aabb.B[0];
+  q->children[2]->aabb.B[1] = q->aabb.B[1];
+  q->children[2]->aabb.updateCentroid();
+  
+  // left-top
+  q->children[3]->aabb.A[0] = q->aabb.A[0];
+  q->children[3]->aabb.A[1] = q->aabb.C[1];
+  q->children[3]->aabb.B[0] = q->aabb.C[0];
+  q->children[3]->aabb.B[1] = q->aabb.B[1];
+  q->children[3]->aabb.updateCentroid();
+
+  for (int i=0; i<q->elements.size(); i++) {
+    for (int j=0; j<4; j++) {
+      if (q->children[j]->aabb.contains(q->elements[i]->C)) {
+        q->children[j]->elements.push_back(q->elements[i]);
+        break;
+      }
+    }
+  }
+
+  if (q->parent != NULL) 
+    q->updateBounds();
+  q->elements.clear();
+
+  for (int j=0; j<4; j++) {
+    if (q->children[j]->elements.empty()) {
+      delete q->children[j];
+      q->children[j] = NULL;
+    } else {
+      subdivideQuadNode(q->children[j]);
+    }
+  }
+}
+
+bool insideTriangle(const double *p, const double *p1, const double *p2, const double *p3)
+{
+  double alpha = ((p2[1] - p3[1])*(p[0] - p3[0]) + (p3[0] - p2[0])*(p[1] - p3[1])) /
+          ((p2[1] - p3[1])*(p1[0] - p3[0]) + (p3[0] - p2[0])*(p1[1] - p3[1]));
+  double beta = ((p3[1] - p1[1])*(p[0] - p3[0]) + (p1[0] - p3[0])*(p[1] - p3[1])) /
+         ((p2[1] - p3[1])*(p1[0] - p3[0]) + (p3[0] - p2[0])*(p1[1] - p3[1]));
+  double gamma = 1.0 - alpha - beta;
+  // fprintf(stderr, "barycentric: %f, %f, %f\n", alpha, beta, gamma);
+  return alpha >= 0 && beta >= 0 && gamma >= 0;
+}
+
+int locatePointBruteForce(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
+{
+  int rtn = -1;
+  for (int id=0; id<nTriangles; id++) {
+    const int i0 = conn[id*3], i1 = conn[id*3+1], i2 = conn[id*3+2];
+    bool succ = insideTriangle(X, &coords[i0*2], &coords[i1*2], &coords[i2*2]);
+    if (succ) {
+      rtn = id;
+      break;
+    }
+  }
+  return rtn;
+}
+
+int locatePoint(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
+{
+  if (q->aabb.contains(X)) {
+    if (q->isLeaf()) {
+      const int id = q->elements[0]->id;
+      const int i0 = conn[id*3], i1 = conn[id*3+1], i2 = conn[id*3+2];
+      int succ = insideTriangle(X, &coords[i0*2], &coords[i1*2], &coords[i2*2]);
+      if (succ) {
+        // fprintf(stderr, "leaf node %d contains! triangle check=%d\n", id, result);
+        return id;
+      }
+    } else {
+      for (int j=0; j<4; j++) {
+        if (q->children[j] != NULL) {
+          int result = locatePoint(X, q->children[j], nNodes, nTriangles, coords, conn);
+          if (result >= 0) return result;
+        }
+      }
+    }
+  }
+  return -1;
+}
+
+void createSimpleBVH(int nNodes, int nTriangles, const double *coords, const int *conn)
+{
+  QuadNode *root = new QuadNode;
+
+  // global bounds
+  AABB &aabb = root->aabb;
+  for (int i=0; i<nNodes; i++) {
+    aabb.A[0] = std::min(aabb.A[0], coords[2*i]);
+    aabb.A[1] = std::min(aabb.A[1], coords[2*i+1]);
+    aabb.B[0] = std::max(aabb.B[0], coords[2*i]);
+    aabb.B[1] = std::max(aabb.B[1], coords[2*i+1]);
+  }
+  aabb.updateCentroid();
+  // aabb.print();
+
+  std::vector<AABB> triangles(nTriangles);
+  for (int i=0; i<nTriangles; i++) {
+    const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    double x0 = coords[i0*2], x1 = coords[i1*2], x2 = coords[i2*2], 
+           y0 = coords[i0*2+1], y1 = coords[i1*2+1], y2 = coords[i2*2+1];
+
+    triangles[i].C[0] = (x0 + x1 + x2) / 3;
+    triangles[i].C[1] = (y0 + y1 + y2) / 3;
+    triangles[i].A[0] = min3(x0, x1, x2); 
+    triangles[i].A[1] = min3(y0, y1, y2); 
+    triangles[i].B[0] = max3(x0, x1, x2); 
+    triangles[i].B[1] = max3(y0, y1, y2);
+    triangles[i].id = i;
+
+    root->elements.push_back(&triangles[i]);
+  }
+
+  subdivideQuadNode(root);
+  // traverseQuadNode(root);
+
+  fprintf(stderr, "BVH built.\n");
+
+  const double X[2] = {2.0, 1.03};
+  int r0 = locatePointBruteForce(X, root, nNodes, nTriangles, coords, conn);
+  int r1 = locatePoint(X, root, nNodes, nTriangles, coords, conn);
+  fprintf(stderr, "r0=%d, r1=%d\n", r0, r1);
 }
 
 int main(int argc, char **argv)
@@ -84,15 +311,31 @@ int main(int argc, char **argv)
   adios_read_bp_reset_dimension_order(meshFP, 0);
   adios_read_bp_reset_dimension_order(varFP, 0);
 
-  int nNodes, nTriangles, nPhi;
+  int nNodes, nTriangles, nPhi = 1;
   readValueInt(varFP, "nphi", &nPhi);
 
   fprintf(stderr, "reading mesh...\n");
   double *coords; 
-  int *conn;
-  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
+  int *conn, *nextNode;
+  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn, &nextNode);
   // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
   //     nNodes, nTriangles, nPhi);
+
+  createSimpleBVH(nNodes, nTriangles, coords, conn);
+
+  // twisting mesh using nextNode
+#if 0
+  for (int i=0; i<nNodes*3; i++) {
+    // conn[i] = nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[conn[i]]]]]]]]]];
+    conn[i] = nextNode[conn[i]];
+  }
+#endif
+
+#if 0
+  const double p[2] = {10, 10}, p0[2] = {0, 0}, p1[2] = {10, 0}, p2[2] = {0, 10};
+  fprintf(stderr, "awegawegawegaweg, %d\n", 
+      insideTriangle(p, p0, p1, p2));
+#endif
 
   fprintf(stderr, "reading data...\n");
   double *dpot;
@@ -104,9 +347,13 @@ int main(int argc, char **argv)
   fmt.setSampleBuffers(true);
   fmt.setSamples(16); 
   QGLFormat::setDefaultFormat(fmt); 
-  
+ 
+  const size_t nLimit = atoi(argv[1]);
+  fprintf(stderr, "nLimit=%zu\n", nLimit);
+
   CGLWidget *widget = new CGLWidget;
   widget->setTriangularMesh(nNodes, nTriangles, nPhi, coords, conn);
+  widget->setNLimit(nLimit);
   widget->setData(dpot);
   widget->show();
   app.exec();
