@@ -3,6 +3,7 @@
 #include <adios_read.h>
 #include <cassert>
 #include <cfloat>
+#include <chrono>
 #include <QApplication>
 #include "widget.h"
 
@@ -295,10 +296,19 @@ void createSimpleBVH(int nNodes, int nTriangles, const double *coords, const int
 
   fprintf(stderr, "BVH built.\n");
 
+  typedef std::chrono::high_resolution_clock clock;
+
   const double X[2] = {2.0, 1.03};
+  auto t0 = clock::now();
   int r0 = locatePointBruteForce(X, root, nNodes, nTriangles, coords, conn);
+  auto t1 = clock::now();
   int r1 = locatePoint(X, root, nNodes, nTriangles, coords, conn);
+  auto t2 = clock::now();
   fprintf(stderr, "r0=%d, r1=%d\n", r0, r1);
+
+  float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
+  float tt1 = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
+  fprintf(stderr, "tt0=%f, tt1=%f\n", tt0, tt1);
 }
 
 int main(int argc, char **argv)
