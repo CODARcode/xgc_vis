@@ -2,12 +2,56 @@ struct QuadNodeD {
   // tree
   int parentId;
   int childrenIds[4];
-  bool isLeaf;
 
   // bounds
   float Ax, Ay, Bx, By;
 
   // triangle
+  int triangleId; // -1 if the node if not leaf
   int i0, i1, i2;
   float x0, y0, x1, y1, x2, y2;
 };
+
+bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
+{
+  return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
+}
+
+bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float &alpha, float &beta, float &gamma) 
+{
+  alpha = ((q.y1 - q.y2)*(x - q.x2) + (q.x2 - q.x1)*(y - q.y2)) /
+          ((q.y1 - q.y2)*(q.x0 - q.x2) + (q.x2 - q.x1)*(q.y0 - q.y2));
+  beta = ((q.y2 - q.y0)*(x - q.x2) + (q.x0 - q.x2)*(y - q.y2)) /
+         ((q.y1 - q.y2)*(q.x0 - q.x2) + (q.x2 - q.x1)*(q.y0 - q.y2));
+  gamma = 1.0 - alpha - beta;
+  return alpha >= 0 && beta >= 0 && gamma >= 0;
+}
+
+int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y) 
+{
+  float alpha, beta, gamma;
+
+  static const int maxStackSize = 64;
+  int stack[maxStackSize];
+  int stackPos = 0;
+  stack[stackPos++] = 0; // push root
+
+  while (stackPos > 0) {
+    const int i = stack[--stackPos]; // pop
+    const QuadNodeD &q = nodes[i];
+
+    // fprintf(stderr, "D_checking node %d, %f, %f, %f, %f\n", i, q.Ax, q.Ay, q.Bx, q.By);
+    fprintf(stderr, "D_checking node %d\n", i);
+
+    if (q.triangleId >= 0) { // leaf node
+      bool succ = QuadNodeD_insideTriangle(q, x, y, alpha, beta, gamma);
+      if (succ) return i;
+    } else if (QuadNodeD_insideQuad(q, x, y)) { // non-leaf node
+      for (int j=0; j<4; j++) {
+        if (q.childrenIds[j] > 0)
+          stack[stackPos++] = q.childrenIds[j];
+      }
+    }
+  }
+  return -1;
+}

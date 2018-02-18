@@ -248,17 +248,17 @@ int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTrian
     QuadNode *q = S.top();
     S.pop();
 
-    if (q->aabb.contains(X)) {
-      if (q->isLeaf()) {
-        const int id = q->elements[0]->id;
-        const int i0 = conn[id*3], i1 = conn[id*3+1], i2 = conn[id*3+2];
-        int succ = insideTriangle(X, &coords[i0*2], &coords[i1*2], &coords[i2*2]);
-        if (succ) return id;
-      } else {
-        for (int j=0; j<4; j++)
-          if (q->children[j] != NULL)
-            S.push(q->children[j]);
-      }
+    fprintf(stderr, "checking %p\n", q);
+    
+    if (q->isLeaf()) {
+      const int id = q->elements[0]->id;
+      const int i0 = conn[id*3], i1 = conn[id*3+1], i2 = conn[id*3+2];
+      int succ = insideTriangle(X, &coords[i0*2], &coords[i1*2], &coords[i2*2]);
+      if (succ) return id;
+    } else if (q->aabb.contains(X)) {
+      for (int j=0; j<4; j++)
+        if (q->children[j] != NULL)
+          S.push(q->children[j]);
     }
   }
 
@@ -288,8 +288,71 @@ int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangle
   return -1;
 }
 
-void convertBVH(QuadNode* r, QuadNodeD** rd) {
+int convertBVH(QuadNode* r, QuadNodeD** rd_, const int *conn, const double *coords) {
+  std::map<QuadNode*, int> nodeMap;
+  std::map<int, QuadNode*> nodeReverseMap;
+  std::stack<QuadNode*> S;
+  S.push(r);
 
+  int quadNodeCount = 0;
+  int maxStackSize = 0;
+  while (!S.empty()) {
+    maxStackSize = std::max(maxStackSize, static_cast<int>(S.size()));
+
+    QuadNode *q = S.top();
+    S.pop();
+
+    int nodeId = quadNodeCount ++;
+    nodeMap[q] = nodeId;
+    nodeReverseMap[nodeId] = q;
+
+    for (int j=0; j<4; j++) 
+      if (q->children[j] != NULL)
+        S.push(q->children[j]);
+  }
+
+  *rd_ = (QuadNodeD*)malloc(sizeof(QuadNodeD)*quadNodeCount);
+  QuadNodeD *rd = *rd_;
+
+  for (int i=0; i<quadNodeCount; i++) {
+    QuadNode q = *nodeReverseMap[i];
+    QuadNodeD &d = rd[i];
+
+    // parent
+    if (q.parent == NULL) d.parentId = -1; // root
+    else d.parentId = nodeMap[q.parent];
+
+    // children
+    for (int j=0; j<4; j++)
+      if (q.children[j] == NULL) d.childrenIds[j] = -1;
+      else d.childrenIds[j] = nodeMap[q.children[j]];
+
+    // bounds
+    d.Ax = q.aabb.A[0];
+    d.Ay = q.aabb.A[1];
+    d.Bx = q.aabb.B[0];
+    d.By = q.aabb.B[1];
+    // fprintf(stderr, "%f, %f, %f, %f\n", d.Ax, d.Ay, d.Bx, d.By);
+
+    // triangle
+    if (q.isLeaf()) {
+      const int id = q.elements[0]->id;
+      d.triangleId = id;
+      d.i0 = conn[id*3];
+      d.i1 = conn[id*3+1];
+      d.i2 = conn[id*3+2];
+      d.x0 = coords[d.i0*2];
+      d.y0 = coords[d.i0*2+1];
+      d.x1 = coords[d.i1*2];
+      d.y1 = coords[d.i1*2+1];
+      d.x2 = coords[d.i2*2];
+      d.y2 = coords[d.i2*2+1];
+    } else 
+      d.triangleId = -1;
+  }
+
+  fprintf(stderr, "quadNodeCount=%d, maxStackSize=%d\n", quadNodeCount, maxStackSize);
+  return quadNodeCount;
 }
 
 void createBVH(int nNodes, int nTriangles, const double *coords, const int *conn)
@@ -327,6 +390,9 @@ void createBVH(int nNodes, int nTriangles, const double *coords, const int *conn
   subdivideQuadNode(root);
   // traverseQuadNode(root);
 
+  QuadNodeD *rd;
+  convertBVH(root, &rd, conn, coords);
+
 #if 1
   fprintf(stderr, "BVH built.\n");
   typedef std::chrono::high_resolution_clock clock;
@@ -339,12 +405,15 @@ void createBVH(int nNodes, int nTriangles, const double *coords, const int *conn
   auto t2 = clock::now();
   int r2 = locatePointNonRecursive(X, root, nNodes, nTriangles, coords, conn);
   auto t3 = clock::now();
-  fprintf(stderr, "r0=%d, r1=%d, r2=%d\n", r0, r1, r2);
+  int r3 = QuadNodeD_locatePoint(rd, X[0], X[1]);
+  auto t4 = clock::now();
+  fprintf(stderr, "r0=%d, r1=%d, r2=%d, r3=%d\n", r0, r1, r2, r3);
 
   float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
   float tt1 = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
   float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
-  fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f\n", tt0, tt1, tt2);
+  float tt3 = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t3).count();
+  fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f, tt3=%f\n", tt0, tt1, tt2, tt3);
 #endif
 }
 
