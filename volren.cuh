@@ -28,10 +28,25 @@ bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float &alpha
   return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
 
-int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y) 
+int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, float x, float y, float &alpha, float &beta, float &gamma)
 {
-  float alpha, beta, gamma;
+  if (q->triangleId >= 0) { //leaf node
+    bool succ = QuadNodeD_insideTriangle(*q, x, y, alpha, beta, gamma);
+    if (succ) return q->triangleId;
+  } else if (QuadNodeD_insideQuad(*q, x, y)) {
+    for (int j=0; j<4; j++) {
+      if (q->childrenIds[j] > 0) {
+        int result = QuadNodeD_locatePoint_recursive(&nodes[q->childrenIds[j]], nodes, x, y, alpha, beta, gamma);
+        if (result >= 0) return result;
+      }
+    }
+  }
+  return -1;
+}
 
+int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float &alpha, float &beta, float &gamma)
+{
+  // float alpha, beta, gamma;
   static const int maxStackSize = 64;
   int stack[maxStackSize];
   int stackPos = 0;
@@ -55,4 +70,14 @@ int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y)
     }
   }
   return -1;
+}
+
+float QuadNodeD_sample(QuadNodeD *nodes, float x, float y, float *scalar) {
+  float alpha, beta, gamma;
+  int i = QuadNodeD_locatePoint(nodes, x, y, alpha, beta, gamma);
+  const QuadNodeD &q = nodes[i];
+
+  return alpha * scalar[q.i0] 
+    + beta * scalar[q.i1]
+    + gamma * scalar[q.i2];
 }

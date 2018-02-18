@@ -405,15 +405,19 @@ void createBVH(int nNodes, int nTriangles, const double *coords, const int *conn
   auto t2 = clock::now();
   int r2 = locatePointNonRecursive(X, root, nNodes, nTriangles, coords, conn);
   auto t3 = clock::now();
-  int r3 = QuadNodeD_locatePoint(rd, X[0], X[1]);
+  float alpha, beta, gamma;
+  int r3 = QuadNodeD_locatePoint(rd, X[0], X[1], alpha, beta, gamma);
   auto t4 = clock::now();
-  fprintf(stderr, "r0=%d, r1=%d, r2=%d, r3=%d\n", r0, r1, r2, r3);
+  int r4 = QuadNodeD_locatePoint_recursive(rd, rd, X[0], X[1], alpha, beta, gamma);
+  auto t5 = clock::now();
+  fprintf(stderr, "r0=%d, r1=%d, r2=%d, r3=%d, r4=%d\n", r0, r1, r2, r3, r4);
 
   float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
   float tt1 = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
   float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
   float tt3 = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t3).count();
-  fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f, tt3=%f\n", tt0, tt1, tt2, tt3);
+  float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
+  fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f, tt3=%f, tt4=%f\n", tt0, tt1, tt2, tt3, tt4);
 #endif
 }
 
