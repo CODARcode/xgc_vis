@@ -5,6 +5,7 @@
 #include <cfloat>
 #include <chrono>
 #include <queue>
+#include <stack>
 #include <QApplication>
 #include "widget.h"
 #include "volren.cuh"
@@ -240,12 +241,12 @@ int locatePointBruteForce(const double *X, QuadNode *q, int nNodes, int nTriangl
 
 int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
 {
-  std::queue<QuadNode*> Q;
-  Q.push(q);
+  std::stack<QuadNode*> S;
+  S.push(q);
 
-  while (!Q.empty()) {
-    QuadNode *q = Q.front();
-    Q.pop();
+  while (!S.empty()) {
+    QuadNode *q = S.top();
+    S.pop();
 
     if (q->aabb.contains(X)) {
       if (q->isLeaf()) {
@@ -256,7 +257,7 @@ int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTrian
       } else {
         for (int j=0; j<4; j++)
           if (q->children[j] != NULL)
-            Q.push(q->children[j]);
+            S.push(q->children[j]);
       }
     }
   }
