@@ -4,8 +4,10 @@
 #include <cassert>
 #include <cfloat>
 #include <chrono>
+#include <queue>
 #include <QApplication>
 #include "widget.h"
+#include "volren.cuh"
 
 extern "C"
 {
@@ -236,7 +238,33 @@ int locatePointBruteForce(const double *X, QuadNode *q, int nNodes, int nTriangl
   return rtn;
 }
 
-int locatePoint(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
+int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
+{
+  std::queue<QuadNode*> Q;
+  Q.push(q);
+
+  while (!Q.empty()) {
+    QuadNode *q = Q.front();
+    Q.pop();
+
+    if (q->aabb.contains(X)) {
+      if (q->isLeaf()) {
+        const int id = q->elements[0]->id;
+        const int i0 = conn[id*3], i1 = conn[id*3+1], i2 = conn[id*3+2];
+        int succ = insideTriangle(X, &coords[i0*2], &coords[i1*2], &coords[i2*2]);
+        if (succ) return id;
+      } else {
+        for (int j=0; j<4; j++)
+          if (q->children[j] != NULL)
+            Q.push(q->children[j]);
+      }
+    }
+  }
+
+  return -1;
+}
+
+int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
 {
   if (q->aabb.contains(X)) {
     if (q->isLeaf()) {
@@ -250,7 +278,7 @@ int locatePoint(const double *X, QuadNode *q, int nNodes, int nTriangles, const 
     } else {
       for (int j=0; j<4; j++) {
         if (q->children[j] != NULL) {
-          int result = locatePoint(X, q->children[j], nNodes, nTriangles, coords, conn);
+          int result = locatePointRecursive(X, q->children[j], nNodes, nTriangles, coords, conn);
           if (result >= 0) return result;
         }
       }
@@ -259,7 +287,11 @@ int locatePoint(const double *X, QuadNode *q, int nNodes, int nTriangles, const 
   return -1;
 }
 
-void createSimpleBVH(int nNodes, int nTriangles, const double *coords, const int *conn)
+void convertBVH(QuadNode* r, QuadNodeD** rd) {
+
+}
+
+void createBVH(int nNodes, int nTriangles, const double *coords, const int *conn)
 {
   QuadNode *root = new QuadNode;
 
@@ -294,21 +326,25 @@ void createSimpleBVH(int nNodes, int nTriangles, const double *coords, const int
   subdivideQuadNode(root);
   // traverseQuadNode(root);
 
+#if 1
   fprintf(stderr, "BVH built.\n");
-
   typedef std::chrono::high_resolution_clock clock;
 
   const double X[2] = {2.0, 1.03};
   auto t0 = clock::now();
   int r0 = locatePointBruteForce(X, root, nNodes, nTriangles, coords, conn);
   auto t1 = clock::now();
-  int r1 = locatePoint(X, root, nNodes, nTriangles, coords, conn);
+  int r1 = locatePointRecursive(X, root, nNodes, nTriangles, coords, conn);
   auto t2 = clock::now();
-  fprintf(stderr, "r0=%d, r1=%d\n", r0, r1);
+  int r2 = locatePointNonRecursive(X, root, nNodes, nTriangles, coords, conn);
+  auto t3 = clock::now();
+  fprintf(stderr, "r0=%d, r1=%d, r2=%d\n", r0, r1, r2);
 
   float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
   float tt1 = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
-  fprintf(stderr, "tt0=%f, tt1=%f\n", tt0, tt1);
+  float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
+  fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f\n", tt0, tt1, tt2);
+#endif
 }
 
 int main(int argc, char **argv)
@@ -331,7 +367,7 @@ int main(int argc, char **argv)
   // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
   //     nNodes, nTriangles, nPhi);
 
-  createSimpleBVH(nNodes, nTriangles, coords, conn);
+  createBVH(nNodes, nTriangles, coords, conn);
 
   // twisting mesh using nextNode
 #if 0
