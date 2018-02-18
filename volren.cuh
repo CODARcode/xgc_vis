@@ -4,20 +4,20 @@ struct QuadNodeD {
   int childrenIds[4];
 
   // bounds
-  double Ax, Ay, Bx, By;
+  float Ax, Ay, Bx, By;
 
   // triangle
   int triangleId; // -1 if the node if not leaf
   int i0, i1, i2;
-  double x0, y0, x1, y1, x2, y2;
+  float x0, y0, x1, y1, x2, y2;
 };
 
-bool QuadNodeD_insideQuad(const QuadNodeD &q, double x, double y)
+bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
 {
   return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
 }
 
-bool QuadNodeD_insideTriangle(const QuadNodeD &q, double x, double y, double &alpha, double &beta, double &gamma) 
+bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float &alpha, float &beta, float &gamma) 
 {
   alpha = ((q.y1 - q.y2)*(x - q.x2) + (q.x2 - q.x1)*(y - q.y2)) /
           ((q.y1 - q.y2)*(q.x0 - q.x2) + (q.x2 - q.x1)*(q.y0 - q.y2));
@@ -28,9 +28,9 @@ bool QuadNodeD_insideTriangle(const QuadNodeD &q, double x, double y, double &al
   return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
 
-int QuadNodeD_locatePoint(QuadNodeD *nodes, double x, double y) 
+int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y) 
 {
-  double alpha, beta, gamma;
+  float alpha, beta, gamma;
 
   static const int maxStackSize = 64;
   int stack[maxStackSize];
