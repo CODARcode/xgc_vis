@@ -24,7 +24,7 @@ include_directories (
   ${PROJECT_SOURCE_DIR}/libtourtre/include
 )
 
-add_executable (main main.cpp widget.cpp trackball.cpp)
+add_executable (main main.cpp widget.cpp trackball.cpp bvh.cpp)
 target_link_libraries (main tourtre ${ADIOS_LIBRARIES} ${ZLIB_LIBRARIES} ${QT_LIBRARIES} ${GLUT_LIBRARY} ${GLEW_LIBRARY} ${OPENGL_LIBRARIES})
 set_target_properties (main PROPERTIES AUTOMOC ON)
 
