@@ -6,6 +6,7 @@
 #include <iostream>
 #include <queue>
 #include "widget.h"
+#include "volren.cuh"
 
 #ifdef __APPLE__
 #include <OpenGL/glu.h>
@@ -29,6 +30,7 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
   : QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
+    rc(NULL),
     toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(false), 
     current_slice(0)
 {
@@ -36,6 +38,7 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
 
 CGLWidget::~CGLWidget()
 {
+  rc_destroy_ctx(&rc);
 }
 
 void CGLWidget::mousePressEvent(QMouseEvent* e)
@@ -158,6 +161,11 @@ void CGLWidget::initializeGL()
     glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, shiness); 
   }
 
+  { // volren
+    rc_create_ctx(&rc);
+    rc_set_stepsize(rc, 0.5);
+  }
+
   CHECK_GLERROR(); 
 }
 
@@ -165,6 +173,8 @@ void CGLWidget::resizeGL(int w, int h)
 {
   _trackball.reshape(w, h); 
   glViewport(0, 0, w, h);
+
+  rc_set_viewport(rc, 0, 0, w, h);
 
   CHECK_GLERROR(); 
 }
@@ -188,8 +198,8 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  renderSinglePlane();
-  // renderMultiplePlanes();
+  // renderSinglePlane();
+  renderMultiplePlanes();
 
   CHECK_GLERROR(); 
 }
@@ -248,11 +258,12 @@ void CGLWidget::renderMultiplePlanes()
   // glDisable(GL_DEPTH_TEST);
   // glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
+  glScalef(0.4, 0.4, 0.4);
   for (int i=0; i<nPhi; i++) {
     glPushMatrix();
     glRotatef(360.f/nPhi*i, 0, 1, 0);
 
-#if 0
+#if 1
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
 
@@ -264,6 +275,7 @@ void CGLWidget::renderMultiplePlanes()
     glDisableClientState(GL_VERTEX_ARRAY);
 #endif
 
+#if 0
     glPointSize(4.f);
     
     glColor4f(1, 0, 0, 0.8);
@@ -281,7 +293,7 @@ void CGLWidget::renderMultiplePlanes()
       glVertex2f(coords[k*2], coords[k*2+1]);
     }
     glEnd();
-
+#endif
     glPopMatrix();
   }
 }

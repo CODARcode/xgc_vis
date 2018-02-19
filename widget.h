@@ -79,6 +79,9 @@ private: // camera
   bool toggle_mesh, toggle_wireframe, toggle_extrema, toggle_labels;
   int current_slice;
 
+private: // volren
+  struct ctx_rc *rc;
+
 private: // mesh
   double *coords; 
   int *conn;
