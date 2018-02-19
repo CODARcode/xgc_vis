@@ -102,7 +102,7 @@ int main(int argc, char **argv)
   // fprintf(stderr, "nNodes=%d, nTriangles=%d, nPhi=%d\n", 
   //     nNodes, nTriangles, nPhi);
 
-  buildBVH(nNodes, nTriangles, coords, conn);
+  buildBVHGPU(nNodes, nTriangles, coords, conn);
 
   // twisting mesh using nextNode
 #if 0

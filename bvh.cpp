@@ -152,7 +152,7 @@ int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangle
   return -1;
 }
 
-int convertBVH(QuadNode* r, QuadNodeD** rd_, const int *conn, const double *coords) {
+std::vector<QuadNodeD> convertBVH(QuadNode* r, const int *conn, const double *coords) {
   std::map<QuadNode*, int> nodeMap;
   std::map<int, QuadNode*> nodeReverseMap;
   std::stack<QuadNode*> S;
@@ -175,8 +175,7 @@ int convertBVH(QuadNode* r, QuadNodeD** rd_, const int *conn, const double *coor
         S.push(q->children[j]);
   }
 
-  *rd_ = (QuadNodeD*)malloc(sizeof(QuadNodeD)*quadNodeCount);
-  QuadNodeD *rd = *rd_;
+  std::vector<QuadNodeD> rd(quadNodeCount);
 
   for (int i=0; i<quadNodeCount; i++) {
     QuadNode q = *nodeReverseMap[i];
@@ -216,7 +215,8 @@ int convertBVH(QuadNode* r, QuadNodeD** rd_, const int *conn, const double *coor
   }
 
   fprintf(stderr, "quadNodeCount=%d, maxStackSize=%d\n", quadNodeCount, maxStackSize);
-  return quadNodeCount;
+  return rd; 
+  // return quadNodeCount;
 }
 
 void deleteBVH(QuadNode *q) {
@@ -227,7 +227,7 @@ void deleteBVH(QuadNode *q) {
   delete q;
 }
 
-void buildBVH(int nNodes, int nTriangles, const double *coords, const int *conn)
+std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coords, const int *conn)
 {
   QuadNode *root = new QuadNode;
 
@@ -262,9 +262,10 @@ void buildBVH(int nNodes, int nTriangles, const double *coords, const int *conn)
   subdivideQuadNode(root);
   // traverseQuadNode(root);
 
-  QuadNodeD *rd;
-  convertBVH(root, &rd, conn, coords);
+  std::vector<QuadNodeD> rd = convertBVH(root, conn, coords);
   deleteBVH(root);
+
+  return rd;
 
 #if 0
   fprintf(stderr, "BVH built.\n");
