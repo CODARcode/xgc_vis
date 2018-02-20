@@ -18,6 +18,7 @@ public:
   ~XGCBlobExtractor() {}
 
   int getNNodes() const {return nNodes;}
+  int getNPhi() const {return nPhi;}
   size_t getTimestep() const {return timestep;}
 
   void setData(size_t timestep, int nPhi, double *dpot);

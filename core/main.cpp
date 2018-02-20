@@ -60,17 +60,42 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 
   // check for a special command to instruct the server to stop listening so
   // it can be cleanly exited.
- 
+
   json incoming = json::parse(msg->get_payload());
   json outgoing;
+  bool binary = false;
+  char *buffer = NULL;
+  size_t buffer_length;
  
   if (incoming["type"] == "requestMesh") {
     fprintf(stderr, "requesting mesh!\n");
     outgoing["type"] = "mesh";
     outgoing["data"] = ex->jsonfyMesh();
+  } else if (incoming["type"] == "requestSingleSliceRawData") {
+    binary = true;
+    const int nNodes = ex->getNNodes();
+    const double *array0 = ex->getData();
+    buffer_length = sizeof(int) + nNodes*sizeof(float);
+    buffer = (char*)malloc(buffer_length);
+    int *type = (int*)buffer;
+    float *array = (float*)(buffer + sizeof(int));
+    *type = 10;
+    for (int i=0; i<nNodes; i++) 
+      array[i] = array0[i];
+  } else if (incoming["type"] == "requestMultipleSliceRawData") {
+    binary = true;
+    const int nNodes = ex->getNNodes();
+    const int nPhi = ex->getNPhi();
+    const double *array0 = ex->getData();
+    buffer_length = sizeof(int) + nNodes*nPhi*sizeof(float);
+    buffer = (char*)malloc(buffer_length);
+    int *type = (int*)buffer;
+    float *array = (float*)(buffer + sizeof(int));
+    *type = 11;
+    for (int i=0; i<nNodes*nPhi; i++) 
+      array[i] = array0[i];
   } else if (incoming["type"] == "requestData") {
     // int client_current_time_index = incoming["client_current_time_index"];
-
     outgoing["type"] = "data";
 
     mutex_ex.lock();
@@ -92,7 +117,12 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 
   try {
     // s->send(hdl, msg->get_payload(), msg->get_opcode()); // echo
-    s->send(hdl, outgoing.dump(), websocketpp::frame::opcode::text);
+    if (binary) {
+      s->send(hdl, buffer, buffer_length, websocketpp::frame::opcode::binary);
+      free(buffer);
+    }
+    else
+      s->send(hdl, outgoing.dump(), websocketpp::frame::opcode::text);
   } catch (const websocketpp::lib::error_code& e) {
     std::cout << "Sending failed failed because: " << e
               << "(" << e.message() << ")" << std::endl;
@@ -421,7 +451,7 @@ int main(int argc, char **argv)
     }
 
     int nPhi = 1;
-    // readValueInt(varFP, "nphi", &nPhi);
+    readValueInt(varFP, "nphi", &nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
 
     ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
