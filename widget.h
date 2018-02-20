@@ -48,6 +48,7 @@ protected:
 protected:
   void renderSinglePlane();
   void renderMultiplePlanes();
+
   void renderExtremum();
   void renderLabels();
 
@@ -81,6 +82,7 @@ private: // camera
 
 private: // volren
   struct ctx_rc *rc;
+  float *framebuf;
 
 private: // mesh
   double *coords; 

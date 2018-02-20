@@ -16,7 +16,7 @@ find_package (ADIOS REQUIRED)
 
 find_package (CUDA REQUIRED)
 
-# set (CUDA_NVCC_FLAGS "-arch=sm_30;-std=c++11")
+set (CUDA_NVCC_FLAGS "-arch=sm_60;-std=c++11")
 set (CUDA_PROPAGATE_HOST_FLAGS OFF)
 
 add_subdirectory (libtourtre)

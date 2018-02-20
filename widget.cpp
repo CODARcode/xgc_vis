@@ -34,11 +34,13 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
     toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(false), 
     current_slice(0)
 {
+  framebuf = (float*)malloc(sizeof(float)*4096*4096);
 }
 
 CGLWidget::~CGLWidget()
 {
   rc_destroy_ctx(&rc);
+  free(framebuf);
 }
 
 void CGLWidget::mousePressEvent(QMouseEvent* e)
@@ -191,6 +193,7 @@ void CGLWidget::paintGL()
   _mvmatrix.rotate(_trackball.getRotation());
   _mvmatrix.scale(_trackball.getScale());
 
+#if 0
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
   glLoadMatrixd(_projmatrix.data()); 
@@ -198,8 +201,19 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  // renderSinglePlane();
-  renderMultiplePlanes();
+  renderSinglePlane();
+  // renderMultiplePlanes();
+#else
+  _mvmatrix.scale(0.4, 0.4, 0.4);
+  QMatrix4x4 invmvp = (_projmatrix*_mvmatrix).inverted();
+
+  rc_clear_output(rc);
+  rc_set_invmvpd(rc, invmvp.data());
+  rc_render(rc);
+  rc_dump_output(rc, framebuf);
+
+  glDrawPixels(width(), height(), GL_RGBA, GL_FLOAT, framebuf);
+#endif
 
   CHECK_GLERROR(); 
 }

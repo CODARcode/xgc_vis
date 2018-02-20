@@ -66,7 +66,8 @@ bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **c
   readScalars<double>(fp, "/coordinates/values", coords);
 
   // read triangles
-  readScalars<int>(fp, "/cell_set[0]/node_connect_list", conn);
+  // readScalars<int>(fp, "/cell_set[0]/node_connect_list", conn);
+  readScalars<int>(fp, "nd_connect_list", conn);
 
   // read nextNode
   readScalars<int>(fp, "nextnode", nextNode);
@@ -105,6 +106,7 @@ int main(int argc, char **argv)
   buildBVHGPU(nNodes, nTriangles, coords, conn);
 
   // twisting mesh using nextNode
+  fprintf(stderr, "%d, %d, %d\n", nextNode[conn[3374*3]], conn[3374*3+1], conn[3374*3+2]);
 #if 0
   for (int i=0; i<nNodes*3; i++) {
     // conn[i] = nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[conn[i]]]]]]]]]];

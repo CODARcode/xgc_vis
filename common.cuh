@@ -215,6 +215,27 @@ inline bool intersectBox(float3 rayO, float3 rayD, float &tnear, float &tfar,
 	return smallest_tmax > largest_tmin;
 }
 
+__device__ __host__
+inline bool intersectCylinder(float3 rayO, float3 rayD, float &tnear, float &tfar, float r, float z0, float z1)
+{
+  bool b0 = intersectBox(rayO, rayD, tnear, tfar, 
+      make_float3(-r, -r, z0), // boxmin
+      make_float3(r, r, z1)); // boxmax
+  if (!b0) return false;
+
+  float A = rayD.x*rayD.x + rayD.y*rayD.y, 
+        B = 2 * (rayO.x*rayD.x + rayO.y*rayD.y), 
+        C = rayO.x*rayO.x + rayO.y*rayO.y - r*r;
+  float D = B*B - 4*C;
+
+  if (D < 0) return false;
+  else {
+    tnear = max(0.5f*(-B-sqrtf(D)), tnear); 
+    tfar  = min(0.5f*(-B+sqrtf(D)), tfar);
+    return true;
+  }
+}
+
 // intersect ray with a sphere. 
 // notice: make sure rayD is normalized.
 __device__ __host__
