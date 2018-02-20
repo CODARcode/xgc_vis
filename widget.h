@@ -75,6 +75,7 @@ private: // server
   typedef websocketpp::server<websocketpp::config::asio> server;
   typedef server::message_ptr message_ptr;
   server wss;
+  std::thread *thread_wss;
 
 public:
   void startServer(int port);

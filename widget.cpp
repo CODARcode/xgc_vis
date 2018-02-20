@@ -45,11 +45,16 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
 {
   framebuf = (float*)malloc(sizeof(float)*4096*4096);
 
-  startServer(9003);
+  // thread_wss = new std::thread(boost::bind(&CGLWidget::startServer, this, 9003));
+  thread_wss = new std::thread(&CGLWidget::startServer, this, 9003);
+  // startServer(9003);
 }
 
 CGLWidget::~CGLWidget()
 {
+  thread_wss->join();
+  delete thread_wss;
+
   rc_destroy_ctx(&rc);
   free(framebuf);
 }
@@ -68,6 +73,7 @@ void CGLWidget::onMessage(server* s, websocketpp::connection_hdl hdl, message_pt
  
   if (incoming["type"] == "requestMesh") {
   } else if (incoming["type"] == "requestData") {
+  } else if (incoming["type"] == "requestImage") {
   } else if (incoming["type"] == "stopServer") {
     s->stop_listening();
     return;
@@ -83,6 +89,7 @@ void CGLWidget::onMessage(server* s, websocketpp::connection_hdl hdl, message_pt
 
 void CGLWidget::startServer(int port)
 {
+  fprintf(stderr, "starting wss...\n");
   try {
     // Set logging settings
     wss.set_access_channels(websocketpp::log::alevel::all);
