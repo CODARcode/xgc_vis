@@ -78,7 +78,8 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     const int nnodes = ex->getNNodes();
     const double *ptr = ex->getData(); 
     std::vector<double> dpot(ptr, ptr + nnodes);
-    std::vector<int> labels = ex->getFlattenedLabels(0); // ex->getLabels(0);
+    // std::vector<int> labels = ex->getFlattenedLabels(0); // ex->getLabels(0);
+    std::vector<int> labels = ex->getLabels(0);
     mutex_ex.unlock();
    
     outgoing["timestep"] = timestep;
@@ -132,9 +133,10 @@ void startWebsocketServer(int port)
     // Start the ASIO io_service run loop
     wsserver.run();
   } catch (websocketpp::exception const & e) {
-    std::cout << e.what() << std::endl;
+    std::cerr << e.what() << std::endl;
+    exit(EXIT_FAILURE);
   } catch (...) {
-    std::cout << "other exception" << std::endl;
+    std::cerr << "other exception" << std::endl;
   }
 }
 
@@ -419,7 +421,7 @@ int main(int argc, char **argv)
     }
 
     int nPhi = 1;
-    readValueInt(varFP, "nphi", &nPhi);
+    // readValueInt(varFP, "nphi", &nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
 
     ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
@@ -455,8 +457,8 @@ int main(int argc, char **argv)
     ex->setData(current_time_index, nPhi, dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
-    std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
-    // ex->buildContourTree2DAll();
+    // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
+    ex->buildContourTree2DAll();
     mutex_ex.unlock();
 
     // write labels
@@ -488,7 +490,7 @@ int main(int argc, char **argv)
     if (filename_output_branches.length() > 0) {
       fprintf(stderr, "writing branch decompositions for timestep %zu to %s\n", 
           current_time_index, filename_output_branches.c_str()); 
-      ex->dumpBranches(filename_output_branches, branchSet);
+      // ex->dumpBranches(filename_output_branches, branchSet);
     }
     
     fprintf(stderr, "done.\n");
