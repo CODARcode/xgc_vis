@@ -131,12 +131,12 @@ int main(int argc, char **argv)
   fmt.setSamples(16); 
   QGLFormat::setDefaultFormat(fmt); 
  
-  const size_t nLimit = atoi(argv[1]);
-  fprintf(stderr, "nLimit=%zu\n", nLimit);
+  // const size_t nLimit = atoi(argv[1]);
+  // fprintf(stderr, "nLimit=%zu\n", nLimit);
 
   CGLWidget *widget = new CGLWidget;
   widget->setTriangularMesh(nNodes, nTriangles, nPhi, coords, conn);
-  widget->setNLimit(nLimit);
+  // widget->setNLimit(nLimit);
   widget->setData(dpot);
   widget->show();
   app.exec();

@@ -5,6 +5,9 @@
 #include <fstream>
 #include <iostream>
 #include <queue>
+#include <websocketpp/config/asio_no_tls.hpp>
+#include <websocketpp/server.hpp>
+#include "json.hpp"
 #include "widget.h"
 #include "volren.cuh"
 
@@ -193,7 +196,7 @@ void CGLWidget::paintGL()
   _mvmatrix.rotate(_trackball.getRotation());
   _mvmatrix.scale(_trackball.getScale());
 
-#if 0
+#if 1
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
   glLoadMatrixd(_projmatrix.data()); 
@@ -201,8 +204,8 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  renderSinglePlane();
-  // renderMultiplePlanes();
+  // renderSinglePlane();
+  renderMultiplePlanes();
 #else
   _mvmatrix.scale(0.4, 0.4, 0.4);
   QMatrix4x4 invmvp = (_projmatrix*_mvmatrix).inverted();
