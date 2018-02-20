@@ -11,7 +11,9 @@
 #include <websocketpp/server.hpp>
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
-  
+#include "volren/bvh.h"
+#include "volren/volren.cuh"
+
 const std::string pointsName = "points";
 const std::string numPointsName = "numPoints";
 const std::string cellsName = "cells";
@@ -32,7 +34,7 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-server wsserver;
+server wss;
 
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
@@ -133,20 +135,20 @@ void startWebsocketServer(int port)
 {
   try {
     // Set logging settings
-    wsserver.set_access_channels(websocketpp::log::alevel::all);
-    wsserver.clear_access_channels(websocketpp::log::alevel::frame_payload);
+    wss.set_access_channels(websocketpp::log::alevel::all);
+    wss.clear_access_channels(websocketpp::log::alevel::frame_payload);
 
     // Initialize Asio
-    wsserver.init_asio();
+    wss.init_asio();
 
     // Register our message handler
-    wsserver.set_message_handler(bind(&onMessage, &wsserver, ::_1, ::_2));
+    wss.set_message_handler(bind(&onMessage, &wss, ::_1, ::_2));
 
     // Listen on port 9002
-    wsserver.listen(port);
+    wss.listen(port);
 
     // Start the server accept loop
-    wsserver.start_accept();
+    wss.start_accept();
  
     char hostname[1024];
     gethostname(hostname, 1024);
@@ -161,7 +163,7 @@ void startWebsocketServer(int port)
     fprintf(stderr, "==========================================\n");
 
     // Start the ASIO io_service run loop
-    wsserver.run();
+    wss.run();
   } catch (websocketpp::exception const & e) {
     std::cerr << e.what() << std::endl;
     exit(EXIT_FAILURE);
@@ -298,6 +300,7 @@ int main(int argc, char **argv)
     ("write_method_params", value<std::string>()->default_value(""), "write_method_params")
     ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
     ("server,s", "enable websocket server")
+    ("volren,v", "enable volren (-s required)")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
     ("help,h", "display this information");
   
@@ -348,7 +351,8 @@ int main(int argc, char **argv)
     single_input = true;
   }
 
-  bool write_binary = (vm["write_method"].as<std::string>() == "BIN"); 
+  bool write_binary = (vm["write_method"].as<std::string>() == "BIN");
+  bool volren = vm.count("volren") && vm.count("server");
 
   fprintf(stderr, "==========================================\n");
   fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
@@ -540,7 +544,7 @@ int main(int argc, char **argv)
 #endif
   
   if (ws_thread) {
-    fprintf(stderr, "shutting down wsserver...\n");
+    fprintf(stderr, "shutting down wss...\n");
     ws_thread->join();
   }
    
