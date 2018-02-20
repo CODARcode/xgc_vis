@@ -3,6 +3,7 @@ project (xgc_vis)
 
 option (XGCVIS_BUILD_CORE "Build core analysis code" ON)
 option (XGCVIS_BUILD_GUI "Build GUI" OFF)
+option (XGCVIS_BUILD_VOLREN "Build VolRen" OFF)
 option (XGCVIS_BUILD_CONVERTER "Build VTK converter" OFF)
 
 set (CMAKE_CXX_STANDARD 11)
@@ -30,6 +31,11 @@ if (XGCVIS_BUILD_CORE)
     ${ADIOS_INCLUDE_DIRS} 
   )
   add_subdirectory (core)
+endif ()
+
+if (XGCVIS_BUILD_VOLREN)
+  find_package (CUDA REQUIRED)
+  set (CUDA_PROPAGATE_HOST_FLAGS OFF)
 endif ()
 
 if (XGCVIS_BUILD_GUI)
