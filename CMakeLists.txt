@@ -26,19 +26,19 @@ include_directories (
   ${Boost_INCLUDE_DIR}
 )
 
+if (XGCVIS_BUILD_VOLREN)
+  find_package (CUDA REQUIRED)
+  set (CUDA_PROPAGATE_HOST_FLAGS OFF)
+  add_definitions (-DVOLREN)
+  add_subdirectory (volren)
+endif ()
+
 if (XGCVIS_BUILD_CORE)
   find_package (ADIOS REQUIRED)
   include_directories (
     ${ADIOS_INCLUDE_DIRS} 
   )
   add_subdirectory (core)
-endif ()
-
-if (XGCVIS_BUILD_VOLREN)
-  find_package (CUDA REQUIRED)
-  set (CUDA_PROPAGATE_HOST_FLAGS OFF)
-  add_definitions (-DVOLREN)
-  add_subdirectory (volren)
 endif ()
 
 if (XGCVIS_BUILD_GUI)

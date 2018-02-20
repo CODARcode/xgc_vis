@@ -11,8 +11,11 @@
 #include <websocketpp/server.hpp>
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
+
+#ifdef VOLREN
 #include "volren/bvh.h"
 #include "volren/volren.cuh"
+#endif
 
 const std::string pointsName = "points";
 const std::string numPointsName = "numPoints";
@@ -174,11 +177,19 @@ void startWebsocketServer(int port)
 
 void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
 {
-// #ifdef VOLREN
-#if 1
-  fprintf(stderr, "building BVH...\n");
+#ifdef VOLREN
   std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
-  fprintf(stderr, "BVH built, #nodes=%zu\n", bvh.size());
+
+  float *framebuf = NULL; // FIXME
+  ctx_rc *rc;
+  rc_create_ctx(&rc);
+  rc_set_stepsize(rc, 0.5);
+  rc_set_viewport(rc, 0, 0, 1024, 768);
+
+  rc_clear_output(rc);
+  // rc_set_invmvpd(rc, imvmvpd);
+  rc_render(rc);
+  // rc_dump_output(rc, framebuf);
 #endif
 }
 
