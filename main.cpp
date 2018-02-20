@@ -106,7 +106,7 @@ int main(int argc, char **argv)
   buildBVHGPU(nNodes, nTriangles, coords, conn);
 
   // twisting mesh using nextNode
-  fprintf(stderr, "%d, %d, %d\n", nextNode[conn[3374*3]], conn[3374*3+1], conn[3374*3+2]);
+  // fprintf(stderr, "%d, %d, %d\n", nextNode[conn[3374*3]], conn[3374*3+1], conn[3374*3+2]);
 #if 0
   for (int i=0; i<nNodes*3; i++) {
     // conn[i] = nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[nextNode[conn[i]]]]]]]]]];

@@ -7,6 +7,8 @@
 #include <QVector>
 #include <QVector3D>
 #include <QMatrix4x4>
+#include <websocketpp/config/asio_no_tls.hpp>
+#include <websocketpp/server.hpp>
 #include <tourtre.h>
 #include <cmath>
 #include <set>
@@ -68,6 +70,15 @@ private:
   void extractStreamers(int plane, ctBranch *root, std::map<ctBranch*, size_t>& branchSet, int nStreamers, double percentage, void *);
   void extractStreamersFromExtremum(int plane, double *dpot, double percentage=0.1);
   int flood2D(size_t seed, size_t id, std::vector<size_t> &labels, double min, double max, void *d);
+
+private: // server
+  typedef websocketpp::server<websocketpp::config::asio> server;
+  typedef server::message_ptr message_ptr;
+  server wss;
+
+public:
+  void startServer(int port);
+  void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg);
 
 private:
   CGLTrackball _trackball;

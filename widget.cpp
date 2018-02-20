@@ -5,8 +5,6 @@
 #include <fstream>
 #include <iostream>
 #include <queue>
-#include <websocketpp/config/asio_no_tls.hpp>
-#include <websocketpp/server.hpp>
 #include "json.hpp"
 #include "widget.h"
 #include "volren.cuh"
@@ -28,6 +26,14 @@
             __FILE__, __LINE__, errString);\
   }\
 }
+  
+typedef websocketpp::server<websocketpp::config::asio> server;
+typedef server::message_ptr message_ptr;
+
+using json = nlohmann::json;
+using websocketpp::lib::placeholders::_1;
+using websocketpp::lib::placeholders::_2;
+using websocketpp::lib::bind;
 
 CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
   : QGLWidget(fmt, parent, sharedWidget), 
@@ -38,12 +44,69 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
     current_slice(0)
 {
   framebuf = (float*)malloc(sizeof(float)*4096*4096);
+
+  startServer(9003);
 }
 
 CGLWidget::~CGLWidget()
 {
   rc_destroy_ctx(&rc);
   free(framebuf);
+}
+
+void CGLWidget::onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) 
+{
+  std::cout << "onMessage called with hdl: " << hdl.lock().get()
+            << " and message: " << msg->get_payload()
+            << std::endl;
+
+  // check for a special command to instruct the server to stop listening so
+  // it can be cleanly exited.
+ 
+  json incoming = json::parse(msg->get_payload());
+  json outgoing;
+ 
+  if (incoming["type"] == "requestMesh") {
+  } else if (incoming["type"] == "requestData") {
+  } else if (incoming["type"] == "stopServer") {
+    s->stop_listening();
+    return;
+  }
+
+  try {
+    s->send(hdl, outgoing.dump(), websocketpp::frame::opcode::text);
+  } catch (const websocketpp::lib::error_code& e) {
+    std::cout << "Sending failed failed because: " << e
+              << "(" << e.message() << ")" << std::endl;
+  }
+}
+
+void CGLWidget::startServer(int port)
+{
+  try {
+    // Set logging settings
+    wss.set_access_channels(websocketpp::log::alevel::all);
+    wss.clear_access_channels(websocketpp::log::alevel::frame_payload);
+
+    // Initialize Asio
+    wss.init_asio();
+
+    // Register our message handler
+    wss.set_message_handler(bind(&CGLWidget::onMessage, this, &wss, ::_1, ::_2));
+
+    // Listen on port 9002
+    wss.listen(port);
+
+    // Start the server accept loop
+    wss.start_accept();
+ 
+    // Start the ASIO io_service run loop
+    wss.run();
+  } catch (websocketpp::exception const & e) {
+    std::cout << e.what() << std::endl;
+  } catch (...) {
+    std::cout << "other exception" << std::endl;
+  }
 }
 
 void CGLWidget::mousePressEvent(QMouseEvent* e)
@@ -513,7 +576,7 @@ static double volumePriority(ctNode *node, void *d)
 
 static void printContourTree(ctBranch* b)
 {
-  fprintf(stderr, "%d, %d, %p\n", b->extremum, b->saddle, b->children.head);
+  fprintf(stderr, "%zu, %zu, %p\n", b->extremum, b->saddle, b->children.head);
   
   for (ctBranch* c = b->children.head; c != NULL; c = c->nextChild) 
     printContourTree(c);
