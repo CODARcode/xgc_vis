@@ -6,9 +6,13 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
 #include <boost/program_options.hpp>
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
+#include <concurrentqueue.h>
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
 
@@ -32,6 +36,7 @@ const std::string groupName = "xgc_blobs", meshName = "xgc_mesh2D";
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
 
+// using ConcurrentQueue = moodycamel::ConcurrentQueue;
 using json = nlohmann::json;
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
@@ -41,6 +46,16 @@ server wss;
 
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
+
+struct VolrenTask {
+  int viewport[4];
+  double invmvpd[16];
+  float *fb = NULL; // framebuffer
+};
+
+struct SendTask {
+
+};
 
 std::set<size_t> loadSkipList(const std::string& filename)
 {
