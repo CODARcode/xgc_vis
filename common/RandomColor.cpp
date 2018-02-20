@@ -1,5 +1,5 @@
 #include "RandomColor.h"
-#include "zcolor.h"
+#include "ZColor.h"
 #include <algorithm>
 #include <cstdlib>
 

@@ -22,6 +22,7 @@ include_directories (
   ${PROJECT_SOURCE_DIR}/third_party/libtourtre/include
   ${PROJECT_SOURCE_DIR}/third_party/json
   ${PROJECT_SOURCE_DIR}/third_party/websocketpp
+  ${PROJECT_SOURCE_DIR}/third_party/cutil
   ${Boost_INCLUDE_DIR}
 )
 
@@ -36,6 +37,8 @@ endif ()
 if (XGCVIS_BUILD_VOLREN)
   find_package (CUDA REQUIRED)
   set (CUDA_PROPAGATE_HOST_FLAGS OFF)
+  add_definitions (-DVOLREN)
+  add_subdirectory (volren)
 endif ()
 
 if (XGCVIS_BUILD_GUI)

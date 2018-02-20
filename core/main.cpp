@@ -149,7 +149,7 @@ void startWebsocketServer(int port)
 
     // Start the server accept loop
     wss.start_accept();
- 
+#if 0 
     char hostname[1024];
     gethostname(hostname, 1024);
     fprintf(stderr, "=================WEBSOCKET================\n");
@@ -161,7 +161,7 @@ void startWebsocketServer(int port)
     fprintf(stderr, " 2. Open your web browser (we recommend Google Chrome or Safari), and open the following webpage:\n\n   http://www.mcs.anl.gov/~hguo/xgc\n\n");
     fprintf(stderr, "If you have any technical difficulties, please contact Hanqi Guo (hguo@anl.gov) directly.\n");
     fprintf(stderr, "==========================================\n");
-
+#endif
     // Start the ASIO io_service run loop
     wss.run();
   } catch (websocketpp::exception const & e) {
@@ -172,9 +172,14 @@ void startWebsocketServer(int port)
   }
 }
 
-void startVolren()
+void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
 {
-
+// #ifdef VOLREN
+#if 1
+  fprintf(stderr, "building BVH...\n");
+  std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
+  fprintf(stderr, "BVH built, #nodes=%zu\n", bvh.size());
+#endif
 }
 
 void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHandle, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
@@ -421,7 +426,7 @@ int main(int argc, char **argv)
 
   // starting volren
   if (volren) {
-    volren_thread = new std::thread(startVolren);
+    volren_thread = new std::thread(startVolren, nNodes, nTriangles, coords, conn);
   }
 
   // read data
