@@ -172,6 +172,11 @@ void startWebsocketServer(int port)
   }
 }
 
+void startVolren()
+{
+
+}
+
 void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHandle, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
@@ -282,6 +287,7 @@ void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHand
 int main(int argc, char **argv)
 {
   std::thread *ws_thread = NULL;
+  std::thread *volren_thread = NULL;
 
   MPI_Init(&argc, &argv);
   
@@ -406,11 +412,16 @@ int main(int argc, char **argv)
   readScalars<double>(meshFP, "psi", &psi);
   // adios_close(*meshFP);
 
-  // starting server
   ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
   
+  // starting server
   if (vm.count("server")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
+  }
+
+  // starting volren
+  if (volren) {
+    volren_thread = new std::thread(startVolren);
   }
 
   // read data
@@ -546,6 +557,11 @@ int main(int argc, char **argv)
   if (ws_thread) {
     fprintf(stderr, "shutting down wss...\n");
     ws_thread->join();
+  }
+
+  if (volren_thread) {
+    fprintf(stderr, "shutting down volren...\n");
+    volren_thread->join();
   }
    
   // adios_close(*varFP);
