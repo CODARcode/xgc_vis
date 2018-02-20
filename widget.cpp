@@ -74,6 +74,7 @@ void CGLWidget::onMessage(server* s, websocketpp::connection_hdl hdl, message_pt
   if (incoming["type"] == "requestMesh") {
   } else if (incoming["type"] == "requestData") {
   } else if (incoming["type"] == "requestImage") {
+    QMetaObject::invokeMethod(this, "updateImage", Qt::QueuedConnection);
   } else if (incoming["type"] == "stopServer") {
     s->stop_listening();
     return;
@@ -114,6 +115,11 @@ void CGLWidget::startServer(int port)
   } catch (...) {
     std::cout << "other exception" << std::endl;
   }
+}
+
+void CGLWidget::updateImage()
+{
+  updateGL();
 }
 
 void CGLWidget::mousePressEvent(QMouseEvent* e)
@@ -265,6 +271,11 @@ void CGLWidget::paintGL()
   _mvmatrix.lookAt(_eye, _center, _up);
   _mvmatrix.rotate(_trackball.getRotation());
   _mvmatrix.scale(_trackball.getScale());
+  _mvmatrix.scale(0.4, 0.4, 0.4);
+  
+  // QMatrix4x4 invmvp = (_projmatrix*_mvmatrix).inverted();
+  // for (int i=0; i<16; i++) 
+  //   fprintf(stderr, "%f\n", invmvp.data()[i]);
 
 #if 1
   glMatrixMode(GL_PROJECTION);
@@ -277,7 +288,6 @@ void CGLWidget::paintGL()
   // renderSinglePlane();
   renderMultiplePlanes();
 #else
-  _mvmatrix.scale(0.4, 0.4, 0.4);
   QMatrix4x4 invmvp = (_projmatrix*_mvmatrix).inverted();
 
   rc_clear_output(rc);
@@ -345,7 +355,7 @@ void CGLWidget::renderMultiplePlanes()
   // glDisable(GL_DEPTH_TEST);
   // glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-  glScalef(0.4, 0.4, 0.4);
+  // glScalef(0.4, 0.4, 0.4);
   for (int i=0; i<nPhi; i++) {
     glPushMatrix();
     glRotatef(360.f/nPhi*i, 0, 1, 0);

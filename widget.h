@@ -71,6 +71,9 @@ private:
   void extractStreamersFromExtremum(int plane, double *dpot, double percentage=0.1);
   int flood2D(size_t seed, size_t id, std::vector<size_t> &labels, double min, double max, void *d);
 
+public slots:
+  void updateImage();
+
 private: // server
   typedef websocketpp::server<websocketpp::config::asio> server;
   typedef server::message_ptr message_ptr;
