@@ -17,6 +17,7 @@
 #include "core/xgcBlobExtractor.h"
 
 #ifdef VOLREN
+#include <png.h>
 #include "volren/bvh.h"
 #include "volren/volren.cuh"
 #endif
@@ -47,7 +48,12 @@ server wss;
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
-float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
+struct png_mem_buffer {
+  char *buffer; 
+  size_t size;
+};
+
+// float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
 
 #if 0
 struct VolrenTask {
@@ -76,6 +82,72 @@ std::set<size_t> loadSkipList(const std::string& filename)
   }
   return skip;
 }
+
+#ifdef VOLREN
+static void my_png_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
+{
+  /* with libpng15 next line causes pointer deference error; use libpng12 */
+  struct png_mem_buffer* p=(struct png_mem_buffer*)png_get_io_ptr(png_ptr); /* was png_ptr->io_ptr */
+  size_t nsize = p->size + length;
+
+  /* allocate or grow buffer */
+  if(p->buffer)
+    p->buffer = (char*)realloc(p->buffer, nsize);
+  else
+    p->buffer = (char*)malloc(nsize);
+
+  if(!p->buffer)
+    png_error(png_ptr, "Write Error");
+
+  /* copy new bytes to end of buffer */
+  memcpy(p->buffer + p->size, data, length);
+  p->size += length;
+}
+
+static png_mem_buffer save_png(int width, int height,
+                     int bitdepth, int colortype,
+                     unsigned char* data, int pitch, int transform)
+{
+  int i = 0;
+  int r = 0;
+
+  assert(data);
+  assert(pitch);
+
+  png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  assert(png_ptr);
+
+  png_infop info_ptr = png_create_info_struct(png_ptr);
+  assert(info_ptr);
+
+  png_set_IHDR(png_ptr,
+      info_ptr,
+      width,
+      height,
+      bitdepth,                 /* e.g. 8 */
+      colortype,                /* PNG_COLOR_TYPE_{GRAY, PALETTE, RGB, RGB_ALPHA, GRAY_ALPHA, RGBA, GA} */
+      PNG_INTERLACE_NONE,       /* PNG_INTERLACE_{NONE, ADAM7 } */
+      PNG_COMPRESSION_TYPE_BASE,
+      PNG_FILTER_TYPE_BASE);
+
+  png_bytep* row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * height);
+
+  for (i = 0; i < height; ++i) {
+    row_pointers[i] = data + i * pitch;
+  }
+
+  struct png_mem_buffer state;
+  state.buffer = NULL;
+  state.size = 0;
+
+  png_set_write_fn(png_ptr, &state, my_png_write_data, NULL);
+  png_set_rows(png_ptr, info_ptr, row_pointers);
+  png_write_png(png_ptr, info_ptr, transform, NULL);
+
+  return state;
+}
+#endif
+
 
 void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
   std::cout << "onMessage called with hdl: " << hdl.lock().get()
@@ -136,10 +208,15 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["labels"] = labels;
   } else if (incoming["type"] == "requestVolren") {
     binary = true;
-    buffer_length = 1024*768*4*sizeof(float);
+    const int npx = 1024*768;
+    buffer_length = sizeof(int) + npx*3;
     buffer = (char*)malloc(buffer_length);
-    for (int i=0; i<1024*768; i++) 
-      buffer[i*4] = 1;
+    int *type = (int*)(buffer);
+    *type = 13;
+    unsigned char *fb = (unsigned char*)(buffer+sizeof(int));
+    memset(fb, 0, npx*3);
+    for (int i=0; i<npx; i++) 
+      fb[i*3] = 255;
     // memcpy(buffer, framebuf, buffer_length);
   } else if (incoming["type"] == "stopServer") {
     s->stop_listening();
@@ -214,11 +291,28 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
   rc_clear_output(rc);
   // rc_set_invmvpd(rc, imvmvpd);
   fprintf(stderr, "rendering...\n");
-  rc_render(rc);
-  for (int i=0; i<1024*768; i++) 
-    framebuf[i*4] = 1;
-  rc_dump_output(rc, framebuf);
-  fprintf(stderr, "done.\n");
+  // rc_render(rc);
+  // rc_dump_output(rc, framebuf);
+  fprintf(stderr, "saving png...\n");
+
+#if 1
+  const int npx = 1024*768;
+  unsigned char *fb = (unsigned char*)malloc(npx*3);
+  for (int i=0; i<npx; i++) {
+    fb[i*3] = 255; 
+    fb[i*3+1] = 0;
+    fb[i*3+2] = 0;
+  }
+  png_mem_buffer png = save_png(1024, 768, 8, PNG_COLOR_TYPE_RGB, fb, 3*1024, PNG_TRANSFORM_IDENTITY);
+  free(fb);
+
+  FILE *fp = fopen("test1.png", "wb");
+  fwrite(png.buffer, 1, png.size, fp);
+  free(png.buffer);
+  fclose(fp);
+#endif
+
+  fprintf(stderr, "done...\n");
 #endif
 }
 

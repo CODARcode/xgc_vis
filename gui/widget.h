@@ -69,10 +69,13 @@ private:
   void constructDiscreteGradient(double *dpot);
 
 public: // client
+  std::thread *thread_ws;
   void connectToWebSocketServer(const std::string& uri);
   
   typedef websocketpp::client<websocketpp::config::asio_client> client;
   typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
+ 
+  client c;
   void onMessage(client* c, websocketpp::connection_hdl hdl, message_ptr msg);
 
 private:

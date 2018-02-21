@@ -28,6 +28,8 @@ include_directories (
 )
 
 if (XGCVIS_BUILD_VOLREN)
+  find_package (PNG REQUIRED)
+  include_directories (${PNG_INCLUDE_DIRS})
   find_package (CUDA REQUIRED)
   set (CUDA_PROPAGATE_HOST_FLAGS OFF)
   add_definitions (-DVOLREN)
@@ -36,9 +38,7 @@ endif ()
 
 if (XGCVIS_BUILD_CORE)
   find_package (ADIOS REQUIRED)
-  include_directories (
-    ${ADIOS_INCLUDE_DIRS} 
-  )
+  include_directories (${ADIOS_INCLUDE_DIRS})
   add_subdirectory (core)
 endif ()
 

@@ -40,11 +40,13 @@ CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWid
     toggle_mesh(false), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
     current_slice(0)
 {
-  connectToWebSocketServer("ws://red:9002");
+  thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
 }
 
 CGLWidget::~CGLWidget()
 {
+  thread_ws->join();
+  delete thread_ws;
 }
 
 void CGLWidget::onMessage(client *c, websocketpp::connection_hdl, message_ptr msg)
@@ -54,7 +56,6 @@ void CGLWidget::onMessage(client *c, websocketpp::connection_hdl, message_ptr ms
 
 void CGLWidget::connectToWebSocketServer(const std::string& uri)
 {
-  client c;
   try {
     // Set logging to be pretty verbose (everything except message payloads)
     c.set_access_channels(websocketpp::log::alevel::all);
