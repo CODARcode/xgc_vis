@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <climits>
 #include <queue>
 #include <list>
 #include "xgcBlobExtractor.h"

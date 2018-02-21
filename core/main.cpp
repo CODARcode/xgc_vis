@@ -47,6 +47,9 @@ server wss;
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
+float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
+
+#if 0
 struct VolrenTask {
   int viewport[4];
   double invmvpd[16];
@@ -56,6 +59,7 @@ struct VolrenTask {
 struct SendTask {
 
 };
+#endif
 
 std::set<size_t> loadSkipList(const std::string& filename)
 {
@@ -130,6 +134,13 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["timestep"] = timestep;
     outgoing["data"] = dpot;
     outgoing["labels"] = labels;
+  } else if (incoming["type"] == "requestVolren") {
+    binary = true;
+    buffer_length = 1024*768*4*sizeof(float);
+    buffer = (char*)malloc(buffer_length);
+    for (int i=0; i<1024*768; i++) 
+      buffer[i*4] = 1;
+    // memcpy(buffer, framebuf, buffer_length);
   } else if (incoming["type"] == "stopServer") {
     s->stop_listening();
     return;
@@ -195,7 +206,6 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
 #ifdef VOLREN
   std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
 
-  float *framebuf = NULL; // FIXME
   ctx_rc *rc;
   rc_create_ctx(&rc);
   rc_set_stepsize(rc, 0.5);
@@ -203,8 +213,12 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
 
   rc_clear_output(rc);
   // rc_set_invmvpd(rc, imvmvpd);
+  fprintf(stderr, "rendering...\n");
   rc_render(rc);
-  // rc_dump_output(rc, framebuf);
+  for (int i=0; i<1024*768; i++) 
+    framebuf[i*4] = 1;
+  rc_dump_output(rc, framebuf);
+  fprintf(stderr, "done.\n");
 #endif
 }
 

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <vector>
+#include <cstdio>
 #include <cfloat>
 #include <cstdlib>
 #include "bvh.cuh"
