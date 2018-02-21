@@ -95,6 +95,74 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
 }
 
 template <int SHADING>
+__device__ static void rc(
+        float4 &dst,              // destination color
+        int nPhi,                 // number of planes
+        int nNodes,               // number of nodes 
+        float *data,              // volume data in unstructured mesh
+        QuadNodeD *bvh,
+        float2 trans,             // range transformation 
+        float3 rayO,              // ray origin 
+        float3 rayD,              // ray direction
+        float stepsize, 
+        float tnear, float tfar)
+{
+  float  sample = 0.f;
+  float4 src;
+  // float3 N, L = make_float3(1, 0, 0), V = rayD; 
+  // float3 Ka = make_float3(0.04), 
+  //        Kd = make_float3(0.3), 
+  //        Ks = make_float3(0.2); 
+  // const float delta = 0.5f / dsz.x;   // for shading 
+  float3 pos;
+  float t = tnear;
+
+  while (t < tfar) {
+    pos = rayO + rayD*t;
+
+    // cylindar coordinates
+    float r = pos.x*pos.x + pos.y*pos.y;
+    float phi = atan2(pos.y, pos.x);
+    float z = pos.z;
+
+    float alpha, beta, gamma;
+    int triangleId = QuadNodeD_locatePoint(bvh, r, z, alpha, beta, gamma);
+
+    if (triangleId != -1) {
+      // sample = interpolateXGC(bvh, pos, data); 
+      // sample = QuadNodeD_sample(bvh, x, y, data);
+      // sample = tex3Dtrans<DataType, readMode, TRANSFORM>(texVolume, trans, coords); 
+      // src = tex1D(texTransferFunc, sample);
+      // src = make_float4(sample, 1.0-sample, 0.0, 0.9);
+      // sample = pow(1.f - sample, 2.f); 
+      // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
+      src = make_float4(1, 0, 0, 0.5);
+
+#if 0
+      if (SHADING) {
+        float3 lit; 
+        N = gradient(texVolume, coords, delta); 
+        lit = cook(N, V, L, Ka, Kd, Ks); 
+        src.x += lit.x; 
+        src.y += lit.y; 
+        src.z += lit.z; 
+      }
+#endif
+      
+      src.w = 1.f - pow(1.f - src.w, stepsize); // alpha correction  
+
+      dst.x += (1.0 - dst.w) * src.x * src.w;
+      dst.y += (1.0 - dst.w) * src.y * src.w;
+      dst.z += (1.0 - dst.w) * src.z * src.w;
+      dst.w += (1.0 - dst.w) * src.w;
+    }
+    
+    t += stepsize; 
+  }
+  // dst.x = 1; dst.y = 0; dst.z = 0; dst.w = 1;
+}
+
+template <int SHADING>
 __device__ static void raycasting(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
@@ -106,70 +174,34 @@ __device__ static void raycasting(
         float3 rayD,              // ray direction
         float stepsize)           // stepsize
 {
-  float4 src = make_float4(0); 
-  float3 pos; // actual position 
-  float3 coords; // unnormalized tex coordinates 
-  float  sample = 0.f; 
-  float3 N, L = make_float3(1, 0, 0), V = rayD; 
-  float3 Ka = make_float3(0.04), 
-         Kd = make_float3(0.3), 
-         Ks = make_float3(0.2); 
-  // const float delta = 0.5f / dsz.x;   // for shading 
-
   const QuadNodeD &root = bvh[0];
-
-  const float radius0 = root.Ax, radius1 = root.Bx, 
-              z0 = root.Ay, z1 = root.By; 
+  const float innerRadius = root.Ax, outerRadius = root.Bx;
+  // const float innerRadius = 1.0, outerRadius = 1.2;
+  const float z0 = root.Ay, z1 = root.By; 
   float tnear0, tfar0, tnear1, tfar1;
-
-  bool b0 = intersectCylinder(rayO, rayD, tnear0, tfar0, radius0, z0, z1), 
-       b1 = intersectCylinder(rayO, rayD, tnear1, tfar1, radius1, z0, z1);
-  if (!(b0 || b1)) return;
-
-  // tnear = ceilf((tnear - tnear0) / stepsize) * stepsize + tnear0; // align the ray with the global entry point
-  float t = max(0.f, tnear0); // looking inside the volume
-
-  while(1) { // raycasting
-    pos = rayO + rayD*t;
-
-    sample = interpolateXGC(bvh, pos, data); 
-
-    // sample = QuadNodeD_sample(bvh, x, y, data);
-
-    // sample = tex3Dtrans<DataType, readMode, TRANSFORM>(texVolume, trans, coords); 
-    // src = tex1D(texTransferFunc, sample);
-    // src = make_float4(sample, 1.0-sample, 0.0, 0.9);
-    sample = pow(1.f - sample, 2.f); 
-    src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
-   
-#if 0
-    if (SHADING) {
-      float3 lit; 
-      N = gradient(texVolume, coords, delta); 
-      lit = cook(N, V, L, Ka, Kd, Ks); 
-      src.x += lit.x; 
-      src.y += lit.y; 
-      src.z += lit.z; 
-    }
-#endif
-
-    src.w = 1.f - pow(1.f - src.w, stepsize); // alpha correction  
-
-    dst.x += (1.0 - dst.w) * src.x * src.w;
-    dst.y += (1.0 - dst.w) * src.y * src.w;
-    dst.z += (1.0 - dst.w) * src.z * src.w;
-    dst.w += (1.0 - dst.w) * src.w;
-    
-    t += stepsize; 
-    
-    if (t>tfar1) break; // no early ray termination in compositing mode
-    // if (t>tfar || dst.w>opacityThreshold) break;
+  bool b0 = intersectCylinder(rayO, rayD, tnear0, tfar0, outerRadius, z0, z1), 
+       b1 = intersectCylinder(rayO, rayD, tnear1, tfar1, innerRadius, z0, z1);
+  
+#if 1
+  if (b0 && (!b1))
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear0, tfar0);
+  else if (b0 && b1) {
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear0, tnear1);
   }
+#else
+  if (b1)
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear1, tfar1);
+#endif
 }
 
 template <int SHADING>
 __global__ static void raycasting_kernel(
         float *output, 
+        int nPhi, 
+        int nNode, 
+        float *data, 
+        QuadNodeD *bvh,
         float2 trans, 
         float stepsize)
 {
@@ -178,7 +210,6 @@ __global__ static void raycasting_kernel(
 
   if (x >= c_viewport[2] || y>= c_viewport[3]) return;
  
-#if 0
   float coord[4], obj0[4], obj1[4]; 
   coord[0] = (x-c_viewport[0])*2.f / c_viewport[2] - 1.f; 
   coord[1] = (y-c_viewport[1])*2.f / c_viewport[3] - 1.f; 
@@ -196,24 +227,19 @@ __global__ static void raycasting_kernel(
   float3 rayO = make_float3(obj0[0], obj0[1], obj0[2]), 
          rayD = normalize(make_float3(obj1[0]-obj0[0], obj1[1]-obj0[1], obj1[2]-obj0[2]));
 
-#endif
   float4 dst = make_float4(0.f); 
 
-#if 0
-      raycasting<unsigned char, cudaReadModeNormalizedFloat, BLOCKING, TRANSFORM, SHADING>(
-                  dst, 
-                  texVolumeUchar, trans, 
-                  rayO, rayD, stepsize,  
-                  dsz, st, sz, gst, gsz); 
+#if 1
+  raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
+#else
+  dst.x = rayD.x;
+  dst.y = rayD.y;
+  dst.z = rayD.z;
+  dst.w = 1;
 #endif
 
   // GL_ONE_MINUS_DST_ALPHA, GL_ONE
   float w0 = 1-output[(y*c_viewport[2]+x)*4+3]; //, w1 = 1; make the compiler happy :)
-
-  dst.x = 0;
-  dst.y = 1;
-  dst.z = 0;
-  dst.w = 1;
 
   output[(y*c_viewport[2]+x)*4+0] += w0* dst.x;
   output[(y*c_viewport[2]+x)*4+1] += w0* dst.y;
@@ -234,11 +260,24 @@ void rc_render(ctx_rc *ctx)
   cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
 
   raycasting_kernel<0><<<gridSize, blockSize>>>(
-          ctx->d_output, 
+          ctx->d_output,
+          ctx->nPhi, 
+          ctx->nNode,
+          ctx->d_data, 
+          ctx->d_bvh,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 
   checkLastCudaError("[rc_render]");
+}
+
+void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
+{
+  if (ctx->d_bvh != NULL)
+    cudaFree(ctx->d_bvh);
+
+  cudaMalloc((void**)&ctx->d_bvh, sizeof(QuadNodeD)*nQuadNodes);
+  cudaMemcpy(ctx->d_bvh, bvh, sizeof(QuadNodeD)*nQuadNodes, cudaMemcpyHostToDevice);
 }
 
 void rc_bind_transfer_function_array(cudaArray* array)
@@ -258,7 +297,7 @@ void rc_bind_data(ctx_rc *ctx, int nNode, int nPhi, const float *data)
   ctx->nNode = nNode;
   ctx->nPhi = nPhi;
   if (ctx->d_data == NULL)
-  cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNode*nPhi);
+    cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNode*nPhi);
   cudaMemcpy(ctx->d_data, data, sizeof(float)*nNode*nPhi, cudaMemcpyHostToDevice);
 }
 

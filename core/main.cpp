@@ -48,6 +48,8 @@ server wss;
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
+int viewport[4] = {0, 0, 720, 382};
+
 struct png_mem_buffer {
   char *buffer = NULL; 
   size_t size;
@@ -226,7 +228,7 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["labels"] = labels;
   } else if (incoming["type"] == "requestVolren") {
     binary = true;
-    const int npx = 1024*768;
+    const int npx = viewport[2]*viewport[3];
     buffer_length = sizeof(int) + npx*3;
     buffer = (char*)malloc(buffer_length);
     int *type = (int*)(buffer);
@@ -301,21 +303,24 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
 {
 #ifdef VOLREN
   std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
+  // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
+  double invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
 
   ctx_rc *rc;
   rc_create_ctx(&rc);
-  rc_set_stepsize(rc, 0.5);
-  rc_set_viewport(rc, 0, 0, 1024, 768);
+  rc_set_stepsize(rc, 0.02);
+  rc_set_viewport(rc, 0, 0, viewport[2], viewport[3]);
+  rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
 
-  rc_clear_output(rc);
-  // rc_set_invmvpd(rc, imvmvpd);
   fprintf(stderr, "[volren] rendering...\n");
+  rc_clear_output(rc);
+  rc_set_invmvpd(rc, invmvpd);
   rc_render(rc);
   rc_copy_output_to_host_rgb8(rc);
 
   fprintf(stderr, "[volren] saving png...\n");
   // FIXME: free previous png buffer
-  volren_png_buffer = save_png(1024, 768, 8, PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*1024, PNG_TRANSFORM_IDENTITY);
+  volren_png_buffer = save_png(viewport[2], viewport[3], 8, PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*viewport[2], PNG_TRANSFORM_IDENTITY);
   fprintf(stderr, "[volren] png saved\n");
 
 #if 0 // for testing

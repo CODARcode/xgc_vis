@@ -1,5 +1,6 @@
 #include "cutil/cutil_math.h"
 #include <cstdio>
+#include <cfloat>
 
 #ifndef cudaTextureType3D
  #define cudaTextureType3D 3
@@ -219,19 +220,23 @@ __device__ __host__
 inline bool intersectCylinder(float3 rayO, float3 rayD, float &tnear, float &tfar, float r, float z0, float z1)
 {
   bool b0 = intersectBox(rayO, rayD, tnear, tfar, 
-      make_float3(-r, -r, z0), // boxmin
-      make_float3(r, r, z1)); // boxmax
+      // make_float3(-r, -r, z0), // boxmin
+      // make_float3(r, r, z1)); // boxmax
+      make_float3(-FLT_MAX, -FLT_MAX, z0), // boxmin
+      make_float3(FLT_MAX, FLT_MAX, z1)); // boxmax
   if (!b0) return false;
 
   float A = rayD.x*rayD.x + rayD.y*rayD.y, 
         B = 2 * (rayO.x*rayD.x + rayO.y*rayD.y), 
         C = rayO.x*rayO.x + rayO.y*rayO.y - r*r;
-  float D = B*B - 4*C;
+  float D = B*B - 4*A*C;
 
-  if (D < 0) return false;
+  if (D <= 0) return false;
   else {
-    tnear = max(0.5f*(-B-sqrtf(D)), tnear); 
-    tfar  = min(0.5f*(-B+sqrtf(D)), tfar);
+    float t0 = (-B-sqrtf(D))/(2*A);
+    float t1 = (-B+sqrtf(D))/(2*A);
+    tnear = max(t0, tnear); 
+    tfar  = min(t1, tfar);
     return true;
   }
 }
