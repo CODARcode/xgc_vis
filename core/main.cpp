@@ -49,10 +49,11 @@ XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
 struct png_mem_buffer {
-  char *buffer; 
+  char *buffer = NULL; 
   size_t size;
 };
 
+png_mem_buffer volren_png_buffer;
 // float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
 
 #if 0
@@ -99,12 +100,11 @@ static void my_png_write_data(png_structp png_ptr, png_bytep data, png_size_t le
   if(!p->buffer)
     png_error(png_ptr, "Write Error");
 
-  /* copy new bytes to end of buffer */
-  memcpy(p->buffer + p->size, data, length);
+  memcpy(p->buffer + p->size, data, length); // copy new bytes to the end of buffer
   p->size += length;
 }
 
-static png_mem_buffer save_png(int width, int height,
+png_mem_buffer save_png(int width, int height,
                      int bitdepth, int colortype,
                      unsigned char* data, int pitch, int transform)
 {
@@ -144,10 +144,28 @@ static png_mem_buffer save_png(int width, int height,
   png_set_rows(png_ptr, info_ptr, row_pointers);
   png_write_png(png_ptr, info_ptr, transform, NULL);
 
+  png_destroy_write_struct(&png_ptr, &info_ptr);
+  free(row_pointers);
+
   return state;
 }
 #endif
 
+void onHttp(server *s, websocketpp::connection_hdl hdl) 
+{
+  server::connection_ptr con = s->get_con_from_hdl(hdl);
+  std::string query = con->get_resource();
+
+  if (query == "/requestVolren") {
+    std::string response(volren_png_buffer.buffer, volren_png_buffer.size); 
+    con->set_body(response);
+    con->set_status(websocketpp::http::status_code::ok);
+  } else {
+    std::string response = "<html><body>404 not found</body></html>";
+    con->set_body(response);
+    con->set_status(websocketpp::http::status_code::not_found);
+  }
+}
 
 void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
   std::cout << "onMessage called with hdl: " << hdl.lock().get()
@@ -249,6 +267,7 @@ void startWebsocketServer(int port)
 
     // Register our message handler
     wss.set_message_handler(bind(&onMessage, &wss, ::_1, ::_2));
+    wss.set_http_handler(bind(&onHttp, &wss, ::_1));
 
     // Listen on port 9002
     wss.listen(port);
@@ -295,7 +314,7 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
   // rc_dump_output(rc, framebuf);
   fprintf(stderr, "saving png...\n");
 
-#if 1
+#if 1 // for testing
   const int npx = 1024*768;
   unsigned char *fb = (unsigned char*)malloc(npx*3);
   for (int i=0; i<npx; i++) {
@@ -303,13 +322,13 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
     fb[i*3+1] = 0;
     fb[i*3+2] = 0;
   }
-  png_mem_buffer png = save_png(1024, 768, 8, PNG_COLOR_TYPE_RGB, fb, 3*1024, PNG_TRANSFORM_IDENTITY);
+  volren_png_buffer = save_png(1024, 768, 8, PNG_COLOR_TYPE_RGB, fb, 3*1024, PNG_TRANSFORM_IDENTITY);
   free(fb);
 
-  FILE *fp = fopen("test1.png", "wb");
-  fwrite(png.buffer, 1, png.size, fp);
-  free(png.buffer);
-  fclose(fp);
+  // FILE *fp = fopen("test1.png", "wb");
+  // fwrite(png.buffer, 1, png.size, fp);
+  // free(png.buffer);
+  // fclose(fp);
 #endif
 
   fprintf(stderr, "done...\n");
