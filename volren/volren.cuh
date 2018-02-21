@@ -15,7 +15,7 @@ struct ctx_rc {
   QuadNodeD *d_bvh;
 
   float *d_data;
-  int nNode, nPhi;
+  int nNodes, nPhi;
 
   float *d_output;
   void *h_output;
@@ -33,7 +33,7 @@ void rc_destroy_ctx(ctx_rc **ctx);
 
 void rc_bind_transfer_function_array(cudaArray* array); 
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *nodes);
-void rc_bind_data(ctx_rc *ctx, int nNode, int nPhi, const float *data);
+void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, const float *data);
 
 void rc_set_stepsize(ctx_rc *ctx, float stepsize); 
 void rc_set_viewport(ctx_rc *ctx, int x, int y, int w, int h);

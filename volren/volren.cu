@@ -105,6 +105,7 @@ __device__ static void rc(
         float stepsize, 
         float tnear, float tfar)
 {
+  const float pi = 3.141592654f;
   float4 src;
   // float3 N, L = make_float3(1, 0, 0), V = rayD; 
   // float3 Ka = make_float3(0.04), 
@@ -126,7 +127,23 @@ __device__ static void rc(
     int nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
 
     if (nid != -1) {
+#if 1
+      const float unitAngle = 2*pi/nPhi;
+
+      int p0 = phi/unitAngle;
+      int p1 = (p0+1)%nPhi;
+    
+      // p0 = 7; p1 = 0;
+      float alpha = (phi - unitAngle*p0) / unitAngle;
+      float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0); //  + nNodes*p0);
+      float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1); //  + nNodes*p1);
+
+      float value = (1-alpha)*v0 + alpha*v1;
+#else
       float value = QuadNodeD_sample(bvh, nid, lambda, data);
+#endif
+
+      float v = clamp(value*0.01, -0.5f, 0.5f);
 
       // sample = interpolateXGC(bvh, pos, data); 
       // sample = QuadNodeD_sample(bvh, x, y, data);
@@ -135,8 +152,8 @@ __device__ static void rc(
       // src = make_float4(sample, 1.0-sample, 0.0, 0.9);
       // sample = pow(1.f - sample, 2.f); 
       // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
-      // src = make_float4(min(value, 1.f), 0, 0, 0.5);
-      src = make_float4(1, 0, 0, 0.5);
+      // src = make_float4(lambda.x, lambda.y, lambda.z, 0.5);
+      src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
 
 #if 0
       if (SHADING) {
@@ -186,8 +203,8 @@ __device__ static void raycasting(
   if (b0 && (!b1))
     rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tfar1, tfar0);
     rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b1)
@@ -262,7 +279,7 @@ void rc_render(ctx_rc *ctx)
   raycasting_kernel<0><<<gridSize, blockSize>>>(
           ctx->d_output,
           ctx->nPhi, 
-          ctx->nNode,
+          ctx->nNodes,
           ctx->d_data, 
           ctx->d_bvh,
           make_float2(ctx->trans[0], ctx->trans[1]), 
@@ -292,13 +309,13 @@ void rc_bind_transfer_function_array(cudaArray* array)
   checkLastCudaError("[rc_bind_transfer_function_array]");
 }
 
-void rc_bind_data(ctx_rc *ctx, int nNode, int nPhi, const float *data)
+void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, const float *data)
 {
-  ctx->nNode = nNode;
+  ctx->nNodes = nNodes;
   ctx->nPhi = nPhi;
   if (ctx->d_data == NULL)
-    cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNode*nPhi);
-  cudaMemcpy(ctx->d_data, data, sizeof(float)*nNode*nPhi, cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNodes*nPhi);
+  cudaMemcpy(ctx->d_data, data, sizeof(float)*nNodes*nPhi, cudaMemcpyHostToDevice);
 }
 
 void rc_create_ctx(ctx_rc **ctx)

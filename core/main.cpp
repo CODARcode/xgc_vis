@@ -299,18 +299,24 @@ void startWebsocketServer(int port)
   }
 }
 
-void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
+void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn, double *dpot)
 {
 #ifdef VOLREN
   std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
-  // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
-  double invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
+  double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
+  // double invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
 
   ctx_rc *rc;
   rc_create_ctx(&rc);
-  rc_set_stepsize(rc, 0.02);
+  rc_set_stepsize(rc, 0.002);
   rc_set_viewport(rc, 0, 0, viewport[2], viewport[3]);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
+
+  float *dpotf = (float*)malloc(sizeof(float)*nNodes*nPhi);
+  for (int i=0; i<nNodes*nPhi; i++)
+    dpotf[i] = dpot[i];
+  rc_bind_data(rc, nNodes, nPhi, dpotf);
+  free(dpotf);
 
   fprintf(stderr, "[volren] rendering...\n");
   rc_clear_output(rc);
@@ -586,9 +592,11 @@ int main(int argc, char **argv)
   }
 
   // starting volren
+#if 0
   if (volren) {
     volren_thread = new std::thread(startVolren, nNodes, nTriangles, coords, conn);
   }
+#endif
 
   // read data
   fprintf(stderr, "opening data stream...\n");
@@ -598,7 +606,7 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
     else 
       varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
-    fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
+    // fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
   }
   adios_read_bp_reset_dimension_order(varFP, 0);
     
@@ -663,13 +671,16 @@ int main(int argc, char **argv)
     }
 
     fprintf(stderr, "starting analysis..\n");
+   
+    // FIXME
+    volren_thread = new std::thread(startVolren, nPhi, nNodes, nTriangles, coords, conn, dpot);
 
     mutex_ex.lock();
     ex->setData(current_time_index, nPhi, dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
-    ex->buildContourTree2DAll();
+    // ex->buildContourTree2DAll();
     mutex_ex.unlock();
 
     // write labels
