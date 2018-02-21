@@ -13,6 +13,8 @@ struct ctx_rc {
   float projmatrix[16], mvmatrix[16], invmvp[16]; 
 
   QuadNodeD *d_bvh;
+  int *d_viewport;
+  float *d_invmvp;
 
   float *d_data;
   int nNodes, nPhi;

@@ -303,12 +303,12 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
 {
 #ifdef VOLREN
   std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
-  double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
-  // double invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
+  // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
+  double invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
 
   ctx_rc *rc;
   rc_create_ctx(&rc);
-  rc_set_stepsize(rc, 0.002);
+  rc_set_stepsize(rc, 0.001);
   rc_set_viewport(rc, 0, 0, viewport[2], viewport[3]);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
 

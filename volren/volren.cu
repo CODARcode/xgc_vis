@@ -77,9 +77,8 @@ float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
 
 texture<float4, 1, cudaReadModeElementType> texTransferFunc;
 
-__constant__ int c_viewport[4];
-__constant__ float c_invmvp[16]; 
-
+// __constant__ int c_viewport[4];
+// __constant__ float c_invmvp[16]; 
 
 __device__ __host__
 float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
@@ -106,6 +105,7 @@ __device__ static void rc(
         float tnear, float tfar)
 {
   const float pi = 3.141592654f;
+  const float pi2 = 2*pi;
   float4 src;
   // float3 N, L = make_float3(1, 0, 0), V = rayD; 
   // float3 Ka = make_float3(0.04), 
@@ -120,7 +120,7 @@ __device__ static void rc(
 
     // cylindar coordinates
     float r = pos.x*pos.x + pos.y*pos.y;
-    float phi = atan2(pos.y, pos.x);
+    float phi = atan2(pos.y, pos.x) + pi;
     float z = pos.z;
 
     float3 lambda;
@@ -128,12 +128,11 @@ __device__ static void rc(
 
     if (nid != -1) {
 #if 1
-      const float unitAngle = 2*pi/nPhi;
+      const float unitAngle = pi2/nPhi;
 
-      int p0 = phi/unitAngle;
+      int p0 = (int)(phi/unitAngle)%nPhi;
       int p1 = (p0+1)%nPhi;
     
-      // p0 = 7; p1 = 0;
       float alpha = (phi - unitAngle*p0) / unitAngle;
       float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0); //  + nNodes*p0);
       float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1); //  + nNodes*p1);
@@ -142,7 +141,6 @@ __device__ static void rc(
 #else
       float value = QuadNodeD_sample(bvh, nid, lambda, data);
 #endif
-
       float v = clamp(value*0.01, -0.5f, 0.5f);
 
       // sample = interpolateXGC(bvh, pos, data); 
@@ -153,7 +151,10 @@ __device__ static void rc(
       // sample = pow(1.f - sample, 2.f); 
       // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
       // src = make_float4(lambda.x, lambda.y, lambda.z, 0.5);
+
       src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
+      // src = make_float4(phi/(pi*2), 1-phi/(pi*2), 0, 0.3);
+      // src = make_float4(p1/8.0, 0.5, 0, 0.3);
 
 #if 0
       if (SHADING) {
@@ -214,7 +215,9 @@ __device__ static void raycasting(
 
 template <int SHADING>
 __global__ static void raycasting_kernel(
-        float *output, 
+        float *output,
+        int *viewport, 
+        float *invmvp,
         int nPhi, 
         int nNode, 
         float *data, 
@@ -225,17 +228,17 @@ __global__ static void raycasting_kernel(
   uint x = blockIdx.x*blockDim.x + threadIdx.x;
   uint y = blockIdx.y*blockDim.y + threadIdx.y;
 
-  if (x >= c_viewport[2] || y>= c_viewport[3]) return;
- 
+  if (x >= viewport[2] || y>= viewport[3]) return;
+  
   float coord[4], obj0[4], obj1[4]; 
-  coord[0] = (x-c_viewport[0])*2.f / c_viewport[2] - 1.f; 
-  coord[1] = (y-c_viewport[1])*2.f / c_viewport[3] - 1.f; 
+  coord[0] = (x-viewport[0])*2.f / viewport[2] - 1.f; 
+  coord[1] = (y-viewport[1])*2.f / viewport[3] - 1.f; 
   coord[2] = -1.0; 
   coord[3] = 1.0;
 
-  mulmatvec(c_invmvp, coord, obj0); 
+  mulmatvec(invmvp, coord, obj0); 
   coord[2] = 1.0; 
-  mulmatvec(c_invmvp, coord, obj1); 
+  mulmatvec(invmvp, coord, obj1); 
   if (obj0[3] == 0.f || obj1[3] == 0.f) return; 
 
   for (int i=0; i<3; i++)
@@ -243,25 +246,24 @@ __global__ static void raycasting_kernel(
 
   float3 rayO = make_float3(obj0[0], obj0[1], obj0[2]), 
          rayD = normalize(make_float3(obj1[0]-obj0[0], obj1[1]-obj0[1], obj1[2]-obj0[2]));
-
   float4 dst = make_float4(0.f); 
 
 #if 1
   raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
 #else
-  dst.x = rayD.x;
-  dst.y = rayD.y;
-  dst.z = rayD.z;
+  dst.x = 1; // rayD.x;
+  dst.y = 0; // rayD.y;
+  dst.z = 0; // rayD.z;
   dst.w = 1;
 #endif
 
   // GL_ONE_MINUS_DST_ALPHA, GL_ONE
-  float w0 = 1-output[(y*c_viewport[2]+x)*4+3]; //, w1 = 1; make the compiler happy :)
+  float w0 = 1-output[(y*viewport[2]+x)*4+3]; //, w1 = 1; make the compiler happy :)
 
-  output[(y*c_viewport[2]+x)*4+0] += w0* dst.x;
-  output[(y*c_viewport[2]+x)*4+1] += w0* dst.y;
-  output[(y*c_viewport[2]+x)*4+2] += w0* dst.z;
-  output[(y*c_viewport[2]+x)*4+3] += w0* dst.w;
+  output[(y*viewport[2]+x)*4+0] += w0* dst.x;
+  output[(y*viewport[2]+x)*4+1] += w0* dst.y;
+  output[(y*viewport[2]+x)*4+2] += w0* dst.z;
+  output[(y*viewport[2]+x)*4+3] += w0* dst.w;
 }
 
 
@@ -273,18 +275,21 @@ void rc_render(ctx_rc *ctx)
   const dim3 blockSize(16, 16); 
   const dim3 gridSize = dim3(iDivUp(ctx->viewport[2], blockSize.x), iDivUp(ctx->viewport[3], blockSize.y));
 
-  cudaMemcpyToSymbol(c_viewport, ctx->viewport, sizeof(int)*4);
-  cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
-
+  cudaMemcpy(ctx->d_viewport, ctx->viewport, sizeof(int)*4, cudaMemcpyHostToDevice);
+  // cudaMemcpyToSymbol(c_viewport, ctx->viewport, sizeof(int)*4);
+  cudaMemcpy(ctx->d_invmvp, ctx->invmvp, sizeof(float)*16, cudaMemcpyHostToDevice);
+  // cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
+ 
   raycasting_kernel<0><<<gridSize, blockSize>>>(
           ctx->d_output,
+          ctx->d_viewport, 
+          ctx->d_invmvp,
           ctx->nPhi, 
           ctx->nNodes,
           ctx->d_data, 
           ctx->d_bvh,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
-
   checkLastCudaError("[rc_render]");
 }
 
@@ -320,6 +325,8 @@ void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, const float *data)
 
 void rc_create_ctx(ctx_rc **ctx)
 {
+  cudaSetDevice(0);
+
   *ctx = (ctx_rc*)malloc(sizeof(ctx_rc));
   memset(*ctx, 0, sizeof(ctx_rc));
 
@@ -327,6 +334,11 @@ void rc_create_ctx(ctx_rc **ctx)
 
   cudaMalloc((void**)&((*ctx)->d_output), sizeof(float)*max_npx); 
   (*ctx)->h_output = malloc(sizeof(float)*max_npx);
+
+  cudaMalloc((void**)&((*ctx)->d_viewport), sizeof(int)*4);
+  cudaMalloc((void**)&((*ctx)->d_invmvp), sizeof(float)*16);
+  
+  checkLastCudaError("[rc_init]");
 }
 
 void rc_destroy_ctx(ctx_rc **ctx)
