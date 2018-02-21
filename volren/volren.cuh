@@ -49,6 +49,7 @@ void rc_clear_output(ctx_rc *ctx);
 // void rc_dump_output(ctx_rc *ctx, float *output); 
 void rc_copy_output_to_host(ctx_rc *ctx); 
 void rc_copy_output_to_host_rgb8(ctx_rc *ctx); 
+void rc_copy_output_to_host_rgba8(ctx_rc *ctx); 
 
 #ifdef __cplusplus
 }

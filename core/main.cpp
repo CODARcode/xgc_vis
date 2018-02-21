@@ -322,11 +322,13 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
   rc_clear_output(rc);
   rc_set_invmvpd(rc, invmvpd);
   rc_render(rc);
-  rc_copy_output_to_host_rgb8(rc);
+  // rc_copy_output_to_host_rgb8(rc);
+  rc_copy_output_to_host_rgba8(rc);
 
   fprintf(stderr, "[volren] saving png...\n");
   // FIXME: free previous png buffer
-  volren_png_buffer = save_png(viewport[2], viewport[3], 8, PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*viewport[2], PNG_TRANSFORM_IDENTITY);
+  // volren_png_buffer = save_png(viewport[2], viewport[3], 8, PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*viewport[2], PNG_TRANSFORM_IDENTITY);
+  volren_png_buffer = save_png(viewport[2], viewport[3], 8, PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*viewport[2], PNG_TRANSFORM_IDENTITY);
   fprintf(stderr, "[volren] png saved\n");
 
 #if 0 // for testing

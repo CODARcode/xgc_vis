@@ -180,6 +180,7 @@ __device__ static void rc(
       dst.w += (1.0 - dst.w) * src.w;
     }
     
+    if (dst.w > 0.98) return; // early ray termination
     t += stepsize; 
   }
   // dst.x = 1; dst.y = 0; dst.z = 0; dst.w = 1;
@@ -408,6 +409,21 @@ void rc_copy_output_to_host_rgb8(ctx_rc *ctx)
     ufb[i*3] = ffb[i*4]*255;
     ufb[i*3+1] = ffb[i*4+1]*255;
     ufb[i*3+2] = ffb[i*4+2]*255;
+  }
+}
+
+void rc_copy_output_to_host_rgba8(ctx_rc *ctx)
+{
+  const size_t npx = ctx->viewport[2] * ctx->viewport[3];
+  cudaMemcpy(ctx->h_output, ctx->d_output, 4*sizeof(float)*npx, cudaMemcpyDeviceToHost);
+  float *ffb = (float*)ctx->h_output;
+  unsigned char *ufb = (unsigned char*)ctx->h_output;
+
+  for (int i=0; i<npx; i++) {
+    ufb[i*4] = ffb[i*4]*255;
+    ufb[i*4+1] = ffb[i*4+1]*255;
+    ufb[i*4+2] = ffb[i*4+2]*255;
+    ufb[i*4+3] = ffb[i*4+3]*255;
   }
 }
 
