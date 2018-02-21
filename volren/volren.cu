@@ -115,6 +115,8 @@ __device__ static void rc(
   float3 pos;
   float t = tnear;
 
+  int last_nid = -1, nid;
+
   while (t < tfar) {
     pos = rayO + rayD*t;
 
@@ -124,10 +126,16 @@ __device__ static void rc(
     float z = pos.z;
 
     float3 lambda;
-    int nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
+#if 0 // coherent point locating
+    if (last_nid > 0 && QuadNodeD_insideTriangle(bvh[last_nid], r, z, lambda)) // coherent
+      nid = last_nid;
+    else 
+      nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
+#else  
+    nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
+#endif
 
     if (nid != -1) {
-#if 1
       const float unitAngle = pi2/nPhi;
 
       int p0 = (int)(phi/unitAngle)%nPhi;
@@ -138,11 +146,8 @@ __device__ static void rc(
       float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1); //  + nNodes*p1);
 
       float value = (1-alpha)*v0 + alpha*v1;
-#else
-      float value = QuadNodeD_sample(bvh, nid, lambda, data);
-#endif
+      
       float v = clamp(value*0.01, -0.5f, 0.5f);
-
       // sample = interpolateXGC(bvh, pos, data); 
       // sample = QuadNodeD_sample(bvh, x, y, data);
       // sample = tex3Dtrans<DataType, readMode, TRANSFORM>(texVolume, trans, coords); 
