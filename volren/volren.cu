@@ -271,12 +271,17 @@ void rc_create_ctx(ctx_rc **ctx)
   *ctx = (ctx_rc*)malloc(sizeof(ctx_rc));
   memset(*ctx, 0, sizeof(ctx_rc));
 
-  cudaMalloc((void**)&((*ctx)->d_output), sizeof(float)*4096*4096); 
+  const size_t max_npx = 4096*4096;
+
+  cudaMalloc((void**)&((*ctx)->d_output), sizeof(float)*max_npx); 
+  ctx->h_output = malloc(sizeof(float)*max_npx);
 }
 
 void rc_destroy_ctx(ctx_rc **ctx)
 {
   // TODO: free any resources
+  cudaFree(ctx->d_output);
+  free(ctx->h_output);
   free(*ctx); 
   *ctx = NULL; 
 }
@@ -318,9 +323,23 @@ void rc_clear_output(ctx_rc *ctx)
   cudaMemset(ctx->d_output, 0, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3]);
 }
 
-void rc_dump_output(ctx_rc *ctx, float *output)
+void rc_copy_output_to_host(ctx_rc *ctx)
 {
-  cudaMemcpy(output, ctx->d_output, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost); 
+  cudaMemcpy(ctx->h_output, ctx->d_output, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost); 
+}
+
+void rc_copy_output_to_host_rgb8(ctx_rc *ctx)
+{
+  const size_t npx = ctx->viewport[2] * ctx->viewport[3];
+  cudaMemcpy(ctx->h_output, ctx->d_output, 4*sizeof(float)*npx, cudaMemcpyDeviceToHost);
+  float *ffb = (float*)ctx->h_output;
+  unsigned char *ufb = (unsigned char*)ctx->h_output;
+
+  for (int i=0; i<npx; i++) {
+    ufb[i*3] = ffb[i*4]*255;
+    ufb[i*3+1] = ffb[i*4+1]*255;
+    ufb[i*3+2] = ffb[i*4+2]*255;
+  }
 }
 
 } // extern "C" 

@@ -16,6 +16,7 @@ struct ctx_rc {
   int nNode, nPhi;
 
   float *d_output;
+  void *h_output;
   cudaArray *d_tf; 
   int size_tf;
   float stepsize;
@@ -41,7 +42,9 @@ void rc_set_range(ctx_rc *ctx, float a, float b);
 void rc_render(ctx_rc *ctx);
 
 void rc_clear_output(ctx_rc *ctx); 
-void rc_dump_output(ctx_rc *ctx, float *output); 
+// void rc_dump_output(ctx_rc *ctx, float *output); 
+void rc_copy_output_to_host(ctx_rc *ctx); 
+void rc_copy_output_to_host_rgb8(ctx_rc *ctx); 
 
 #ifdef __cplusplus
 }
