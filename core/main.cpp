@@ -309,12 +309,16 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
 
   rc_clear_output(rc);
   // rc_set_invmvpd(rc, imvmvpd);
-  fprintf(stderr, "rendering...\n");
-  // rc_render(rc);
-  // rc_dump_output(rc, framebuf);
-  fprintf(stderr, "saving png...\n");
+  fprintf(stderr, "[volren] rendering...\n");
+  rc_render(rc);
+  rc_copy_output_to_host_rgb8(rc);
 
-#if 1 // for testing
+  fprintf(stderr, "[volren] saving png...\n");
+  // FIXME: free previous png buffer
+  volren_png_buffer = save_png(1024, 768, 8, PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*1024, PNG_TRANSFORM_IDENTITY);
+  fprintf(stderr, "[volren] png saved\n");
+
+#if 0 // for testing
   const int npx = 1024*768;
   unsigned char *fb = (unsigned char*)malloc(npx*3);
   for (int i=0; i<npx; i++) {
@@ -331,7 +335,6 @@ void startVolren(int nNodes, int nTriangles, double *coords, int *conn)
   // fclose(fp);
 #endif
 
-  fprintf(stderr, "done...\n");
 #endif
 }
 

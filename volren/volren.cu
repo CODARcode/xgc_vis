@@ -171,18 +171,14 @@ template <int SHADING>
 __global__ static void raycasting_kernel(
         float *output, 
         float2 trans, 
-        float stepsize, 
-        float3 dsz, 
-        float3 st, 
-        float3 sz, 
-        float3 gst, 
-        float3 gsz)
+        float stepsize)
 {
   uint x = blockIdx.x*blockDim.x + threadIdx.x;
   uint y = blockIdx.y*blockDim.y + threadIdx.y;
 
   if (x >= c_viewport[2] || y>= c_viewport[3]) return;
-  
+ 
+#if 0
   float coord[4], obj0[4], obj1[4]; 
   coord[0] = (x-c_viewport[0])*2.f / c_viewport[2] - 1.f; 
   coord[1] = (y-c_viewport[1])*2.f / c_viewport[3] - 1.f; 
@@ -200,6 +196,7 @@ __global__ static void raycasting_kernel(
   float3 rayO = make_float3(obj0[0], obj0[1], obj0[2]), 
          rayD = normalize(make_float3(obj1[0]-obj0[0], obj1[1]-obj0[1], obj1[2]-obj0[2]));
 
+#endif
   float4 dst = make_float4(0.f); 
 
 #if 0
@@ -212,6 +209,11 @@ __global__ static void raycasting_kernel(
 
   // GL_ONE_MINUS_DST_ALPHA, GL_ONE
   float w0 = 1-output[(y*c_viewport[2]+x)*4+3]; //, w1 = 1; make the compiler happy :)
+
+  dst.x = 0;
+  dst.y = 1;
+  dst.z = 0;
+  dst.w = 1;
 
   output[(y*c_viewport[2]+x)*4+0] += w0* dst.x;
   output[(y*c_viewport[2]+x)*4+1] += w0* dst.y;
@@ -231,16 +233,10 @@ void rc_render(ctx_rc *ctx)
   cudaMemcpyToSymbol(c_viewport, ctx->viewport, sizeof(int)*4);
   cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
 
-#if 0
-  raycasting_kernel<RCKERNEL_UCHAR, RCBLOCKING_DISABLED, RCTRANSFORM_DISABLED, RCSHADING_NONE><<<gridSize, blockSize>>>(
+  raycasting_kernel<0><<<gridSize, blockSize>>>(
           ctx->d_output, 
-          make_float2(ctx->trans[0], ctx->trans[1]), ctx->stepsize,  
-          make_float3(ctx->dsz[0], ctx->dsz[1], ctx->dsz[2]), 
-          make_float3(ctx->st[0], ctx->st[1], ctx->st[2]), 
-          make_float3(ctx->sz[0], ctx->sz[1], ctx->sz[2]), 
-          make_float3(ctx->gst[0], ctx->gst[1], ctx->gst[2]), 
-          make_float3(ctx->gsz[0], ctx->gsz[1], ctx->gsz[2])); 
-#endif
+          make_float2(ctx->trans[0], ctx->trans[1]), 
+          ctx->stepsize);
 
   checkLastCudaError("[rc_render]");
 }
@@ -274,14 +270,14 @@ void rc_create_ctx(ctx_rc **ctx)
   const size_t max_npx = 4096*4096;
 
   cudaMalloc((void**)&((*ctx)->d_output), sizeof(float)*max_npx); 
-  ctx->h_output = malloc(sizeof(float)*max_npx);
+  (*ctx)->h_output = malloc(sizeof(float)*max_npx);
 }
 
 void rc_destroy_ctx(ctx_rc **ctx)
 {
   // TODO: free any resources
-  cudaFree(ctx->d_output);
-  free(ctx->h_output);
+  // cudaFree(ctx->d_output);
+  free((*ctx)->h_output);
   free(*ctx); 
   *ctx = NULL; 
 }
