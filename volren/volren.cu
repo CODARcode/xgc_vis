@@ -67,14 +67,12 @@ int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda)
 }
 
 __device__ __host__
-float QuadNodeD_sample(QuadNodeD *nodes, float x, float y, float *scalar) {
-  float3 lambda;
-  int i = QuadNodeD_locatePoint(nodes, x, y, lambda);
-  const QuadNodeD &q = nodes[i];
+float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
+  const QuadNodeD &q = bvh[nid];
 
-  return lambda.x * scalar[q.i0] 
-    + lambda.y * scalar[q.i1]
-    + lambda.z * scalar[q.i2];
+  return lambda.x * data[q.i0] 
+    + lambda.y * data[q.i1]
+    + lambda.z * data[q.i2];
 }
 
 texture<float4, 1, cudaReadModeElementType> texTransferFunc;
@@ -89,7 +87,7 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
   // compute cylindrical coordiates
   float r = sqrt(pos.x*pos.x + pos.y + pos.y);
   float theta = atan2(pos.y, pos.x);
-  float z = pos.z;
+  // float z = pos.z;
   
   return 0;
 }
@@ -107,7 +105,6 @@ __device__ static void rc(
         float stepsize, 
         float tnear, float tfar)
 {
-  float  sample = 0.f;
   float4 src;
   // float3 N, L = make_float3(1, 0, 0), V = rayD; 
   // float3 Ka = make_float3(0.04), 
@@ -126,9 +123,11 @@ __device__ static void rc(
     float z = pos.z;
 
     float3 lambda;
-    int triangleId = QuadNodeD_locatePoint(bvh, r, z, lambda);
+    int nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
 
-    if (triangleId != -1) {
+    if (nid != -1) {
+      float value = QuadNodeD_sample(bvh, nid, lambda, data);
+
       // sample = interpolateXGC(bvh, pos, data); 
       // sample = QuadNodeD_sample(bvh, x, y, data);
       // sample = tex3Dtrans<DataType, readMode, TRANSFORM>(texVolume, trans, coords); 
@@ -136,6 +135,7 @@ __device__ static void rc(
       // src = make_float4(sample, 1.0-sample, 0.0, 0.9);
       // sample = pow(1.f - sample, 2.f); 
       // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
+      // src = make_float4(min(value, 1.f), 0, 0, 0.5);
       src = make_float4(1, 0, 0, 0.5);
 
 #if 0
