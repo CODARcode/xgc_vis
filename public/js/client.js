@@ -12,7 +12,7 @@ function requestMesh() {
 
 function requestTree() {
   d3.json('data/branches.00001.json', function(returnTreeData) {
-    console.log(returnTreeData);
+    // console.log(returnTreeData);
     var stratify = d3.stratify()
       .parentId(function(d) { return d.parent; })
       .id(function(d) {return d.id;});
@@ -47,6 +47,14 @@ function requestTree() {
         stack = stack.concat(curNode.children);
       }
     }
+    console.log(extremumMin, extremumMax);
+    console.log(saddleMin, saddleMax);
+    data.treeMinMax = {
+      extremumMax: extremumMax,
+      extremumMin: extremumMin,
+      saddleMin: saddleMin,
+      saddleMax: saddleMax
+    };
     t2 = new Date();
     // console.log(t2.getTime() - t1.getTime());
     ViewTree.drawRadialTree();
@@ -87,7 +95,7 @@ function requestMultipleSliceRawData() {
   else connectToServer();
 }
 
-function requestImage() {
+function requestImage(tfArray) {
   var wh = View3D.getWH();
   var msg = {
     type: "requestVolren", 
@@ -98,6 +106,9 @@ function requestImage() {
     near: View3D.getCameraNear(),
     far: View3D.getCameraFar()
   };
+  if (tfArray != undefined) {
+    msg.tf = tfArray;
+  }
   console.log(msg);
 
   var url = 'http://' + ws.url.substr(5);

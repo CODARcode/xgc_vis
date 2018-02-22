@@ -15,10 +15,11 @@ var View3D = (function() {
   View3D.getMatrix = function() {
     var projectionMatrix = View3D.camera.projectionMatrix.clone();
     var cameraModelMatrix = View3D.camera.matrixWorld.clone();
-    // var mul = projectionMatrix.multiply(cameraModelMatrix);
+    var cameraModelMatrixInverse = View3D.camera.matrixWorldInverse.clone();
+    var mul = projectionMatrix.multiply(cameraModelMatrixInverse);
     var inv = new THREE.Matrix4();
-    // inv.getInverse(mul);
-    inv.getInverse(projectionMatrix);
+    inv.getInverse(mul);
+    // inv.getInverse(projectionMatrix);
     console.log(inv);
     return inv.elements;
   };
@@ -78,6 +79,10 @@ var View3D = (function() {
     var imgNode = $('.volren-image').detach();
     var parentNode = View3D.getView();
     $(parentNode).append(imgNode);
+
+    $(parentNode).mouseup(function() {
+      requestImage();
+    });
   };
 
   View3D.updateImage = function(imageBlob) {
@@ -104,8 +109,8 @@ var View3D = (function() {
       var valueGeometry = new THREE.Geometry();
       var labelGeometry = new THREE.Geometry();
       for (var i = 0; i < data.mesh.nNodes; i ++) {
-        labelGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2], data.mesh.coords[i*2+1], 0));
-        valueGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2], data.mesh.coords[i*2+1], 0));
+        labelGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2], 0, data.mesh.coords[i*2+1]));
+        valueGeometry.vertices.push(new THREE.Vector3(data.mesh.coords[i*2], 0, data.mesh.coords[i*2+1]));
       }
       for (var i = 0; i < data.mesh.nTriangles; i ++) {
         labelGeometry.faces.push(new THREE.Face3(data.mesh.conn[i*3], data.mesh.conn[i*3+1], data.mesh.conn[i*3+2], null));
@@ -121,8 +126,8 @@ var View3D = (function() {
       var valueObject = new THREE.Mesh(valueGeometry, valueMaterial);
 
       var angle = Math.PI * 2 * phiIndex / data.nPhi;
-      labelObject.rotateY(angle);
-      valueObject.rotateY(angle);
+      labelObject.rotateZ(angle);
+      valueObject.rotateZ(angle);
       View3D.valueObjectList.push(valueObject);
       View3D.labelObjectList.push(labelObject);
 

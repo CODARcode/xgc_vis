@@ -5,6 +5,7 @@
     <link rel="stylesheet" type="text/css" href="css/lib/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="css/lib/goldenlayout-base.css">
     <link rel="stylesheet" type="text/css" href="css/lib/goldenlayout-dark-theme.css">
+    <link rel="stylesheet" type="text/css" href="css/lib/tf.css">
     <script src="js/lib/jquery-3.1.0.min.js"></script>
     <script src="js/lib/three.min.js"></script>
     <script src="js/lib/OrbitControls.js"></script>
@@ -16,6 +17,7 @@
     <script src="js/lib/bootstrap.min.js"></script>
     <script src="js/lib/goldenlayout.min.js"></script>
     <script src="js/lib/ResizeSensor.js"></script>
+    <script src="js/lib/tf.js"></script>
   </head>
   <body>  
     <input type="file" id="file_open" accept=".json" style="display:none"/>
@@ -77,6 +79,8 @@
         </svg>
     </div>
 
+    <div id="tf-holder"></div>
+
     <div id='timestep-div'>
       <h1>timestep = <span id='timestep-value'></span></h1>
     </div>
@@ -96,5 +100,6 @@
     <script src="js/view-tree.js"></script>
     <script src="js/view-2d.js"></script>
     <script src="js/view-3d.js"></script>
+    <script src="js/view-tf.js"></script>
     <script src="js/client.js"></script>
 </html>

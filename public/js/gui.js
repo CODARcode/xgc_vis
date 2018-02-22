@@ -183,6 +183,7 @@ var layout = (function initialLayout() {
       View2D.resize();
     });
   });
+
   myLayout.registerComponent('3D View', function(container, componentState){
     layout.View3D = container.getElement()[0];
     View3D.initial();
@@ -190,6 +191,7 @@ var layout = (function initialLayout() {
       View3D.resize();
     });
   });
+
   myLayout.registerComponent('Tree View', function(container, componentState){
     layout.ViewTree = container.getElement()[0];
     ViewTree.initial();
@@ -197,13 +199,20 @@ var layout = (function initialLayout() {
       ViewTree.resize();
     });
   });
+
   myLayout.registerComponent('FFT View', function(container, componentState){
   });
+
   myLayout.registerComponent('TF View', function(container, componentState){
+    ViewTF.initial();
     var elem = container.getElement()[0];
     var legendElem = $('#legend-div').detach();
     $(elem).append(legendElem);
+    var tfElem = $('#tf-holder').detach();
+    $(elem).append(tfElem);
+    layout.ViewTF = elem;
   });
+
   myLayout.registerComponent('Console', function(container, componentState){
     initializeControlPanel(container.getElement()[0]);
   });
