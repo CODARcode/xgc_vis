@@ -174,21 +174,29 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
     VolrenTask *task = new VolrenTask;
 
     // parse arguments
-    json j = json::parse(con->get_request_body());
-    if (j["width"].is_null() || j["height"].is_null())
-      memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
-    else {
-      task->viewport[0] = 0;
-      task->viewport[1] = 0;
-      task->viewport[2] = j["width"];
-      task->viewport[3] = j["height"];
-    }
+    std::string posts = con->get_request_body();
+    fprintf(stderr, "post_length=%zu, posts=%s\n", posts.size(), posts.c_str());
 
-    if (j["matrix"].is_null())
+    try {
+      json j = json::parse(con->get_request_body());
+      if (j["width"].is_null() || j["height"].is_null())
+        memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
+      else {
+        task->viewport[0] = 0;
+        task->viewport[1] = 0;
+        task->viewport[2] = j["width"];
+        task->viewport[3] = j["height"];
+      }
+
+      if (j["matrix"].is_null())
+        memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
+      else {
+        for (int i=0; i<16; i++) 
+          task->invmvpd[i] = j["matrix"][i];
+      }
+    } catch (...) {
+      memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
       memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
-    else {
-      for (int i=0; i<16; i++) 
-        task->invmvpd[i] = j["matrix"][i];
     }
 
     // enqueue
@@ -353,6 +361,7 @@ void startWebsocketServer(int port)
     exit(EXIT_FAILURE);
   } catch (...) {
     std::cerr << "other exception" << std::endl;
+    exit(EXIT_FAILURE);
   }
 }
 
