@@ -8,6 +8,7 @@
 #include <fstream>
 #include <queue>
 #include <mutex>
+#include <chrono>
 #include <condition_variable>
 #include <boost/program_options.hpp>
 #include <websocketpp/config/asio_no_tls.hpp>
@@ -409,18 +410,32 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
     // render
     {
       std::unique_lock<std::mutex> mlock(task->mutex);
-      
+     
+      typedef std::chrono::high_resolution_clock clock;
+
       fprintf(stderr, "[volren] rendering...\n");
+      auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
       rc_clear_output(rc);
       rc_render(rc);
-      rc_copy_output_to_host_rgba8(rc);
+      auto t1 = clock::now();
+      float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
+      fprintf(stderr, "[volren] volren time: %f ns\n", tt0);
       
-      fprintf(stderr, "[volren] converting to png...\n");
+      auto t2 = clock::now();
+      rc_copy_output_to_host(rc);
+      auto t3 = clock::now();
+      float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
+      fprintf(stderr, "[volren] volren download time: %f ns\n", tt2);
+      
+      // fprintf(stderr, "[volren] converting to png...\n");
+      auto t4 = clock::now();
       task->png = save_png(task->viewport[2], task->viewport[3], 8, 
           PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*task->viewport[2], PNG_TRANSFORM_IDENTITY);
-      fprintf(stderr, "[volren] png ready to send.\n");
+      auto t5 = clock::now();
+      float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
+      fprintf(stderr, "[volren] png compression time:%f\n ns", tt4);
       
       task->cond.notify_one();
     }

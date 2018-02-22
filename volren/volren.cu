@@ -221,7 +221,7 @@ __device__ static void raycasting(
 
 template <int SHADING>
 __global__ static void raycasting_kernel(
-        float *output,
+        unsigned char *output_rgba8,
         int *viewport, 
         float *invmvp,
         int nPhi, 
@@ -254,22 +254,21 @@ __global__ static void raycasting_kernel(
          rayD = normalize(make_float3(obj1[0]-obj0[0], obj1[1]-obj0[1], obj1[2]-obj0[2]));
   float4 dst = make_float4(0.f); 
 
-#if 1
   raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
-#else
-  dst.x = 1; // rayD.x;
-  dst.y = 0; // rayD.y;
-  dst.z = 0; // rayD.z;
-  dst.w = 1;
-#endif
 
+  output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
+  output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
+  output_rgba8[(y*viewport[2]+x)*4+2] = dst.z * 255;
+  output_rgba8[(y*viewport[2]+x)*4+3] = dst.w * 255;
+
+#if 0
   // GL_ONE_MINUS_DST_ALPHA, GL_ONE
   float w0 = 1-output[(y*viewport[2]+x)*4+3]; //, w1 = 1; make the compiler happy :)
-
   output[(y*viewport[2]+x)*4+0] += w0* dst.x;
   output[(y*viewport[2]+x)*4+1] += w0* dst.y;
   output[(y*viewport[2]+x)*4+2] += w0* dst.z;
   output[(y*viewport[2]+x)*4+3] += w0* dst.w;
+#endif
 }
 
 
@@ -287,7 +286,7 @@ void rc_render(ctx_rc *ctx)
   // cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
  
   raycasting_kernel<0><<<gridSize, blockSize>>>(
-          ctx->d_output,
+          ctx->d_output_rgba8,
           ctx->d_viewport, 
           ctx->d_invmvp,
           ctx->nPhi, 
@@ -296,6 +295,8 @@ void rc_render(ctx_rc *ctx)
           ctx->d_bvh,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
+
+  cudaDeviceSynchronize();
   checkLastCudaError("[rc_render]");
 }
 
@@ -338,8 +339,8 @@ void rc_create_ctx(ctx_rc **ctx)
 
   const size_t max_npx = 4096*4096;
 
-  cudaMalloc((void**)&((*ctx)->d_output), sizeof(float)*max_npx); 
-  (*ctx)->h_output = malloc(sizeof(float)*max_npx);
+  cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
+  (*ctx)->h_output = malloc(4*max_npx);
 
   cudaMalloc((void**)&((*ctx)->d_viewport), sizeof(int)*4);
   cudaMalloc((void**)&((*ctx)->d_invmvp), sizeof(float)*16);
@@ -390,41 +391,12 @@ void rc_set_invmvpd(ctx_rc *ctx, double *invmvp)
 
 void rc_clear_output(ctx_rc *ctx)
 {
-  cudaMemset(ctx->d_output, 0, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3]);
+  cudaMemset(ctx->d_output_rgba8, 0, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3]);
 }
 
 void rc_copy_output_to_host(ctx_rc *ctx)
 {
-  cudaMemcpy(ctx->h_output, ctx->d_output, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost); 
-}
-
-void rc_copy_output_to_host_rgb8(ctx_rc *ctx)
-{
-  const size_t npx = ctx->viewport[2] * ctx->viewport[3];
-  cudaMemcpy(ctx->h_output, ctx->d_output, 4*sizeof(float)*npx, cudaMemcpyDeviceToHost);
-  float *ffb = (float*)ctx->h_output;
-  unsigned char *ufb = (unsigned char*)ctx->h_output;
-
-  for (int i=0; i<npx; i++) {
-    ufb[i*3] = ffb[i*4]*255;
-    ufb[i*3+1] = ffb[i*4+1]*255;
-    ufb[i*3+2] = ffb[i*4+2]*255;
-  }
-}
-
-void rc_copy_output_to_host_rgba8(ctx_rc *ctx)
-{
-  const size_t npx = ctx->viewport[2] * ctx->viewport[3];
-  cudaMemcpy(ctx->h_output, ctx->d_output, 4*sizeof(float)*npx, cudaMemcpyDeviceToHost);
-  float *ffb = (float*)ctx->h_output;
-  unsigned char *ufb = (unsigned char*)ctx->h_output;
-
-  for (int i=0; i<npx; i++) {
-    ufb[i*4] = ffb[i*4]*255;
-    ufb[i*4+1] = ffb[i*4+1]*255;
-    ufb[i*4+2] = ffb[i*4+2]*255;
-    ufb[i*4+3] = ffb[i*4+3]*255;
-  }
+  cudaMemcpy(ctx->h_output, ctx->d_output_rgba8, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost); 
 }
 
 } // extern "C" 
