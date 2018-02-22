@@ -106,7 +106,7 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
 }
 
 template <int SHADING>
-__device__ /* __host__ */ static void rc(
+__device__ __host__ static void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
@@ -162,11 +162,13 @@ __device__ /* __host__ */ static void rc(
       // sample = pow(1.f - sample, 2.f); 
       // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
       // src = make_float4(lambda.x, lambda.y, lambda.z, 0.5);
-      
+     
+#if 0
       src = tex1D(texTransferFunc, value * trans.x + trans.y);
-
-      // float v = clamp(value*0.01, -0.5f, 0.5f);
-      // src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
+#else
+      float v = clamp(value*0.01, -0.5f, 0.5f);
+      src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
+#endif
 
 #if 0
       if (SHADING) {
@@ -320,7 +322,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
+      // raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize); // FIXME
 
       output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
