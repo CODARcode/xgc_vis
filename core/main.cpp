@@ -42,6 +42,31 @@ using json = nlohmann::json;
 
 server wss;
 
+struct XGCMesh {
+  int nNodes, nTriangles, nPhi;
+  int *conn = NULL, *nextNode = NULL;
+  double *coords = NULL;
+  double *psi = NULL;
+  float *dispf = NULL; // displacement derived from nextNode
+
+  void deriveDisplacement() {
+    dispf = (float*)realloc(dispf, sizeof(float)*nNodes*2);
+    for (int i=0; i<nNodes; i++) {
+      int j = nextNode[i];
+      dispf[i*2] = coords[j*2] - coords[i*2];
+      dispf[i*2+1] = coords[j*2+1] - coords[j*2+1];
+    }
+  }
+
+  ~XGCMesh() {
+    free(conn);
+    free(psi);
+    free(nextNode);
+    free(coords);
+    free(dispf);
+  }
+} mesh;
+
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
@@ -657,18 +682,14 @@ int main(int argc, char **argv)
     } else break;
   }
   adios_read_bp_reset_dimension_order(meshFP, 0);
-  
-  int nNodes, nTriangles;
 
   fprintf(stderr, "reading mesh...\n");
-  double *coords;
-  int *conn, *nextNode;
-  double *psi;
-  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn, &nextNode);
-  readScalars<double>(meshFP, "psi", &psi);
+  readTriangularMesh(meshFP, mesh.nNodes, mesh.nTriangles, &mesh.coords, &mesh.conn, &mesh.nextNode);
+  readScalars<double>(meshFP, "psi", &mesh.psi);
+  mesh.deriveDisplacement();
   // adios_close(*meshFP);
 
-  ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
+  ex = new XGCBlobExtractor(mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn);
   
   // starting server
   if (vm.count("server")) {
@@ -724,8 +745,8 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
 
-    int nPhi = 1;
-    readValueInt(varFP, "nphi", &nPhi);
+    mesh.nPhi = 1;
+    readValueInt(varFP, "nphi", &mesh.nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
 
     ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
@@ -736,14 +757,14 @@ int main(int argc, char **argv)
     adios_inq_var_meshinfo(varFP, avi);
 
     // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), static_cast<uint64_t>(nPhi), 1, 1};
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nPhi), static_cast<uint64_t>(nNodes), 1, 1};
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(mesh.nPhi), static_cast<uint64_t>(mesh.nNodes), 1, 1};
     ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
     // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
 
     assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
     if (dpot == NULL) 
-      dpot = (double*)malloc(sizeof(double)*nPhi*nNodes);
+      dpot = (double*)malloc(sizeof(double)*mesh.nPhi*mesh.nNodes);
 
     adios_schedule_read_byid(varFP, sel, avi->varid, 0, 1, dpot);
     adios_perform_reads(varFP, 1);
@@ -758,10 +779,10 @@ int main(int argc, char **argv)
     fprintf(stderr, "starting analysis..\n");
    
     // FIXME
-    volren_thread = new std::thread(startVolren, nPhi, nNodes, nTriangles, coords, conn, dpot);
+    volren_thread = new std::thread(startVolren, mesh.nPhi, mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn, dpot);
 
     mutex_ex.lock();
-    ex->setData(current_time_index, nPhi, dpot);
+    ex->setData(current_time_index, mesh.nPhi, dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
@@ -784,7 +805,7 @@ int main(int argc, char **argv)
         ex->dumpLabels(filename_output);
       else 
         writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
-            nNodes, nTriangles, coords, conn, dpot, psi, labels);
+            mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn, dpot, mesh.psi, labels);
     }
    
     // write branches
@@ -831,9 +852,7 @@ int main(int argc, char **argv)
   if (dpot != NULL) free(dpot);
   delete ex;
   ex = NULL;
-  free(coords);
-  free(conn);
-  free(nextNode);
+
   adios_finalize(0);
 
   fprintf(stderr, "exiting...\n");
