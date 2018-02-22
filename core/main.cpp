@@ -406,11 +406,11 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
       rc_set_invmvpd(rc, task->invmvpd);
       rc_clear_output(rc);
       rc_render(rc);
-      rc_copy_output_to_host_rgb8(rc);
+      rc_copy_output_to_host_rgba8(rc);
       
       fprintf(stderr, "[volren] converting to png...\n");
       task->png = save_png(task->viewport[2], task->viewport[3], 8, 
-          PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*task->viewport[2], PNG_TRANSFORM_IDENTITY);
+          PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*task->viewport[2], PNG_TRANSFORM_IDENTITY);
       fprintf(stderr, "[volren] png ready to send.\n");
       
       task->cond.notify_one();
