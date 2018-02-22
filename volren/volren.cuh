@@ -1,6 +1,8 @@
 #ifndef _VOLREN_CUH
 #define _VOLREN_CUH
 
+#include "def.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

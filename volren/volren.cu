@@ -89,10 +89,9 @@ float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
     + lambda.z * data[q.i2];
 }
 
+#if WITH_CUDA
 texture<float4, 1, cudaReadModeElementType> texTransferFunc;
-
-// __constant__ int c_viewport[4];
-// __constant__ float c_invmvp[16]; 
+#endif
 
 __device__ __host__
 float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
@@ -234,6 +233,7 @@ __device__ __host__ static void raycasting(
 #endif
 }
 
+#if WITH_CUDA
 __global__ static void test_point_locator_kernel(
     int *output, 
     float x, float y,
@@ -242,6 +242,7 @@ __global__ static void test_point_locator_kernel(
   float3 lambda;
   *output = QuadNodeD_locatePoint(bvh, x, y, lambda);
 }
+#endif
 
 __device__ __host__ bool setup_ray(
     int *viewport, 
@@ -268,6 +269,7 @@ __device__ __host__ bool setup_ray(
   return true;
 }
 
+#if WITH_CUDA
 template <int SHADING>
 __global__ static void raycasting_kernel(
         unsigned char *output_rgba8,
@@ -305,6 +307,7 @@ __global__ static void raycasting_kernel(
   output[(y*viewport[2]+x)*4+3] += w0* dst.w;
 #endif
 }
+#endif
 
 template <int SHADING>
 static void raycasting_cpu(
@@ -339,6 +342,7 @@ extern "C" {
 
 void rc_test_point_locator(ctx_rc *ctx, float x, float y)
 {
+#if WITH_CUDA
   test_point_locator_kernel<<<1, 1>>>(
       (int*)ctx->d_output_rgba8, 
       x, y, ctx->d_bvh);
@@ -346,10 +350,12 @@ void rc_test_point_locator(ctx_rc *ctx, float x, float y)
   int nid;
   cudaMemcpy(&nid, ctx->d_output_rgba8, sizeof(int), cudaMemcpyDeviceToHost);
   fprintf(stderr, "[rc_test_point_locator] x={%f, %f}, nid=%d\n", x, y, nid);
+#endif
 }
 
 void rc_render(ctx_rc *ctx)
 {
+#if WITH_CUDA
   const dim3 blockSize(16, 16); 
   const dim3 gridSize = dim3(iDivUp(ctx->viewport[2], blockSize.x), iDivUp(ctx->viewport[3], blockSize.y));
 
@@ -371,6 +377,7 @@ void rc_render(ctx_rc *ctx)
 
   cudaDeviceSynchronize();
   checkLastCudaError("[rc_render]");
+#endif
 }
 
 void rc_render_cpu(ctx_rc *ctx)
@@ -389,6 +396,7 @@ void rc_render_cpu(ctx_rc *ctx)
 
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 {
+#if WITH_CUDA
   ctx->h_bvh = bvh;
 
   if (ctx->d_bvh != NULL)
@@ -396,10 +404,12 @@ void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 
   cudaMalloc((void**)&ctx->d_bvh, sizeof(QuadNodeD)*nQuadNodes);
   cudaMemcpy(ctx->d_bvh, bvh, sizeof(QuadNodeD)*nQuadNodes, cudaMemcpyHostToDevice);
+#endif
 }
 
 void rc_bind_transfer_function_array(cudaArray* array)
 {
+#if WITH_CUDA
   cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>(); 
 
   texTransferFunc.normalized = true; 
@@ -408,6 +418,7 @@ void rc_bind_transfer_function_array(cudaArray* array)
   cudaBindTextureToArray(texTransferFunc, array, channelDesc); 
 
   checkLastCudaError("[rc_bind_transfer_function_array]");
+#endif
 }
 
 void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data)
@@ -415,20 +426,22 @@ void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data)
   ctx->h_data = data;
   ctx->nNodes = nNodes;
   ctx->nPhi = nPhi;
+#if WITH_CUDA
   if (ctx->d_data == NULL)
     cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNodes*nPhi);
   cudaMemcpy(ctx->d_data, data, sizeof(float)*nNodes*nPhi, cudaMemcpyHostToDevice);
+#endif
 }
 
 void rc_create_ctx(ctx_rc **ctx)
 {
-  cudaSetDevice(0);
-
   *ctx = (ctx_rc*)malloc(sizeof(ctx_rc));
   memset(*ctx, 0, sizeof(ctx_rc));
 
   const size_t max_npx = 4096*4096;
 
+#if WITH_CUDA
+  cudaSetDevice(0);
   cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
   (*ctx)->h_output = malloc(4*max_npx);
 
@@ -436,12 +449,15 @@ void rc_create_ctx(ctx_rc **ctx)
   cudaMalloc((void**)&((*ctx)->d_invmvp), sizeof(float)*16);
   
   checkLastCudaError("[rc_init]");
+#endif
 }
 
 void rc_destroy_ctx(ctx_rc **ctx)
 {
   // TODO: free any resources
+#if WITH_CUDA
   cudaFree((*ctx)->d_output_rgba8);
+#endif
   free((*ctx)->h_output);
   free(*ctx); 
   *ctx = NULL; 
@@ -481,12 +497,16 @@ void rc_set_invmvpd(ctx_rc *ctx, double *invmvp)
 
 void rc_clear_output(ctx_rc *ctx)
 {
+#if WITH_CUDA
   cudaMemset(ctx->d_output_rgba8, 0, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3]);
+#endif
 }
 
 void rc_copy_output_to_host(ctx_rc *ctx)
 {
+#if WITH_CUDA
   cudaMemcpy(ctx->h_output, ctx->d_output_rgba8, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost); 
+#endif
 }
 
 } // extern "C" 

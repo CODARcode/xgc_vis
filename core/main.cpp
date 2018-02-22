@@ -1,3 +1,4 @@
+#include "def.h"
 #include <mpi.h>
 #include <adios.h>
 #include <adios_read.h>
@@ -14,14 +15,12 @@
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
 // #include <concurrentqueue.h>
+#include "core/png_utils.hpp"
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
-
-#ifdef VOLREN
-#include <png.h>
 #include "volren/bvh.h"
 #include "volren/volren.cuh"
-#endif
+
 
 const std::string pointsName = "points";
 const std::string numPointsName = "numPoints";
@@ -46,14 +45,6 @@ server wss;
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
-struct png_mem_buffer {
-  char *buffer = NULL; 
-  size_t size;
-};
-
-// png_mem_buffer volren_png_buffer;
-// float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
-
 enum {
   VOLREN_RENDER = 0,
   VOLREN_EXIT = 1
@@ -76,7 +67,8 @@ std::condition_variable cond_volrenTaskQueue;
 
 void freeVolrenTask(VolrenTask **task)
 {
-  free((*task)->png.buffer);
+  if ((*task)->png.buffer != NULL)
+    free((*task)->png.buffer);
   delete *task;
   task = NULL;
 }
@@ -160,73 +152,6 @@ std::set<size_t> loadSkipList(const std::string& filename)
   }
   return skip;
 }
-
-#ifdef VOLREN
-static void my_png_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
-{
-  /* with libpng15 next line causes pointer deference error; use libpng12 */
-  struct png_mem_buffer* p=(struct png_mem_buffer*)png_get_io_ptr(png_ptr); /* was png_ptr->io_ptr */
-  size_t nsize = p->size + length;
-
-  /* allocate or grow buffer */
-  if(p->buffer)
-    p->buffer = (char*)realloc(p->buffer, nsize);
-  else
-    p->buffer = (char*)malloc(nsize);
-
-  if(!p->buffer)
-    png_error(png_ptr, "Write Error");
-
-  memcpy(p->buffer + p->size, data, length); // copy new bytes to the end of buffer
-  p->size += length;
-}
-
-png_mem_buffer save_png(int width, int height,
-                     int bitdepth, int colortype,
-                     unsigned char* data, int pitch, int transform)
-{
-  int i = 0;
-  int r = 0;
-
-  assert(data);
-  assert(pitch);
-
-  png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-  assert(png_ptr);
-
-  png_infop info_ptr = png_create_info_struct(png_ptr);
-  assert(info_ptr);
-
-  png_set_IHDR(png_ptr,
-      info_ptr,
-      width,
-      height,
-      bitdepth,                 /* e.g. 8 */
-      colortype,                /* PNG_COLOR_TYPE_{GRAY, PALETTE, RGB, RGB_ALPHA, GRAY_ALPHA, RGBA, GA} */
-      PNG_INTERLACE_NONE,       /* PNG_INTERLACE_{NONE, ADAM7 } */
-      PNG_COMPRESSION_TYPE_BASE,
-      PNG_FILTER_TYPE_BASE);
-
-  png_bytep* row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * height);
-
-  for (i = 0; i < height; ++i) {
-    row_pointers[i] = data + (height - i - 1) * pitch;
-  }
-
-  struct png_mem_buffer state;
-  state.buffer = NULL;
-  state.size = 0;
-
-  png_set_write_fn(png_ptr, &state, my_png_write_data, NULL);
-  png_set_rows(png_ptr, info_ptr, row_pointers);
-  png_write_png(png_ptr, info_ptr, transform, NULL);
-
-  png_destroy_write_struct(&png_ptr, &info_ptr);
-  free(row_pointers);
-
-  return state;
-}
-#endif
 
 void onHttp(server *s, websocketpp::connection_hdl hdl) 
 {
@@ -410,12 +335,11 @@ void startWebsocketServer(int port)
 
 void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn, double *dpot)
 {
-#ifdef VOLREN
   fprintf(stderr, "[volren] building BVH...\n");
   std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
   // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
 
-  fprintf(stderr, "[volren] initialize CUDA...\n");
+  fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
   rc_create_ctx(&rc);
   rc_set_stepsize(rc, 0.001);
@@ -466,11 +390,13 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
       
       // fprintf(stderr, "[volren] converting to png...\n");
       auto t4 = clock::now();
+#if WITH_PNG
       task->png = save_png(task->viewport[2], task->viewport[3], 8, 
           PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*task->viewport[2], PNG_TRANSFORM_IDENTITY);
+#endif
       auto t5 = clock::now();
       float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
-      fprintf(stderr, "[volren] png compression time:%f\n ns", tt4);
+      fprintf(stderr, "[volren] png compression time: %f ns\n", tt4);
       
       task->cond.notify_one();
     } else if (task->tag == VOLREN_EXIT) {
@@ -497,8 +423,6 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
   // fwrite(png.buffer, 1, png.size, fp);
   // free(png.buffer);
   // fclose(fp);
-#endif
-
 #endif
 }
 

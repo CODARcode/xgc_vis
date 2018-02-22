@@ -1,3 +1,4 @@
+#include "def.h"
 #include "cutil/cutil_math.h"
 #include <cstdio>
 #include <cfloat>
@@ -8,6 +9,7 @@
 
 const float pi = 3.14159f; 
 
+#if WITH_CUDA
 inline void checkCuda(cudaError_t e, const char *situation) {
     if (e != cudaSuccess) {
         printf("CUDA Error: %s: %s\n", situation, cudaGetErrorString(e));
@@ -17,6 +19,7 @@ inline void checkCuda(cudaError_t e, const char *situation) {
 inline void checkLastCudaError(const char *situation) {
     checkCuda(cudaGetLastError(), situation);
 }
+#endif
 
 inline int iDivUp(int a, int b)
 {
@@ -321,6 +324,7 @@ inline bool clipping(float3 rayO, float3 rayD, float &tnear, float &tfar, float4
     return true; 
 }
 
+#if WITH_CUDA
 template<class DataType, enum cudaTextureReadMode readMode>
 __device__
 inline float3 gradient(texture<DataType, cudaTextureType3D, readMode> texRef, float3 coords, float delta=1)
@@ -339,6 +343,7 @@ inline float3 gradient(texture<DataType, cudaTextureType3D, readMode> texRef, fl
 
     return (sample2-sample1) / delta; 
 }
+#endif
 
 __device__ __host__
 inline float3 phong(float3 N, float3 V, float3 L, float3 Ka, float3 Kd, float3 Ks, float shiness)
