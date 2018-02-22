@@ -240,7 +240,7 @@ std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coo
     aabb.B[1] = std::max(aabb.B[1], coords[2*i+1]);
   }
   aabb.updateCentroid();
-  // aabb.print();
+  aabb.print();
 
   std::vector<AABB> triangles(nTriangles);
   for (int i=0; i<nTriangles; i++) {
@@ -263,15 +263,12 @@ std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coo
   // traverseQuadNode(root);
 
   std::vector<QuadNodeD> rd = convertBVH(root, conn, coords);
-  deleteBVH(root);
 
-  return rd;
-
-#if 0
+#if 1
   fprintf(stderr, "BVH built.\n");
   typedef std::chrono::high_resolution_clock clock;
 
-  const double X[2] = {2.0, 1.03};
+  const double X[2] = {2.3, -0.4};
   auto t0 = clock::now();
   int r0 = locatePointBruteForce(X, root, nNodes, nTriangles, coords, conn);
   auto t1 = clock::now();
@@ -279,19 +276,26 @@ std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coo
   auto t2 = clock::now();
   int r2 = locatePointNonRecursive(X, root, nNodes, nTriangles, coords, conn);
   auto t3 = clock::now();
+#if 0 
   float alpha, beta, gamma;
   int r3 = QuadNodeD_locatePoint(rd, X[0], X[1], alpha, beta, gamma);
   auto t4 = clock::now();
   int r4 = QuadNodeD_locatePoint_recursive(rd, rd, X[0], X[1], alpha, beta, gamma);
   auto t5 = clock::now();
   fprintf(stderr, "r0=%d, r1=%d, r2=%d, r3=%d, r4=%d\n", r0, r1, r2, r3, r4);
+#endif
+  fprintf(stderr, "x={%f, %f}, r0=%d, r1=%d, r2=%d\n", X[0], X[1], r0, r1, r2);
 
   float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
   float tt1 = std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
   float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
-  float tt3 = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t3).count();
-  float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
-  fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f, tt3=%f, tt4=%f\n", tt0, tt1, tt2, tt3, tt4);
+  // float tt3 = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t3).count();
+  // float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
+  // fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f, tt3=%f, tt4=%f\n", tt0, tt1, tt2, tt3, tt4);
+  fprintf(stderr, "tt0=%f, tt1=%f, tt2=%f\n", tt0, tt1, tt2);
 #endif
+  deleteBVH(root);
+
+  return rd;
 }
 

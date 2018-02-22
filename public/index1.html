@@ -1,0 +1,59 @@
+<html>
+  <head>
+    <title>xgc_vis_streamers</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <link rel="stylesheet" type="text/css" href="bootstrap.min.css">
+    <!--<script src="js/jquery-3.1.0.min.js"></script>-->
+    <!--<script src="js/bson.js"></script>-->
+
+  </head>
+  <body>
+    <canvas id="glCanvas" width="1024" height="768"></canvas>
+    
+    <script>
+const uri = "ws://localhost:9002";
+ws = new WebSocket(uri);
+
+var canvas = document.querySelector('#glCanvas');
+var gl = canvas.getContext('webgl');
+
+gl.clearColor(0.0, 0.0, 0.0, 1.0);
+gl.clear(gl.COLOR_BUFFER_BIT);
+
+var texture = gl.createTexture();
+
+ws.binaryType = "arraybuffer";
+ws.onopen = function(evt) {
+  var msg = {
+    type: "requestVolren", 
+    viewport: [0, 0, 1024, 768]
+  };
+  ws.send(JSON.stringify(msg));
+};
+
+ws.onclose = function(evt) {
+};
+
+ws.onmessage = function(evt) {
+  // var dataView = new DataView(evt.data);
+  // var dataType = dataView.getInt32(0, true);
+  // console.log(dataType);
+  // var f = dataView.getFloat32(4, true);
+  // console.log(f);
+  var data = new Float32Array(evt.data, 4);
+  console.log(data);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 1024, 768, 0, gl.RGBA, gl.FLOAT, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+};
+
+ws.onerror = function(evt) {
+};
+    
+    </script>
+  </body> 
+</html>

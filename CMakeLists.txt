@@ -1,23 +1,32 @@
 cmake_minimum_required (VERSION 3.1.3)
 project (xgc_vis)
 
-option (XGCVIS_BUILD_CORE "Build core analysis code" ON)
-option (XGCVIS_BUILD_GUI "Build GUI" OFF)
-option (XGCVIS_BUILD_VOLREN "Build VolRen" OFF)
-option (XGCVIS_BUILD_CONVERTER "Build VTK converter" OFF)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+configure_file (def.h.cmake def.h)
+
+option (WITH_ADIOS "Build with ADIOS" ON)
+option (WITH_CUDA "Build with CUDA" OFF)
+option (WITH_QT "Build with Qt" OFF)
+option (WITH_VTK "Build with VTK" OFF)
+option (WITH_PNG "Build with PNG" OFF)
 
 set (CMAKE_CXX_STANDARD 11)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules)
 
-find_package (ZLIB REQUIRED)
 set (Boost_USE_STATIC_LIBS ON)
 set (Boost_USE_MULTITHREADED ON)
 set (Boost_USE_STATIC_RUNTIME OFF)
+
+find_package (ZLIB REQUIRED)
 find_package (Boost REQUIRED COMPONENTS program_options system)
 
+set (CMAKE_INCLUDE_CURRENT_DIR ON)
 include_directories (
+  ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/third_party/libtourtre/include
   ${PROJECT_SOURCE_DIR}/third_party/json
@@ -27,32 +36,30 @@ include_directories (
   ${Boost_INCLUDE_DIR}
 )
 
-if (XGCVIS_BUILD_VOLREN)
-  find_package (PNG REQUIRED)
-  include_directories (${PNG_INCLUDE_DIRS})
+if (WITH_CUDA)
   find_package (CUDA REQUIRED)
   set (CUDA_PROPAGATE_HOST_FLAGS OFF)
-  add_definitions (-DVOLREN)
-  add_subdirectory (volren)
 endif ()
 
-if (XGCVIS_BUILD_CORE)
+if (WITH_PNG)
+  find_package (PNG REQUIRED)
+  include_directories (${PNG_INCLUDE_DIRS})
+endif ()
+  
+if (WITH_ADIOS)
   find_package (ADIOS REQUIRED)
   include_directories (${ADIOS_INCLUDE_DIRS})
   add_subdirectory (core)
 endif ()
 
-if (XGCVIS_BUILD_GUI)
+if (WITH_QT)
   find_package (OpenGL REQUIRED)
-  # find_package (GLEW REQUIRED)
-  # find_package (GLUT REQUIRED)
   find_package (Qt4 REQUIRED COMPONENTS QtCore QtGui QtOpenGL)
   include (${QT_USE_FILE})
-  # include_directories (${GLEW_INCLUDE_DIR})
   add_subdirectory (gui)
 endif ()
 
-if (XGCVIS_BUILD_CONVERTER)
+if (WITH_VTK)
   find_package (VTK REQUIRED)
   include (${VTK_USE_FILE})
   add_subdirectory (converter)
@@ -60,3 +67,4 @@ endif ()
 
 add_subdirectory (third_party/libtourtre)
 add_subdirectory (common)
+add_subdirectory (volren)

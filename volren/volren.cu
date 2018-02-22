@@ -67,6 +67,20 @@ int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda)
 }
 
 __device__ __host__
+int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda)
+{
+  // check if last_nid is valid
+  if (last_nid<0) return QuadNodeD_locatePoint(bvh, x, y, lambda);
+
+  // check if in the same triangle
+  if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda)) return last_nid;
+
+  // TODO: check if in the neighbors of last_nid
+
+  return QuadNodeD_locatePoint(bvh, x, y, lambda);
+}
+
+__device__ __host__
 float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
   const QuadNodeD &q = bvh[nid];
 
@@ -75,10 +89,9 @@ float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
     + lambda.z * data[q.i2];
 }
 
+#if WITH_CUDA
 texture<float4, 1, cudaReadModeElementType> texTransferFunc;
-
-// __constant__ int c_viewport[4];
-// __constant__ float c_invmvp[16]; 
+#endif
 
 __device__ __host__
 float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
@@ -92,7 +105,7 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
 }
 
 template <int SHADING>
-__device__ static void rc(
+__device__ __host__ static void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
@@ -121,7 +134,7 @@ __device__ static void rc(
     pos = rayO + rayD*t;
 
     // cylindar coordinates
-    float r = pos.x*pos.x + pos.y*pos.y;
+    float r = sqrt(pos.x*pos.x + pos.y*pos.y);
     float phi = atan2(pos.y, pos.x) + pi;
     float z = pos.z;
 
@@ -160,6 +173,7 @@ __device__ static void rc(
       src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
       // src = make_float4(phi/(pi*2), 1-phi/(pi*2), 0, 0.3);
       // src = make_float4(p1/8.0, 0.5, 0, 0.3);
+      // src = make_float4(1, 0, 0, 0.3);
 
 #if 0
       if (SHADING) {
@@ -187,7 +201,7 @@ __device__ static void rc(
 }
 
 template <int SHADING>
-__device__ static void raycasting(
+__device__ __host__ static void raycasting(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
@@ -219,6 +233,43 @@ __device__ static void raycasting(
 #endif
 }
 
+#if WITH_CUDA
+__global__ static void test_point_locator_kernel(
+    int *output, 
+    float x, float y,
+    QuadNodeD *bvh)
+{
+  float3 lambda;
+  *output = QuadNodeD_locatePoint(bvh, x, y, lambda);
+}
+#endif
+
+__device__ __host__ bool setup_ray(
+    int *viewport, 
+    float *invmvp, 
+    uint x, uint y,
+    float3 &rayO, float3 &rayD)
+{
+  float coord[4], obj0[4], obj1[4]; 
+  coord[0] = (x-viewport[0])*2.f / viewport[2] - 1.f; 
+  coord[1] = (y-viewport[1])*2.f / viewport[3] - 1.f; 
+  coord[2] = -1.0; 
+  coord[3] = 1.0;
+
+  mulmatvec(invmvp, coord, obj0); 
+  coord[2] = 1.0; 
+  mulmatvec(invmvp, coord, obj1); 
+  if (obj0[3] == 0.f || obj1[3] == 0.f) return false; 
+
+  for (int i=0; i<3; i++)
+      obj0[i] /= obj0[3], obj1[i] /= obj1[3]; 
+
+  rayO = make_float3(obj0[0], obj0[1], obj0[2]);
+  rayD = normalize(make_float3(obj1[0]-obj0[0], obj1[1]-obj0[1], obj1[2]-obj0[2]));
+  return true;
+}
+
+#if WITH_CUDA
 template <int SHADING>
 __global__ static void raycasting_kernel(
         unsigned char *output_rgba8,
@@ -235,25 +286,11 @@ __global__ static void raycasting_kernel(
   uint y = blockIdx.y*blockDim.y + threadIdx.y;
 
   if (x >= viewport[2] || y>= viewport[3]) return;
-  
-  float coord[4], obj0[4], obj1[4]; 
-  coord[0] = (x-viewport[0])*2.f / viewport[2] - 1.f; 
-  coord[1] = (y-viewport[1])*2.f / viewport[3] - 1.f; 
-  coord[2] = -1.0; 
-  coord[3] = 1.0;
+ 
+  float3 rayO, rayD;
+  setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
-  mulmatvec(invmvp, coord, obj0); 
-  coord[2] = 1.0; 
-  mulmatvec(invmvp, coord, obj1); 
-  if (obj0[3] == 0.f || obj1[3] == 0.f) return; 
-
-  for (int i=0; i<3; i++)
-      obj0[i] /= obj0[3], obj1[i] /= obj1[3]; 
-
-  float3 rayO = make_float3(obj0[0], obj0[1], obj0[2]), 
-         rayD = normalize(make_float3(obj1[0]-obj0[0], obj1[1]-obj0[1], obj1[2]-obj0[2]));
   float4 dst = make_float4(0.f); 
-
   raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
 
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
@@ -270,13 +307,55 @@ __global__ static void raycasting_kernel(
   output[(y*viewport[2]+x)*4+3] += w0* dst.w;
 #endif
 }
+#endif
 
+template <int SHADING>
+static void raycasting_cpu(
+        unsigned char *output_rgba8,
+        int *viewport, 
+        float *invmvp,
+        int nPhi, 
+        int nNode, 
+        float *data, 
+        QuadNodeD *bvh,
+        float2 trans, 
+        float stepsize)
+{
+  for (uint x = 0; x < viewport[2]; x ++) {
+    for (uint y = 0; y < viewport[3]; y ++) {
+      float3 rayO, rayD;
+      setup_ray(viewport, invmvp, x, y, rayO, rayD);
+
+      float4 dst = make_float4(0.f); 
+      raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
+
+      output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
+      output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
+      output_rgba8[(y*viewport[2]+x)*4+2] = dst.z * 255;
+      output_rgba8[(y*viewport[2]+x)*4+3] = dst.w * 255;
+    }
+  }
+}
 
 /////////////////////////////
 extern "C" {
 
+void rc_test_point_locator(ctx_rc *ctx, float x, float y)
+{
+#if WITH_CUDA
+  test_point_locator_kernel<<<1, 1>>>(
+      (int*)ctx->d_output_rgba8, 
+      x, y, ctx->d_bvh);
+
+  int nid;
+  cudaMemcpy(&nid, ctx->d_output_rgba8, sizeof(int), cudaMemcpyDeviceToHost);
+  fprintf(stderr, "[rc_test_point_locator] x={%f, %f}, nid=%d\n", x, y, nid);
+#endif
+}
+
 void rc_render(ctx_rc *ctx)
 {
+#if WITH_CUDA
   const dim3 blockSize(16, 16); 
   const dim3 gridSize = dim3(iDivUp(ctx->viewport[2], blockSize.x), iDivUp(ctx->viewport[3], blockSize.y));
 
@@ -298,19 +377,39 @@ void rc_render(ctx_rc *ctx)
 
   cudaDeviceSynchronize();
   checkLastCudaError("[rc_render]");
+#endif
+}
+
+void rc_render_cpu(ctx_rc *ctx)
+{
+  raycasting_cpu<0>(
+          (unsigned char*)ctx->h_output,
+          ctx->viewport, 
+          ctx->invmvp,
+          ctx->nPhi, 
+          ctx->nNodes,
+          ctx->h_data, 
+          ctx->h_bvh,
+          make_float2(ctx->trans[0], ctx->trans[1]), 
+          ctx->stepsize);
 }
 
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 {
+#if WITH_CUDA
+  ctx->h_bvh = bvh;
+
   if (ctx->d_bvh != NULL)
     cudaFree(ctx->d_bvh);
 
   cudaMalloc((void**)&ctx->d_bvh, sizeof(QuadNodeD)*nQuadNodes);
   cudaMemcpy(ctx->d_bvh, bvh, sizeof(QuadNodeD)*nQuadNodes, cudaMemcpyHostToDevice);
+#endif
 }
 
 void rc_bind_transfer_function_array(cudaArray* array)
 {
+#if WITH_CUDA
   cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>(); 
 
   texTransferFunc.normalized = true; 
@@ -319,26 +418,30 @@ void rc_bind_transfer_function_array(cudaArray* array)
   cudaBindTextureToArray(texTransferFunc, array, channelDesc); 
 
   checkLastCudaError("[rc_bind_transfer_function_array]");
+#endif
 }
 
-void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, const float *data)
+void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data)
 {
+  ctx->h_data = data;
   ctx->nNodes = nNodes;
   ctx->nPhi = nPhi;
+#if WITH_CUDA
   if (ctx->d_data == NULL)
     cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNodes*nPhi);
   cudaMemcpy(ctx->d_data, data, sizeof(float)*nNodes*nPhi, cudaMemcpyHostToDevice);
+#endif
 }
 
 void rc_create_ctx(ctx_rc **ctx)
 {
-  cudaSetDevice(0);
-
   *ctx = (ctx_rc*)malloc(sizeof(ctx_rc));
   memset(*ctx, 0, sizeof(ctx_rc));
 
   const size_t max_npx = 4096*4096;
 
+#if WITH_CUDA
+  cudaSetDevice(0);
   cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
   (*ctx)->h_output = malloc(4*max_npx);
 
@@ -346,12 +449,15 @@ void rc_create_ctx(ctx_rc **ctx)
   cudaMalloc((void**)&((*ctx)->d_invmvp), sizeof(float)*16);
   
   checkLastCudaError("[rc_init]");
+#endif
 }
 
 void rc_destroy_ctx(ctx_rc **ctx)
 {
   // TODO: free any resources
-  // cudaFree(ctx->d_output);
+#if WITH_CUDA
+  cudaFree((*ctx)->d_output_rgba8);
+#endif
   free((*ctx)->h_output);
   free(*ctx); 
   *ctx = NULL; 
@@ -391,12 +497,16 @@ void rc_set_invmvpd(ctx_rc *ctx, double *invmvp)
 
 void rc_clear_output(ctx_rc *ctx)
 {
+#if WITH_CUDA
   cudaMemset(ctx->d_output_rgba8, 0, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3]);
+#endif
 }
 
 void rc_copy_output_to_host(ctx_rc *ctx)
 {
+#if WITH_CUDA
   cudaMemcpy(ctx->h_output, ctx->d_output_rgba8, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost); 
+#endif
 }
 
 } // extern "C" 
