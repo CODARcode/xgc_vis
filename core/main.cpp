@@ -6,12 +6,23 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
+#include <queue>
+#include <mutex>
+#include <chrono>
+#include <condition_variable>
 #include <boost/program_options.hpp>
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
+// #include <concurrentqueue.h>
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
-  
+
+#ifdef VOLREN
+#include <png.h>
+#include "volren/bvh.h"
+#include "volren/volren.cuh"
+#endif
+
 const std::string pointsName = "points";
 const std::string numPointsName = "numPoints";
 const std::string cellsName = "cells";
@@ -22,19 +33,117 @@ const std::string psiName = "psi";
 const std::string labelsName = "labels";
 const std::string centering = "point";
 
+const std::string groupName = "xgc_blobs", meshName = "xgc_mesh2D";
   
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
 
+// using ConcurrentQueue = moodycamel::ConcurrentQueue;
 using json = nlohmann::json;
-using websocketpp::lib::placeholders::_1;
-using websocketpp::lib::placeholders::_2;
-using websocketpp::lib::bind;
 
-server wsserver;
+server wss;
 
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
+
+struct png_mem_buffer {
+  char *buffer = NULL; 
+  size_t size;
+};
+
+// png_mem_buffer volren_png_buffer;
+// float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
+
+enum {
+  VOLREN_RENDER = 0,
+  VOLREN_EXIT = 1
+};
+
+struct VolrenTask {
+  int tag = VOLREN_RENDER;
+  int viewport[4];
+  double invmvpd[16];
+  png_mem_buffer png;
+  std::condition_variable cond;
+  std::mutex mutex;
+};
+
+bool volren_started = false;
+
+std::queue<VolrenTask*> volrenTaskQueue;
+std::mutex mutex_volrenTaskQueue;
+std::condition_variable cond_volrenTaskQueue;
+
+void freeVolrenTask(VolrenTask **task)
+{
+  free((*task)->png.buffer);
+  delete *task;
+  task = NULL;
+}
+
+VolrenTask* createVolrenTaskFromString(const std::string& query)
+{
+  const int defaulat_viewport[4] = {0, 0, 720, 382};
+  const double defaulat_invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
+    
+  // create task
+  VolrenTask *task = new VolrenTask;
+ 
+  // parse query
+  try {
+    json j = json::parse(query);
+    fprintf(stderr, "[volren] json parameter: %s\n", j.dump().c_str());
+
+    if (j["width"].is_null() || j["height"].is_null())
+      memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
+    else {
+      task->viewport[0] = 0;
+      task->viewport[1] = 0;
+      task->viewport[2] = j["width"];
+      task->viewport[3] = j["height"];
+    }
+
+    if (j["matrix"].is_null())
+      memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
+    else {
+      for (int i=0; i<16; i++) 
+        task->invmvpd[i] = j["matrix"][i];
+    }
+
+  } catch (...) {
+    fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");
+    memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
+    memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
+  }
+
+  return task;
+}
+
+void enqueueAndWaitVolrenTask(VolrenTask* task)
+{
+  // enqueue
+  {
+    std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+    volrenTaskQueue.push(task);
+    mlock.unlock();
+    cond_volrenTaskQueue.notify_one();
+  }
+
+  // wait
+  {
+    std::unique_lock<std::mutex> mlock(task->mutex);
+    task->cond.wait(mlock);
+  }
+}
+
+void stopVolren()
+{
+  if (volren_started) {
+    VolrenTask *task = new VolrenTask;
+    task->tag = VOLREN_EXIT;
+    enqueueAndWaitVolrenTask(task);
+  }
+}
 
 std::set<size_t> loadSkipList(const std::string& filename)
 {
@@ -52,6 +161,115 @@ std::set<size_t> loadSkipList(const std::string& filename)
   return skip;
 }
 
+#ifdef VOLREN
+static void my_png_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
+{
+  /* with libpng15 next line causes pointer deference error; use libpng12 */
+  struct png_mem_buffer* p=(struct png_mem_buffer*)png_get_io_ptr(png_ptr); /* was png_ptr->io_ptr */
+  size_t nsize = p->size + length;
+
+  /* allocate or grow buffer */
+  if(p->buffer)
+    p->buffer = (char*)realloc(p->buffer, nsize);
+  else
+    p->buffer = (char*)malloc(nsize);
+
+  if(!p->buffer)
+    png_error(png_ptr, "Write Error");
+
+  memcpy(p->buffer + p->size, data, length); // copy new bytes to the end of buffer
+  p->size += length;
+}
+
+png_mem_buffer save_png(int width, int height,
+                     int bitdepth, int colortype,
+                     unsigned char* data, int pitch, int transform)
+{
+  int i = 0;
+  int r = 0;
+
+  assert(data);
+  assert(pitch);
+
+  png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  assert(png_ptr);
+
+  png_infop info_ptr = png_create_info_struct(png_ptr);
+  assert(info_ptr);
+
+  png_set_IHDR(png_ptr,
+      info_ptr,
+      width,
+      height,
+      bitdepth,                 /* e.g. 8 */
+      colortype,                /* PNG_COLOR_TYPE_{GRAY, PALETTE, RGB, RGB_ALPHA, GRAY_ALPHA, RGBA, GA} */
+      PNG_INTERLACE_NONE,       /* PNG_INTERLACE_{NONE, ADAM7 } */
+      PNG_COMPRESSION_TYPE_BASE,
+      PNG_FILTER_TYPE_BASE);
+
+  png_bytep* row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * height);
+
+  for (i = 0; i < height; ++i) {
+    row_pointers[i] = data + i * pitch;
+  }
+
+  struct png_mem_buffer state;
+  state.buffer = NULL;
+  state.size = 0;
+
+  png_set_write_fn(png_ptr, &state, my_png_write_data, NULL);
+  png_set_rows(png_ptr, info_ptr, row_pointers);
+  png_write_png(png_ptr, info_ptr, transform, NULL);
+
+  png_destroy_write_struct(&png_ptr, &info_ptr);
+  free(row_pointers);
+
+  return state;
+}
+#endif
+
+void onHttp(server *s, websocketpp::connection_hdl hdl) 
+{
+  server::connection_ptr con = s->get_con_from_hdl(hdl);
+  con->append_header("Access-Control-Allow-Origin", "*");
+  con->append_header("Access-Control-Allow-Headers", "*");
+  con->append_header("Content-Type", "image/png");
+  
+  std::string query = con->get_resource();
+  // fprintf(stderr, "query=%s\n", query.c_str());
+
+  if (query == "/requestMesh") { 
+    con->set_body(ex->jsonfyMesh().dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/exitServer") {
+    wss.stop_listening();
+    stopVolren();
+  } else if (query == "/testPost") {
+    std::string posts = con->get_request_body();
+    fprintf(stderr, "posts=%s\n", posts.c_str());
+    con->set_body("hello world😱😱😱");
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestVolren") {
+    std::string posts = con->get_request_body();
+    // fprintf(stderr, "post_length=%zu, posts=%s\n", posts.size(), posts.c_str());
+
+    VolrenTask *task = createVolrenTaskFromString(posts);
+    enqueueAndWaitVolrenTask(task);
+
+    // response
+    std::string response(task->png.buffer, task->png.size); 
+    con->set_body(response);
+    con->set_status(websocketpp::http::status_code::ok);
+
+    // clean
+    freeVolrenTask(&task);
+  } else {
+    std::string response = "<html><body>404 not found</body></html>";
+    con->set_body(response);
+    con->set_status(websocketpp::http::status_code::not_found);
+  }
+}
+
 void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
   std::cout << "onMessage called with hdl: " << hdl.lock().get()
             << " and message: " << msg->get_payload()
@@ -59,17 +277,42 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 
   // check for a special command to instruct the server to stop listening so
   // it can be cleanly exited.
- 
+
   json incoming = json::parse(msg->get_payload());
   json outgoing;
+  bool binary = false;
+  char *buffer = NULL;
+  size_t buffer_length;
  
   if (incoming["type"] == "requestMesh") {
     fprintf(stderr, "requesting mesh!\n");
     outgoing["type"] = "mesh";
     outgoing["data"] = ex->jsonfyMesh();
+  } else if (incoming["type"] == "requestSingleSliceRawData") {
+    binary = true;
+    const int nNodes = ex->getNNodes();
+    const double *array0 = ex->getData();
+    buffer_length = sizeof(int) + nNodes*sizeof(float);
+    buffer = (char*)malloc(buffer_length);
+    int *type = (int*)buffer;
+    float *array = (float*)(buffer + sizeof(int));
+    *type = 10;
+    for (int i=0; i<nNodes; i++) 
+      array[i] = array0[i];
+  } else if (incoming["type"] == "requestMultipleSliceRawData") {
+    binary = true;
+    const int nNodes = ex->getNNodes();
+    const int nPhi = ex->getNPhi();
+    const double *array0 = ex->getData();
+    buffer_length = sizeof(int) + nNodes*nPhi*sizeof(float);
+    buffer = (char*)malloc(buffer_length);
+    int *type = (int*)buffer;
+    float *array = (float*)(buffer + sizeof(int));
+    *type = 11;
+    for (int i=0; i<nNodes*nPhi; i++) 
+      array[i] = array0[i];
   } else if (incoming["type"] == "requestData") {
     // int client_current_time_index = incoming["client_current_time_index"];
-
     outgoing["type"] = "data";
 
     mutex_ex.lock();
@@ -77,12 +320,27 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     const int nnodes = ex->getNNodes();
     const double *ptr = ex->getData(); 
     std::vector<double> dpot(ptr, ptr + nnodes);
+    // std::vector<int> labels = ex->getFlattenedLabels(0); // ex->getLabels(0);
     std::vector<int> labels = ex->getLabels(0);
     mutex_ex.unlock();
    
     outgoing["timestep"] = timestep;
     outgoing["data"] = dpot;
     outgoing["labels"] = labels;
+  } else if (incoming["type"] == "requestVolren") {
+#if 0
+    binary = true;
+    const int npx = viewport[2]*viewport[3];
+    buffer_length = sizeof(int) + npx*3;
+    buffer = (char*)malloc(buffer_length);
+    int *type = (int*)(buffer);
+    *type = 13;
+    unsigned char *fb = (unsigned char*)(buffer+sizeof(int));
+    memset(fb, 0, npx*3);
+    for (int i=0; i<npx; i++) 
+      fb[i*3] = 255;
+    // memcpy(buffer, framebuf, buffer_length);
+#endif
   } else if (incoming["type"] == "stopServer") {
     s->stop_listening();
     return;
@@ -90,7 +348,12 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 
   try {
     // s->send(hdl, msg->get_payload(), msg->get_opcode()); // echo
-    s->send(hdl, outgoing.dump(), websocketpp::frame::opcode::text);
+    if (binary) {
+      s->send(hdl, buffer, buffer_length, websocketpp::frame::opcode::binary);
+      free(buffer);
+    }
+    else
+      s->send(hdl, outgoing.dump(), websocketpp::frame::opcode::text);
   } catch (const websocketpp::lib::error_code& e) {
     std::cout << "Sending failed failed because: " << e
               << "(" << e.message() << ")" << std::endl;
@@ -99,23 +362,28 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 
 void startWebsocketServer(int port)
 {
+  using websocketpp::lib::placeholders::_1;
+  using websocketpp::lib::placeholders::_2;
+  using websocketpp::lib::bind;
+  
   try {
     // Set logging settings
-    wsserver.set_access_channels(websocketpp::log::alevel::all);
-    wsserver.clear_access_channels(websocketpp::log::alevel::frame_payload);
+    wss.set_access_channels(websocketpp::log::alevel::all);
+    wss.clear_access_channels(websocketpp::log::alevel::frame_payload);
 
     // Initialize Asio
-    wsserver.init_asio();
+    wss.init_asio();
 
     // Register our message handler
-    wsserver.set_message_handler(bind(&onMessage, &wsserver, ::_1, ::_2));
+    wss.set_message_handler(bind(&onMessage, &wss, _1, _2));
+    wss.set_http_handler(bind(&onHttp, &wss, _1));
 
     // Listen on port 9002
-    wsserver.listen(port);
+    wss.listen(port);
 
     // Start the server accept loop
-    wsserver.start_accept();
- 
+    wss.start_accept();
+#if 0 
     char hostname[1024];
     gethostname(hostname, 1024);
     fprintf(stderr, "=================WEBSOCKET================\n");
@@ -127,31 +395,118 @@ void startWebsocketServer(int port)
     fprintf(stderr, " 2. Open your web browser (we recommend Google Chrome or Safari), and open the following webpage:\n\n   http://www.mcs.anl.gov/~hguo/xgc\n\n");
     fprintf(stderr, "If you have any technical difficulties, please contact Hanqi Guo (hguo@anl.gov) directly.\n");
     fprintf(stderr, "==========================================\n");
-
+#endif
     // Start the ASIO io_service run loop
-    wsserver.run();
+    wss.run();
   } catch (websocketpp::exception const & e) {
-    std::cout << e.what() << std::endl;
+    std::cerr << e.what() << std::endl;
+    exit(EXIT_FAILURE);
   } catch (...) {
-    std::cout << "other exception" << std::endl;
+    std::cerr << "other exception" << std::endl;
+    exit(EXIT_FAILURE);
   }
 }
 
-void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
+void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn, double *dpot)
+{
+#ifdef VOLREN
+  fprintf(stderr, "[volren] building BVH...\n");
+  std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
+  // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
+
+  fprintf(stderr, "[volren] initialize CUDA...\n");
+  ctx_rc *rc;
+  rc_create_ctx(&rc);
+  rc_set_stepsize(rc, 0.001);
+  rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
+  
+  float *dpotf = (float*)malloc(sizeof(float)*nNodes*nPhi);
+  for (int i=0; i<nNodes*nPhi; i++)
+    dpotf[i] = dpot[i];
+  rc_bind_data(rc, nNodes, nPhi, dpotf);
+  free(dpotf);
+
+  volren_started = true;
+  while (1) { // volren loop
+    VolrenTask *task = NULL;
+    // dequeue task
+    {
+      std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+      while (volrenTaskQueue.empty()) {
+        cond_volrenTaskQueue.wait(mlock);
+      }
+      task = volrenTaskQueue.front();
+      volrenTaskQueue.pop();
+    }
+    
+    if (task->tag == VOLREN_RENDER) 
+    {
+      std::unique_lock<std::mutex> mlock(task->mutex);
+     
+      typedef std::chrono::high_resolution_clock clock;
+
+      fprintf(stderr, "[volren] rendering...\n");
+      auto t0 = clock::now();
+      rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
+      rc_set_invmvpd(rc, task->invmvpd);
+      rc_clear_output(rc);
+      rc_render(rc);
+      auto t1 = clock::now();
+      float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
+      fprintf(stderr, "[volren] volren time: %f ns\n", tt0);
+      
+      auto t2 = clock::now();
+      rc_copy_output_to_host(rc);
+      auto t3 = clock::now();
+      float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
+      fprintf(stderr, "[volren] volren download time: %f ns\n", tt2);
+      
+      // fprintf(stderr, "[volren] converting to png...\n");
+      auto t4 = clock::now();
+      task->png = save_png(task->viewport[2], task->viewport[3], 8, 
+          PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*task->viewport[2], PNG_TRANSFORM_IDENTITY);
+      auto t5 = clock::now();
+      float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
+      fprintf(stderr, "[volren] png compression time:%f\n ns", tt4);
+      
+      task->cond.notify_one();
+    } else if (task->tag == VOLREN_EXIT) {
+      fprintf(stderr, "[volren] exiting...\n");
+      rc_destroy_ctx(&rc);
+      volren_started = false;
+      task->cond.notify_one();
+      return;
+    }
+  }
+
+#if 0 // for testing
+  const int npx = 1024*768;
+  unsigned char *fb = (unsigned char*)malloc(npx*3);
+  for (int i=0; i<npx; i++) {
+    fb[i*3] = 255; 
+    fb[i*3+1] = 0;
+    fb[i*3+2] = 0;
+  }
+  volren_png_buffer = save_png(1024, 768, 8, PNG_COLOR_TYPE_RGB, fb, 3*1024, PNG_TRANSFORM_IDENTITY);
+  free(fb);
+
+  // FILE *fp = fopen("test1.png", "wb");
+  // fwrite(png.buffer, 1, png.size, fp);
+  // free(png.buffer);
+  // fclose(fp);
+#endif
+
+#endif
+}
+
+void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHandle, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
     int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
 {
-  const std::string groupName = "xgc_blobs", meshName="xgc_mesh2D"; // , fileName="test.bp";
-  int64_t groupHandle = -1, fileHandle = -1;
-
-  adios_init_noxml(comm);
-  adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
-  adios_select_method(groupHandle, writeMethod.c_str(), "", "");
-  adios_define_schema_version(groupHandle, (char*)"1.1");
-  adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
-
-  adios_delete_vardefs(groupHandle);
-  // adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
-  adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), (timestep == 1 ? "w" : "a"), comm);
+  int64_t fileHandle = -1;
+  if (writeMethod == "POSIX" || writeMethod == "MPI")
+    adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), "w", comm);
+  else 
+    adios_open(&fileHandle, groupName.c_str(), fileName.c_str(), (timestep == 1 ? "w" : "a"), comm);
 
   // fprintf(stderr, "groupHandle=%lld, fileHandle=%lld\n", groupHandle, fileHandle);
 
@@ -247,13 +602,20 @@ void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, const std::string
   }
 
   adios_close(fileHandle);
-  adios_finalize(0);
+  // adios_finalize(0);
 }
 
+void sigint_handler(int)
+{
+  stopVolren();
+  wss.stop_listening();
+  exit(0);
+}
 
 int main(int argc, char **argv)
 {
   std::thread *ws_thread = NULL;
+  std::thread *volren_thread = NULL;
 
   MPI_Init(&argc, &argv);
   
@@ -265,11 +627,14 @@ int main(int argc, char **argv)
     ("pattern", value<std::string>(), "input file pattern, e.g. 'xgc.3d.*.bp'.  only works for BP.")
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("output_prefix", value<std::string>()->default_value(""), "output file prefix (e.g. 'features' will generate features.%05d.bp)")
+    ("output_branches,o", value<std::string>()->default_value(""), "output_branches")
+    ("output_prefix_branches,o", value<std::string>()->default_value(""), "output_prefix_branches")
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
-    ("write_method,w", value<std::string>()->default_value("MPI"), "write_method (POSIX|MPI|DIMES)")
+    ("write_method,w", value<std::string>()->default_value("BIN"), "write_method (POSIX|MPI|DIMES|BIN), bin for raw binary")
     ("write_method_params", value<std::string>()->default_value(""), "write_method_params")
     ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
     ("server,s", "enable websocket server")
+    ("volren,v", "enable volren (-s required)")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
     ("help,h", "display this information");
   
@@ -306,17 +671,22 @@ int main(int argc, char **argv)
   }
 
   const std::string filename_mesh = vm["mesh"].as<std::string>();
-  const std::string filename_output = vm["output"].as<std::string>();
-  const std::string prefix_output = vm["output_prefix"].as<std::string>();
+  const std::string output_prefix = vm["output_prefix"].as<std::string>();
+  const std::string output_prefix_branches = vm["output_prefix_branches"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
   const std::string write_method_str = vm["write_method"].as<std::string>();
   const std::string write_method_params_str = vm["write_method_params"].as<std::string>();
+  std::string filename_output = vm["output"].as<std::string>();
+  std::string filename_output_branches = vm["output_branches"].as<std::string>();
   std::string filename_input;
   bool single_input = false;
   if (vm.count("input")) {
     filename_input = vm["input"].as<std::string>();
     single_input = true;
   }
+
+  bool write_binary = (vm["write_method"].as<std::string>() == "BIN");
+  bool volren = vm.count("volren") && vm.count("server");
 
   fprintf(stderr, "==========================================\n");
   fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
@@ -329,8 +699,8 @@ int main(int argc, char **argv)
   }
   if (filename_output.size() > 0) 
     fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
-  else if (prefix_output.size() > 0)
-    fprintf(stderr, "prefix_output=%s\n", prefix_output.c_str());
+  else if (output_prefix.size() > 0)
+    fprintf(stderr, "output_prefix=%s\n", output_prefix.c_str());
   else
     fprintf(stderr, "filename_output=(null)\n");
   fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
@@ -364,18 +734,26 @@ int main(int argc, char **argv)
 
   fprintf(stderr, "reading mesh...\n");
   double *coords;
-  int *conn;
-  double *psi; 
-  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn);
+  int *conn, *nextNode;
+  double *psi;
+  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn, &nextNode);
   readScalars<double>(meshFP, "psi", &psi);
   // adios_close(*meshFP);
 
-  // starting server
   ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
   
+  // starting server
   if (vm.count("server")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
+    signal(SIGINT, sigint_handler);
   }
+
+  // starting volren
+#if 0
+  if (volren) {
+    volren_thread = new std::thread(startVolren, nNodes, nTriangles, coords, conn);
+  }
+#endif
 
   // read data
   fprintf(stderr, "opening data stream...\n");
@@ -385,12 +763,23 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
     else 
       varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
-    fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
+    // fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
   }
-  // adios_read_bp_reset_dimension_order(varFP, 0);
+  adios_read_bp_reset_dimension_order(varFP, 0);
     
   double *dpot = NULL;
   size_t current_time_index = 0; // only for multiple inputs.
+
+  // output
+  int64_t groupHandle = -1;
+  if (!write_binary) {
+    adios_init_noxml(MPI_COMM_WORLD);
+    adios_declare_group(&groupHandle, groupName.c_str(), "", adios_stat_default);
+    adios_select_method(groupHandle, write_method_str.c_str(), "", "");
+    adios_define_schema_version(groupHandle, (char*)"1.1");
+    adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
+    adios_delete_vardefs(groupHandle);
+  }
 
   while (1) {
     if (single_input) {
@@ -407,8 +796,8 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
 
-    const int nPhi=1;
-    // readValueInt(varFP, "nphi", &nPhi);
+    int nPhi = 1;
+    readValueInt(varFP, "nphi", &nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
 
     ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
@@ -418,8 +807,8 @@ int main(int argc, char **argv)
     adios_inq_var_blockinfo(varFP, avi);
     adios_inq_var_meshinfo(varFP, avi);
 
-    // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {nPhi, static_cast<uint64_t>(nNodes), 1, 1};
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), nPhi, 1, 1};
+    // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), static_cast<uint64_t>(nPhi), 1, 1};
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nPhi), static_cast<uint64_t>(nNodes), 1, 1};
     ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
     // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
 
@@ -439,39 +828,48 @@ int main(int argc, char **argv)
     }
 
     fprintf(stderr, "starting analysis..\n");
-  
-#if 0
-    std::stringstream ssfilename;
-    ssfilename << "original-" << current_time_index << ".bp";
-    fprintf(stderr, "writing original data for test.\n");
-    writeUnstructredMeshData(MPI_COMM_WORLD, ssfilename.str().c_str(), 
-        write_method_str, nNodes, nTriangles, coords, conn, dpot, NULL, NULL); // psi, labels);
-    fprintf(stderr, "original data written.\n");
+   
     // FIXME
-    if (read_method == ADIOS_READ_METHOD_BP) continue;
-    else adios_advance_step(varFP, 0, 1.0);
-    continue;
-#endif
+    volren_thread = new std::thread(startVolren, nPhi, nNodes, nTriangles, coords, conn, dpot);
 
     mutex_ex.lock();
     ex->setData(current_time_index, nPhi, dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
-    ex->buildContourTree2D(0);
+    // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
+    // ex->buildContourTree2DAll();
     mutex_ex.unlock();
 
+    // write labels
     int *labels = ex->getLabels(0).data();
-
-    if (filename_output.length() > 0) {
-      fprintf(stderr, "writing results for timestep %d\n", current_time_index); 
-      writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, filename_output, write_method_str, write_method_params_str,
-          nNodes, nTriangles, coords, conn, dpot, psi, labels);
-    } else if (prefix_output.length() > 0) {
-      fprintf(stderr, "writing results for timestep %d\n", current_time_index); 
+    if (output_prefix.length() > 0) {
       std::stringstream ss_filename;
-      ss_filename << prefix_output << "." << std::setfill('0') << std::setw(5) << current_time_index << ".bp";
-      writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, ss_filename.str(), write_method_str, write_method_params_str,
-          nNodes, nTriangles, coords, conn, dpot, psi, labels);
+      ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << current_time_index 
+        << (write_binary ? ".bin" : ".bp");
+      filename_output = ss_filename.str();
+    }
+      
+    if (filename_output.length() > 0) {
+      fprintf(stderr, "writing results for timestep %zu to %s\n", 
+          current_time_index, filename_output.c_str());
+      if (write_binary)
+        ex->dumpLabels(filename_output);
+      else 
+        writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
+            nNodes, nTriangles, coords, conn, dpot, psi, labels);
+    }
+   
+    // write branches
+    if (output_prefix_branches.length() > 0) {
+      std::stringstream ss_filename;
+      ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << current_time_index << ".json";
+      filename_output_branches = ss_filename.str();
+    }
+
+    if (filename_output_branches.length() > 0) {
+      fprintf(stderr, "writing branch decompositions for timestep %zu to %s\n", 
+          current_time_index, filename_output_branches.c_str()); 
+      // ex->dumpBranches(filename_output_branches, branchSet);
     }
     
     fprintf(stderr, "done.\n");
@@ -491,8 +889,13 @@ int main(int argc, char **argv)
 #endif
   
   if (ws_thread) {
-    fprintf(stderr, "shutting down wsserver...\n");
+    fprintf(stderr, "shutting down wss...\n");
     ws_thread->join();
+  }
+
+  if (volren_thread) {
+    fprintf(stderr, "shutting down volren...\n");
+    volren_thread->join();
   }
    
   // adios_close(*varFP);
@@ -502,6 +905,8 @@ int main(int argc, char **argv)
   ex = NULL;
   free(coords);
   free(conn);
+  free(nextNode);
+  adios_finalize(0);
 
   fprintf(stderr, "exiting...\n");
   MPI_Finalize();

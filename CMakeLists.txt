@@ -3,6 +3,7 @@ project (xgc_vis)
 
 option (XGCVIS_BUILD_CORE "Build core analysis code" ON)
 option (XGCVIS_BUILD_GUI "Build GUI" OFF)
+option (XGCVIS_BUILD_VOLREN "Build VolRen" OFF)
 option (XGCVIS_BUILD_CONVERTER "Build VTK converter" OFF)
 
 set (CMAKE_CXX_STANDARD 11)
@@ -21,14 +22,23 @@ include_directories (
   ${PROJECT_SOURCE_DIR}/third_party/libtourtre/include
   ${PROJECT_SOURCE_DIR}/third_party/json
   ${PROJECT_SOURCE_DIR}/third_party/websocketpp
+  ${PROJECT_SOURCE_DIR}/third_party/concurrentqueue
+  ${PROJECT_SOURCE_DIR}/third_party/cutil
   ${Boost_INCLUDE_DIR}
 )
 
+if (XGCVIS_BUILD_VOLREN)
+  find_package (PNG REQUIRED)
+  include_directories (${PNG_INCLUDE_DIRS})
+  find_package (CUDA REQUIRED)
+  set (CUDA_PROPAGATE_HOST_FLAGS OFF)
+  add_definitions (-DVOLREN)
+  add_subdirectory (volren)
+endif ()
+
 if (XGCVIS_BUILD_CORE)
   find_package (ADIOS REQUIRED)
-  include_directories (
-    ${ADIOS_INCLUDE_DIRS} 
-  )
+  include_directories (${ADIOS_INCLUDE_DIRS})
   add_subdirectory (core)
 endif ()
 
@@ -49,3 +59,4 @@ if (XGCVIS_BUILD_CONVERTER)
 endif ()
 
 add_subdirectory (third_party/libtourtre)
+add_subdirectory (common)

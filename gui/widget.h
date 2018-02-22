@@ -12,6 +12,11 @@
 #include <set>
 #include "trackball.h"
 
+#ifndef Q_MOC_RUN
+#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/client.hpp>
+#endif
+
 class QMouseEvent;
 class QKeyEvent; 
 class QWheelEvent; 
@@ -62,6 +67,16 @@ private:
 
   void extractExtremum(int plane, double *dpot);
   void constructDiscreteGradient(double *dpot);
+
+public: // client
+  std::thread *thread_ws;
+  void connectToWebSocketServer(const std::string& uri);
+  
+  typedef websocketpp::client<websocketpp::config::asio_client> client;
+  typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
+ 
+  client c;
+  void onMessage(client* c, websocketpp::connection_hdl hdl, message_ptr msg);
 
 private:
   CGLTrackball _trackball;
