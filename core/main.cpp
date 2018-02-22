@@ -366,6 +366,7 @@ void startVolren(XGCMesh& m, double *dpot)
   fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
   rc_create_ctx(&rc);
+  rc_set_range(rc, -100.f, 100.f); // TODO
   rc_set_default_tf(rc);
   rc_set_stepsize(rc, 0.001);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());

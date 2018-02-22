@@ -105,14 +105,32 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
   return 0;
 }
 
+__device__ __host__ 
+static float4 value2color(float value, float *tf, float2 trans)
+{
+  static const int n = 256;
+  static const float delta = 1.f / (n-1);
+  const float x = clamp(value * trans.x + trans.y, 0.f, 0.9999f);
+  const int i = max((int)(x*delta), n-2) , j = i + 1;
+  const float beta = x - i*delta, alpha = 1 - beta;
+
+  return make_float4(
+      alpha * tf[i*4] + beta * tf[j*4], 
+      alpha * tf[i*4+1] + beta * tf[j*4+1], 
+      alpha * tf[i*4+2] + beta * tf[j*4+2], 
+      alpha * tf[i*4+3] + beta * tf[j*4+3]);
+}
+
+  
 template <int SHADING>
-__device__ /* __host__ */ static void rc(
+__device__ __host__ static void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
         float *data,              // volume data in unstructured mesh
         QuadNodeD *bvh,
         float *disp,
+        float *tf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -164,7 +182,8 @@ __device__ /* __host__ */ static void rc(
       // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
       // src = make_float4(lambda.x, lambda.y, lambda.z, 0.5);
       
-      src = tex1D(texTransferFunc, value * trans.x + trans.y);
+      // src = tex1D(texTransferFunc, value * trans.x + trans.y);
+      src = value2color(value, tf, trans);
 
       // float v = clamp(value*0.01, -0.5f, 0.5f);
       // src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
@@ -202,6 +221,7 @@ __device__ __host__ static void raycasting(
         float *data,              // volume data in unstructured mesh
         QuadNodeD *bvh,
         float *disp,
+        float *tf, 
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -217,10 +237,10 @@ __device__ __host__ static void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b1)
@@ -275,6 +295,7 @@ __global__ static void raycasting_kernel(
         float *data, 
         QuadNodeD *bvh,
         float *disp,
+        float *tf,
         float2 trans, 
         float stepsize)
 {
@@ -287,7 +308,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, trans, rayO, rayD, stepsize);
+  raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
 
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -315,6 +336,7 @@ static void raycasting_cpu(
         float *data, 
         QuadNodeD *bvh,
         float *disp,
+        float *tf,
         float2 trans, 
         float stepsize)
 {
@@ -324,7 +346,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, trans, rayO, rayD, stepsize);
+      raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -370,6 +392,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_data, 
           ctx->d_bvh,
           ctx->d_disp,
+          ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 
@@ -389,6 +412,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->h_data, 
           ctx->h_bvh,
           ctx->h_disp,
+          ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 }

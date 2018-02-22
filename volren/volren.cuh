@@ -10,7 +10,7 @@ extern "C" {
 struct QuadNodeD;
 struct cudaArray; 
 
-static const int size_tf = 1024;
+static const int size_tf = 256;
 
 struct ctx_rc {
   int viewport[4];
