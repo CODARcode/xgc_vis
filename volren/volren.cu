@@ -112,6 +112,7 @@ __device__ /* __host__ */ static void rc(
         int nNodes,               // number of nodes 
         float *data,              // volume data in unstructured mesh
         QuadNodeD *bvh,
+        float *disp,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -200,6 +201,7 @@ __device__ __host__ static void raycasting(
         int nNodes,               // number of nodes 
         float *data,              // volume data in unstructured mesh
         QuadNodeD *bvh,
+        float *disp,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -215,10 +217,10 @@ __device__ __host__ static void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b1)
@@ -272,6 +274,7 @@ __global__ static void raycasting_kernel(
         int nNode, 
         float *data, 
         QuadNodeD *bvh,
+        float *disp,
         float2 trans, 
         float stepsize)
 {
@@ -284,7 +287,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
+  raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, trans, rayO, rayD, stepsize);
 
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -311,6 +314,7 @@ static void raycasting_cpu(
         int nNode, 
         float *data, 
         QuadNodeD *bvh,
+        float *disp,
         float2 trans, 
         float stepsize)
 {
@@ -320,7 +324,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNode, data, bvh, trans, rayO, rayD, stepsize);
+      raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -365,6 +369,7 @@ void rc_render(ctx_rc *ctx)
           ctx->nNodes,
           ctx->d_data, 
           ctx->d_bvh,
+          ctx->d_disp,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 
@@ -383,6 +388,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->nNodes,
           ctx->h_data, 
           ctx->h_bvh,
+          ctx->h_disp,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 }
