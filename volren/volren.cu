@@ -67,6 +67,20 @@ int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda)
 }
 
 __device__ __host__
+int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda)
+{
+  // check if last_nid is valid
+  if (last_nid<0) return QuadNodeD_locatePoint(bvh, x, y, lambda);
+
+  // check if in the same triangle
+  if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda)) return last_nid;
+
+  // TODO: check if in the neighbors of last_nid
+
+  return QuadNodeD_locatePoint(bvh, x, y, lambda);
+}
+
+__device__ __host__
 float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
   const QuadNodeD &q = bvh[nid];
 
