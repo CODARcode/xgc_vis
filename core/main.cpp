@@ -242,6 +242,7 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
     con->set_body(ex->jsonfyMesh().dump());
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/exitServer") {
+    con->close(0, "exit");
     wss.stop_listening();
     stopVolren();
   } else if (query == "/testPost") {
