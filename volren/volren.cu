@@ -106,7 +106,7 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
 }
 
 template <int SHADING>
-__device__ __host__ static void rc(
+__device__ /* __host__ */ static void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
@@ -140,14 +140,8 @@ __device__ __host__ static void rc(
     float z = pos.z;
 
     float3 lambda;
-#if 0 // coherent point locating
-    if (last_nid > 0 && QuadNodeD_insideTriangle(bvh[last_nid], r, z, lambda)) // coherent
-      nid = last_nid;
-    else 
-      nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
-#else  
     nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
-#endif
+    // nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda);
 
     if (nid != -1) {
       const float unitAngle = pi2/nPhi;
@@ -161,20 +155,18 @@ __device__ __host__ static void rc(
 
       float value = (1-alpha)*v0 + alpha*v1;
       
-      float v = clamp(value*0.01, -0.5f, 0.5f);
       // sample = interpolateXGC(bvh, pos, data); 
       // sample = QuadNodeD_sample(bvh, x, y, data);
       // sample = tex3Dtrans<DataType, readMode, TRANSFORM>(texVolume, trans, coords); 
-      // src = tex1D(texTransferFunc, sample);
       // src = make_float4(sample, 1.0-sample, 0.0, 0.9);
       // sample = pow(1.f - sample, 2.f); 
       // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
       // src = make_float4(lambda.x, lambda.y, lambda.z, 0.5);
+      
+      src = tex1D(texTransferFunc, value * trans.x + trans.y);
 
-      src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
-      // src = make_float4(phi/(pi*2), 1-phi/(pi*2), 0, 0.3);
-      // src = make_float4(p1/8.0, 0.5, 0, 0.3);
-      // src = make_float4(1, 0, 0, 0.3);
+      // float v = clamp(value*0.01, -0.5f, 0.5f);
+      // src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
 
 #if 0
       if (SHADING) {
@@ -408,9 +400,23 @@ void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 #endif
 }
 
+void rc_set_default_tf(ctx_rc *ctx)
+{
+  float *tf = ctx->h_tf;
+  for (int i=0; i<size_tf; i++) {
+    float x = (float)i / size_tf;
+    tf[i*4] = x;
+    tf[i*4+1] = 1-x;
+    tf[i*4+2] = 0.f;
+    tf[i*4+3] = 0.2;
+  }
+  rc_set_tf(ctx, tf);
+}
+
 void rc_set_tf(ctx_rc *ctx, float *tf) 
 {
-  memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
+  if (tf != ctx->h_tf)
+    memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
 
 #if WITH_CUDA
   cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();

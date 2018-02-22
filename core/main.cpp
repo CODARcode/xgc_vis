@@ -342,9 +342,10 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
   fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
   rc_create_ctx(&rc);
+  rc_set_default_tf(rc);
   rc_set_stepsize(rc, 0.001);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
-  rc_test_point_locator(rc, 2.3f, -0.4f);
+  // rc_test_point_locator(rc, 2.3f, -0.4f);
   
   float *dpotf = (float*)malloc(sizeof(float)*nNodes*nPhi);
   for (int i=0; i<nNodes*nPhi; i++)

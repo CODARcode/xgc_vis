@@ -43,6 +43,7 @@ void rc_destroy_ctx(ctx_rc **ctx);
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *nodes);
 void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data);
 
+void rc_set_default_tf(ctx_rc *ctx);
 void rc_set_tf(ctx_rc *ctx, float *tf); 
 void rc_set_stepsize(ctx_rc *ctx, float stepsize); 
 void rc_set_viewport(ctx_rc *ctx, int x, int y, int w, int h);
