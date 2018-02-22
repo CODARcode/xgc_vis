@@ -1,5 +1,4 @@
 body {margin: 0;}
-canvas {width: 100%; height: 100%}
 
 #popup {
   display: none;
@@ -78,10 +77,7 @@ canvas {width: 100%; height: 100%}
 }
 
 #legend-div {
-  position: absolute;
   z-index: 100000;
-  right: 0;
-  bottom: 0;
   width: 270px;
   height: 60px;
   background-color: rgba(255, 255, 255, 0.3);
@@ -158,4 +154,13 @@ canvas {width: 100%; height: 100%}
 
 .pointer-class {
   cursor: pointer;
+}
+
+.lm_content .dg.a {
+  float: initial;
+}
+
+.volren-image {
+  position: relative;
+  pointer-events: none;
 }

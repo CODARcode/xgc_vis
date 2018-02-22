@@ -1,0 +1,19 @@
+  - remove stats
+  - resize
+  
+  - 3d image
+  - tree
+    - calculate y value
+    - draw O -> xz project 
+    - draw y link
+    - draw red / blue color 
+  - TF widget
+  - seperate initial and rendering 
+
+  - console width 
+  - timestep
+  - 2d check hovering point
+  - 3d customer color transparent
+  - 2d remove timestep 
+  - reconnect
+  - loading img
