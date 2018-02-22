@@ -219,6 +219,15 @@ __device__ static void raycasting(
 #endif
 }
 
+__global__ static void test_point_locator_kernel(
+    int *output, 
+    float x, float y,
+    QuadNodeD *bvh)
+{
+  float3 lambda;
+  *output = QuadNodeD_locatePoint(bvh, x, y, lambda);
+}
+
 template <int SHADING>
 __global__ static void raycasting_kernel(
         unsigned char *output_rgba8,
@@ -274,6 +283,17 @@ __global__ static void raycasting_kernel(
 
 /////////////////////////////
 extern "C" {
+
+void rc_test_point_locator(ctx_rc *ctx, float x, float y)
+{
+  test_point_locator_kernel<<<1, 1>>>(
+      (int*)ctx->d_output_rgba8, 
+      x, y, ctx->d_bvh);
+
+  int nid;
+  cudaMemcpy(&nid, ctx->d_output_rgba8, sizeof(int), cudaMemcpyDeviceToHost);
+  fprintf(stderr, "[rc_test_point_locator] x={%f, %f}, nid=%d\n", x, y, nid);
+}
 
 void rc_render(ctx_rc *ctx)
 {

@@ -210,7 +210,7 @@ png_mem_buffer save_png(int width, int height,
   png_bytep* row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * height);
 
   for (i = 0; i < height; ++i) {
-    row_pointers[i] = data + i * pitch;
+    row_pointers[i] = data + (height - i - 1) * pitch;
   }
 
   struct png_mem_buffer state;
@@ -420,6 +420,7 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
   rc_create_ctx(&rc);
   rc_set_stepsize(rc, 0.001);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
+  rc_test_point_locator(rc, 2.f, -0.4f);
   
   float *dpotf = (float*)malloc(sizeof(float)*nNodes*nPhi);
   for (int i=0; i<nNodes*nPhi; i++)

@@ -46,6 +46,8 @@ void rc_set_range(ctx_rc *ctx, float a, float b);
 
 void rc_render(ctx_rc *ctx);
 
+void rc_test_point_locator(ctx_rc *ctx, float x, float y);
+
 void rc_clear_output(ctx_rc *ctx); 
 // void rc_dump_output(ctx_rc *ctx, float *output); 
 void rc_copy_output_to_host(ctx_rc *ctx); 
