@@ -67,6 +67,68 @@ std::queue<VolrenTask*> volrenTaskQueue;
 std::mutex mutex_volrenTaskQueue;
 std::condition_variable cond_volrenTaskQueue;
 
+void freeVolrenTask(VolrenTask **task)
+{
+  free((*task)->png.buffer);
+  delete *task;
+  task = NULL;
+}
+
+VolrenTask* createVolrenTaskFromString(const std::string& query)
+{
+  const int defaulat_viewport[4] = {0, 0, 720, 382};
+  const double defaulat_invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
+    
+  // create task
+  VolrenTask *task = new VolrenTask;
+ 
+  // parse query
+  try {
+    json j = json::parse(query);
+    fprintf(stderr, "[volren] json parameter: %s\n", j.dump().c_str());
+
+    if (j["width"].is_null() || j["height"].is_null())
+      memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
+    else {
+      task->viewport[0] = 0;
+      task->viewport[1] = 0;
+      task->viewport[2] = j["width"];
+      task->viewport[3] = j["height"];
+    }
+
+    if (j["matrix"].is_null())
+      memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
+    else {
+      for (int i=0; i<16; i++) 
+        task->invmvpd[i] = j["matrix"][i];
+    }
+
+  } catch (...) {
+    fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");
+    memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
+    memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
+  }
+
+  return task;
+}
+
+void enqueueAndWaitVolrenTask(VolrenTask* task)
+{
+  // enqueue
+  {
+    std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+    volrenTaskQueue.push(task);
+    mlock.unlock();
+    cond_volrenTaskQueue.notify_one();
+  }
+
+  // wait
+  {
+    std::unique_lock<std::mutex> mlock(task->mutex);
+    task->cond.wait(mlock);
+  }
+}
+
 std::set<size_t> loadSkipList(const std::string& filename)
 {
   std::ifstream ifs(filename, std::ifstream::in);
@@ -162,57 +224,19 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   if (query == "/requestMesh") { 
     con->set_body(ex->jsonfyMesh().dump());
     con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/exitServer") {
+    // TODO
   } else if (query == "/testPost") {
     std::string posts = con->get_request_body();
     fprintf(stderr, "posts=%s\n", posts.c_str());
     con->set_body("hello world😱😱😱");
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/requestVolren") {
-    const int defaulat_viewport[4] = {0, 0, 720, 382};
-    const double defaulat_invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
-    
-    // create task
-    VolrenTask *task = new VolrenTask;
-
-    // parse arguments
     std::string posts = con->get_request_body();
-    fprintf(stderr, "post_length=%zu, posts=%s\n", posts.size(), posts.c_str());
+    // fprintf(stderr, "post_length=%zu, posts=%s\n", posts.size(), posts.c_str());
 
-    try {
-      json j = json::parse(con->get_request_body());
-      if (j["width"].is_null() || j["height"].is_null())
-        memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
-      else {
-        task->viewport[0] = 0;
-        task->viewport[1] = 0;
-        task->viewport[2] = j["width"];
-        task->viewport[3] = j["height"];
-      }
-
-      if (j["matrix"].is_null())
-        memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
-      else {
-        for (int i=0; i<16; i++) 
-          task->invmvpd[i] = j["matrix"][i];
-      }
-    } catch (...) {
-      memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
-      memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
-    }
-
-    // enqueue
-    {
-      std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
-      volrenTaskQueue.push(task);
-      mlock.unlock();
-      cond_volrenTaskQueue.notify_one();
-    }
-
-    // wait
-    {
-      std::unique_lock<std::mutex> mlock(task->mutex);
-      task->cond.wait(mlock);
-    }
+    VolrenTask *task = createVolrenTaskFromString(posts);
+    enqueueAndWaitVolrenTask(task);
 
     // response
     std::string response(task->png.buffer, task->png.size); 
@@ -220,8 +244,7 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
     con->set_status(websocketpp::http::status_code::ok);
 
     // clean
-    free(task->png.buffer);
-    delete task;
+    freeVolrenTask(&task);
   } else {
     std::string response = "<html><body>404 not found</body></html>";
     con->set_body(response);
@@ -365,18 +388,6 @@ void startWebsocketServer(int port)
     exit(EXIT_FAILURE);
   }
 }
-
-#if 0
-void enqueueAndWaitVolrenTask(VolrenTask* task)
-{
-  std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
-  volrenTaskQueue.push(task);
-  mlock.unlock();
-  cond_volrenTaskQueue.notify_one();
-
-  task->cond.wait(task->mutex);
-}
-#endif
 
 void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn, double *dpot)
 {
