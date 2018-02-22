@@ -153,6 +153,7 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
 {
   server::connection_ptr con = s->get_con_from_hdl(hdl);
   con->append_header("Access-Control-Allow-Origin", "*");
+  con->append_header("contentType", "image/png");
   
   std::string query = con->get_resource();
   // fprintf(stderr, "query=%s\n", query.c_str());
