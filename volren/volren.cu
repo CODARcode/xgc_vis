@@ -1,6 +1,11 @@
 #include "volren.cuh"
 #include "bvh.cuh"
 #include "common.cuh"
+  
+#if WITH_CUDA
+texture<float4, 1, cudaReadModeElementType> texTransferFunc;
+#endif
+
 
 __device__ __host__
 bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
@@ -88,10 +93,6 @@ float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
     + lambda.y * data[q.i1]
     + lambda.z * data[q.i2];
 }
-
-#if WITH_CUDA
-texture<float4, 1, cudaReadModeElementType> texTransferFunc;
-#endif
 
 __device__ __host__
 float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
@@ -407,17 +408,22 @@ void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 #endif
 }
 
-void rc_bind_transfer_function_array(cudaArray* array)
+void rc_set_tf(ctx_rc *ctx, float *tf) 
 {
+  memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
+
 #if WITH_CUDA
-  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>(); 
+  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+
+  cudaMemcpy(ctx->d_tf, tf, sizeof(float)*size_tf*4, cudaMemcpyHostToDevice);
+  cudaMemcpyToArray( ctx->d_tfArray, 0, 0, tf, size_tf*4, cudaMemcpyHostToDevice ); 
 
   texTransferFunc.normalized = true; 
   texTransferFunc.filterMode = cudaFilterModeLinear; 
   texTransferFunc.addressMode[0] = cudaAddressModeClamp; 
-  cudaBindTextureToArray(texTransferFunc, array, channelDesc); 
+  cudaBindTextureToArray(texTransferFunc, ctx->d_tfArray, channelDesc); 
 
-  checkLastCudaError("[rc_bind_transfer_function_array]");
+  checkLastCudaError("[rc_set_tf]");
 #endif
 }
 
@@ -438,13 +444,19 @@ void rc_create_ctx(ctx_rc **ctx)
   *ctx = (ctx_rc*)malloc(sizeof(ctx_rc));
   memset(*ctx, 0, sizeof(ctx_rc));
 
+  (*ctx)->h_tf = (float*)malloc(sizeof(float)*size_tf*4);
+
   const size_t max_npx = 4096*4096;
 
 #if WITH_CUDA
   cudaSetDevice(0);
   cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
   (*ctx)->h_output = malloc(4*max_npx);
+  
+  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+  cudaMallocArray( &(*ctx)->d_tfArray, &channelDesc, size_tf*4, 1 ); 
 
+  cudaMalloc((void**)&((*ctx)->d_tf), sizeof(float)*size_tf*4);
   cudaMalloc((void**)&((*ctx)->d_viewport), sizeof(int)*4);
   cudaMalloc((void**)&((*ctx)->d_invmvp), sizeof(float)*16);
   
@@ -459,6 +471,7 @@ void rc_destroy_ctx(ctx_rc **ctx)
   cudaFree((*ctx)->d_output_rgba8);
 #endif
   free((*ctx)->h_output);
+  free((*ctx)->h_tf);
   free(*ctx); 
   *ctx = NULL; 
 }
