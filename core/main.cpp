@@ -49,7 +49,7 @@ struct XGCMesh {
   double *psi = NULL;
   float *dispf = NULL; // displacement derived from nextNode
 
-  void deriveDisplacement() {
+  void deriveDisplacements() {
     dispf = (float*)realloc(dispf, sizeof(float)*nNodes*2);
     for (int i=0; i<nNodes; i++) {
       int j = nextNode[i];
@@ -358,11 +358,10 @@ void startWebsocketServer(int port)
   }
 }
 
-void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn, double *dpot)
+void startVolren(XGCMesh& m, double *dpot)
 {
   fprintf(stderr, "[volren] building BVH...\n");
-  std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
-  // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
+  std::vector<QuadNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
 
   fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
@@ -372,10 +371,11 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
   // rc_test_point_locator(rc, 2.3f, -0.4f);
   
-  float *dpotf = (float*)malloc(sizeof(float)*nNodes*nPhi);
-  for (int i=0; i<nNodes*nPhi; i++)
+  float *dpotf = (float*)malloc(sizeof(float)*m.nNodes*m.nPhi);
+  for (int i=0; i<m.nNodes*m.nPhi; i++)
     dpotf[i] = dpot[i];
-  rc_bind_data(rc, nNodes, nPhi, dpotf);
+  rc_bind_disp(rc, m.nNodes, m.dispf);
+  rc_bind_data(rc, m.nNodes, m.nPhi, dpotf);
   free(dpotf);
 
   volren_started = true;
@@ -686,7 +686,7 @@ int main(int argc, char **argv)
   fprintf(stderr, "reading mesh...\n");
   readTriangularMesh(meshFP, mesh.nNodes, mesh.nTriangles, &mesh.coords, &mesh.conn, &mesh.nextNode);
   readScalars<double>(meshFP, "psi", &mesh.psi);
-  mesh.deriveDisplacement();
+  mesh.deriveDisplacements();
   // adios_close(*meshFP);
 
   ex = new XGCBlobExtractor(mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn);
@@ -779,7 +779,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "starting analysis..\n");
    
     // FIXME
-    volren_thread = new std::thread(startVolren, mesh.nPhi, mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn, dpot);
+    volren_thread = new std::thread(startVolren, std::ref(mesh), dpot);
 
     mutex_ex.lock();
     ex->setData(current_time_index, mesh.nPhi, dpot);

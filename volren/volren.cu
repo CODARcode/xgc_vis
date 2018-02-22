@@ -433,6 +433,16 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
 #endif
 }
 
+void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp)
+{
+  ctx->h_disp = disp;
+#if WITH_CUDA
+  if (ctx->d_disp == NULL)
+    cudaMalloc((void**)&ctx->d_disp, sizeof(float)*nNodes*2);
+  cudaMemcpy(ctx->d_disp, disp, sizeof(float)*nNodes*2, cudaMemcpyHostToDevice);
+#endif
+}
+
 void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data)
 {
   ctx->h_data = data;
