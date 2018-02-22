@@ -20,6 +20,8 @@ struct ctx_rc {
   int *d_viewport;
   float *d_invmvp;
 
+  float *d_disp, *h_disp;
+
   float *d_data, *h_data;
   int nNodes, nPhi;
 
@@ -40,7 +42,8 @@ struct ctx_rc {
 void rc_create_ctx(ctx_rc **ctx); 
 void rc_destroy_ctx(ctx_rc **ctx); 
 
-void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *nodes);
+void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp);
+void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh);
 void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data);
 
 void rc_set_default_tf(ctx_rc *ctx);
