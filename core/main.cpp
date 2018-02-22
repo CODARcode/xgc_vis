@@ -453,6 +453,7 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
       rc_set_invmvpd(rc, task->invmvpd);
       rc_clear_output(rc);
       rc_render(rc);
+      // rc_render_cpu(rc);
       auto t1 = clock::now();
       float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
       fprintf(stderr, "[volren] volren time: %f ns\n", tt0);
