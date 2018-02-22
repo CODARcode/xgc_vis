@@ -54,14 +54,21 @@ struct png_mem_buffer {
 // png_mem_buffer volren_png_buffer;
 // float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
 
+enum {
+  VOLREN_RENDER = 0,
+  VOLREN_EXIT = 1
+};
+
 struct VolrenTask {
-  int tag = 0;
+  int tag = VOLREN_RENDER;
   int viewport[4];
   double invmvpd[16];
   png_mem_buffer png;
   std::condition_variable cond;
   std::mutex mutex;
 };
+
+bool volren_started = false;
 
 std::queue<VolrenTask*> volrenTaskQueue;
 std::mutex mutex_volrenTaskQueue;
@@ -126,6 +133,15 @@ void enqueueAndWaitVolrenTask(VolrenTask* task)
   {
     std::unique_lock<std::mutex> mlock(task->mutex);
     task->cond.wait(mlock);
+  }
+}
+
+void stopVolren()
+{
+  if (volren_started) {
+    VolrenTask *task = new VolrenTask;
+    task->tag = VOLREN_EXIT;
+    enqueueAndWaitVolrenTask(task);
   }
 }
 
@@ -216,7 +232,8 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
 {
   server::connection_ptr con = s->get_con_from_hdl(hdl);
   con->append_header("Access-Control-Allow-Origin", "*");
-  con->append_header("contentType", "image/png");
+  con->append_header("Access-Control-Allow-Headers", "*");
+  con->append_header("Content-Type", "image/png");
   
   std::string query = con->get_resource();
   // fprintf(stderr, "query=%s\n", query.c_str());
@@ -225,7 +242,8 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
     con->set_body(ex->jsonfyMesh().dump());
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/exitServer") {
-    // TODO
+    wss.stop_listening();
+    stopVolren();
   } else if (query == "/testPost") {
     std::string posts = con->get_request_body();
     fprintf(stderr, "posts=%s\n", posts.c_str());
@@ -408,6 +426,7 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
   rc_bind_data(rc, nNodes, nPhi, dpotf);
   free(dpotf);
 
+  volren_started = true;
   while (1) { // volren loop
     VolrenTask *task = NULL;
     // dequeue task
@@ -419,7 +438,8 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
       task = volrenTaskQueue.front();
       volrenTaskQueue.pop();
     }
-    // render
+    
+    if (task->tag == VOLREN_RENDER) 
     {
       std::unique_lock<std::mutex> mlock(task->mutex);
      
@@ -450,6 +470,12 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
       fprintf(stderr, "[volren] png compression time:%f\n ns", tt4);
       
       task->cond.notify_one();
+    } else if (task->tag == VOLREN_EXIT) {
+      fprintf(stderr, "[volren] exiting...\n");
+      rc_destroy_ctx(&rc);
+      volren_started = false;
+      task->cond.notify_one();
+      return;
     }
   }
 
@@ -579,6 +605,12 @@ void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHand
   // adios_finalize(0);
 }
 
+void sigint_handler(int)
+{
+  stopVolren();
+  wss.stop_listening();
+  exit(0);
+}
 
 int main(int argc, char **argv)
 {
@@ -713,6 +745,7 @@ int main(int argc, char **argv)
   // starting server
   if (vm.count("server")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
+    signal(SIGINT, sigint_handler);
   }
 
   // starting volren
