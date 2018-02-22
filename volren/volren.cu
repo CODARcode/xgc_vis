@@ -121,7 +121,7 @@ __device__ static void rc(
     pos = rayO + rayD*t;
 
     // cylindar coordinates
-    float r = pos.x*pos.x + pos.y*pos.y;
+    float r = sqrt(pos.x*pos.x + pos.y*pos.y);
     float phi = atan2(pos.y, pos.x) + pi;
     float z = pos.z;
 
@@ -160,6 +160,7 @@ __device__ static void rc(
       src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
       // src = make_float4(phi/(pi*2), 1-phi/(pi*2), 0, 0.3);
       // src = make_float4(p1/8.0, 0.5, 0, 0.3);
+      // src = make_float4(1, 0, 0, 0.3);
 
 #if 0
       if (SHADING) {

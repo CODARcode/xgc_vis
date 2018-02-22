@@ -268,7 +268,7 @@ std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coo
   fprintf(stderr, "BVH built.\n");
   typedef std::chrono::high_resolution_clock clock;
 
-  const double X[2] = {2.0, -0.4};
+  const double X[2] = {2.3, -0.4};
   auto t0 = clock::now();
   int r0 = locatePointBruteForce(X, root, nNodes, nTriangles, coords, conn);
   auto t1 = clock::now();
