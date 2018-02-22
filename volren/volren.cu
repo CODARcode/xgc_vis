@@ -340,6 +340,7 @@ static void raycasting_cpu(
         float2 trans, 
         float stepsize)
 {
+#pragma omp parallel for collapse(2)
   for (uint x = 0; x < viewport[2]; x ++) {
     for (uint y = 0; y < viewport[3]; y ++) {
       float3 rayO, rayD;
