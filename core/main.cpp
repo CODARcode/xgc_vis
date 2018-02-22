@@ -12,7 +12,7 @@
 #include <boost/program_options.hpp>
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
-#include <concurrentqueue.h>
+// #include <concurrentqueue.h>
 #include "core/bp_utils.hpp"
 #include "core/xgcBlobExtractor.h"
 
@@ -39,36 +39,32 @@ typedef server::message_ptr message_ptr;
 
 // using ConcurrentQueue = moodycamel::ConcurrentQueue;
 using json = nlohmann::json;
-using websocketpp::lib::placeholders::_1;
-using websocketpp::lib::placeholders::_2;
-using websocketpp::lib::bind;
 
 server wss;
 
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
-int viewport[4] = {0, 0, 720, 382};
-
 struct png_mem_buffer {
   char *buffer = NULL; 
   size_t size;
 };
 
-png_mem_buffer volren_png_buffer;
+// png_mem_buffer volren_png_buffer;
 // float *framebuf = (float*)malloc(sizeof(float)*4*2048*2048);
 
-#if 0
 struct VolrenTask {
+  int tag = 0;
   int viewport[4];
   double invmvpd[16];
-  float *fb = NULL; // framebuffer
+  png_mem_buffer png;
+  std::condition_variable cond;
+  std::mutex mutex;
 };
 
-struct SendTask {
-
-};
-#endif
+std::queue<VolrenTask*> volrenTaskQueue;
+std::mutex mutex_volrenTaskQueue;
+std::condition_variable cond_volrenTaskQueue;
 
 std::set<size_t> loadSkipList(const std::string& filename)
 {
@@ -156,12 +152,66 @@ png_mem_buffer save_png(int width, int height,
 void onHttp(server *s, websocketpp::connection_hdl hdl) 
 {
   server::connection_ptr con = s->get_con_from_hdl(hdl);
+  con->append_header("Access-Control-Allow-Origin", "*");
+  
   std::string query = con->get_resource();
+  // fprintf(stderr, "query=%s\n", query.c_str());
 
-  if (query == "/requestVolren") {
-    std::string response(volren_png_buffer.buffer, volren_png_buffer.size); 
+  if (query == "/requestMesh") { 
+    con->set_body(ex->jsonfyMesh().dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/testPost") {
+    std::string posts = con->get_request_body();
+    fprintf(stderr, "posts=%s\n", posts.c_str());
+    con->set_body("hello world😱😱😱");
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestVolren") {
+    const int defaulat_viewport[4] = {0, 0, 720, 382};
+    const double defaulat_invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
+    
+    // create task
+    VolrenTask *task = new VolrenTask;
+
+    // parse arguments
+    json j = json::parse(con->get_request_body());
+    if (j["width"].is_null() || j["height"].is_null())
+      memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
+    else {
+      task->viewport[0] = 0;
+      task->viewport[1] = 0;
+      task->viewport[2] = j["width"];
+      task->viewport[3] = j["height"];
+    }
+
+    if (j["matrix"].is_null())
+      memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
+    else {
+      for (int i=0; i<16; i++) 
+        task->invmvpd[i] = j["matrix"][i];
+    }
+
+    // enqueue
+    {
+      std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+      volrenTaskQueue.push(task);
+      mlock.unlock();
+      cond_volrenTaskQueue.notify_one();
+    }
+
+    // wait
+    {
+      std::unique_lock<std::mutex> mlock(task->mutex);
+      task->cond.wait(mlock);
+    }
+
+    // response
+    std::string response(task->png.buffer, task->png.size); 
     con->set_body(response);
     con->set_status(websocketpp::http::status_code::ok);
+
+    // clean
+    free(task->png.buffer);
+    delete task;
   } else {
     std::string response = "<html><body>404 not found</body></html>";
     con->set_body(response);
@@ -227,6 +277,7 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["data"] = dpot;
     outgoing["labels"] = labels;
   } else if (incoming["type"] == "requestVolren") {
+#if 0
     binary = true;
     const int npx = viewport[2]*viewport[3];
     buffer_length = sizeof(int) + npx*3;
@@ -238,6 +289,7 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     for (int i=0; i<npx; i++) 
       fb[i*3] = 255;
     // memcpy(buffer, framebuf, buffer_length);
+#endif
   } else if (incoming["type"] == "stopServer") {
     s->stop_listening();
     return;
@@ -259,6 +311,10 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 
 void startWebsocketServer(int port)
 {
+  using websocketpp::lib::placeholders::_1;
+  using websocketpp::lib::placeholders::_2;
+  using websocketpp::lib::bind;
+  
   try {
     // Set logging settings
     wss.set_access_channels(websocketpp::log::alevel::all);
@@ -268,8 +324,8 @@ void startWebsocketServer(int port)
     wss.init_asio();
 
     // Register our message handler
-    wss.set_message_handler(bind(&onMessage, &wss, ::_1, ::_2));
-    wss.set_http_handler(bind(&onHttp, &wss, ::_1));
+    wss.set_message_handler(bind(&onMessage, &wss, _1, _2));
+    wss.set_http_handler(bind(&onHttp, &wss, _1));
 
     // Listen on port 9002
     wss.listen(port);
@@ -299,35 +355,67 @@ void startWebsocketServer(int port)
   }
 }
 
+#if 0
+void enqueueAndWaitVolrenTask(VolrenTask* task)
+{
+  std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+  volrenTaskQueue.push(task);
+  mlock.unlock();
+  cond_volrenTaskQueue.notify_one();
+
+  task->cond.wait(task->mutex);
+}
+#endif
+
 void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn, double *dpot)
 {
 #ifdef VOLREN
+  fprintf(stderr, "[volren] building BVH...\n");
   std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
   // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
-  double invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
 
+  fprintf(stderr, "[volren] initialize CUDA...\n");
   ctx_rc *rc;
   rc_create_ctx(&rc);
   rc_set_stepsize(rc, 0.001);
-  rc_set_viewport(rc, 0, 0, viewport[2], viewport[3]);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
-
+  
   float *dpotf = (float*)malloc(sizeof(float)*nNodes*nPhi);
   for (int i=0; i<nNodes*nPhi; i++)
     dpotf[i] = dpot[i];
   rc_bind_data(rc, nNodes, nPhi, dpotf);
   free(dpotf);
 
-  fprintf(stderr, "[volren] rendering...\n");
-  rc_clear_output(rc);
-  rc_set_invmvpd(rc, invmvpd);
-  rc_render(rc);
-  rc_copy_output_to_host_rgb8(rc);
-
-  fprintf(stderr, "[volren] saving png...\n");
-  // FIXME: free previous png buffer
-  volren_png_buffer = save_png(viewport[2], viewport[3], 8, PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*viewport[2], PNG_TRANSFORM_IDENTITY);
-  fprintf(stderr, "[volren] png saved\n");
+  while (1) { // volren loop
+    VolrenTask *task = NULL;
+    // dequeue task
+    {
+      std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+      while (volrenTaskQueue.empty()) {
+        cond_volrenTaskQueue.wait(mlock);
+      }
+      task = volrenTaskQueue.front();
+      volrenTaskQueue.pop();
+    }
+    // render
+    {
+      std::unique_lock<std::mutex> mlock(task->mutex);
+      
+      fprintf(stderr, "[volren] rendering...\n");
+      rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
+      rc_set_invmvpd(rc, task->invmvpd);
+      rc_clear_output(rc);
+      rc_render(rc);
+      rc_copy_output_to_host_rgb8(rc);
+      
+      fprintf(stderr, "[volren] converting to png...\n");
+      task->png = save_png(task->viewport[2], task->viewport[3], 8, 
+          PNG_COLOR_TYPE_RGB, (unsigned char*)rc->h_output, 3*task->viewport[2], PNG_TRANSFORM_IDENTITY);
+      fprintf(stderr, "[volren] png ready to send.\n");
+      
+      task->cond.notify_one();
+    }
+  }
 
 #if 0 // for testing
   const int npx = 1024*768;
