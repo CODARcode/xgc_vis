@@ -123,7 +123,11 @@ inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int
   
   // cylindar coordinates
   float r2 = p.x*p.x + p.y*p.y;
+#ifdef __CUDA_ARCH__
+  float r = __fsqrt_rd(r2);
+#else
   float r = sqrt(r2);
+#endif
   float phi = atan2(p.y, p.x) + pi;
   float z = p.z;
   float3 lambda;
@@ -134,7 +138,11 @@ inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int
   const QuadNodeD &q = bvh[nid];
 
   const float deltaAngle = pi2/nPhi;
-  int p0 = (int)(phi/deltaAngle)%nPhi;
+#ifdef __CUDA_ARCH__
+  int p0 = __float2int_rd(fdividef(phi, deltaAngle)) % nPhi;
+#else
+  int p0 = (int)(phi/deltaAngle) % nPhi;
+#endif
   int p1 = (p0+1)%nPhi;
 
   // coef
@@ -200,18 +208,28 @@ inline int interpolateXGC2(float &value, float3 &g, QuadNodeD *bvh, float3 p, in
 }
 
 __device__ __host__ 
-static inline float4 value2color(float value, float *tf, float2 trans)
+static inline float4 value2color(float value, float4 *tf, float2 trans)
 {
+#ifdef __CUDA_ARCH__
+  const float x = __saturatef(value * trans.x + trans.y);
+#else
   const float x = clamp(value * trans.x + trans.y, 0.f, 1.f);
-#if 0
-  float v = x-0.5;
-  return make_float4(x, 1-x, 0, fminf(0.999f, v*v*40));
-#else 
+#endif
+
+  // float v = x-0.5;
+  // return make_float4(x, 1-x, 0, fminf(0.999f, v*v*40));
+  
   static const int n = 256;
   static const float delta = 1.f / (n-1);
+#ifdef __CUDA_ARCH__
+  const int i = min(__float2int_rd(x*(n-1)), n-2) , j = i + 1;
+#else
   const int i = min((int)(x*(n-1)), n-2) , j = i + 1;
+#endif
   const float beta = x - i*delta, alpha = 1 - beta;
 
+  return alpha * tf[i] + beta * tf[j];
+#if 0
   return make_float4(
       alpha * tf[i*4] + beta * tf[j*4], 
       alpha * tf[i*4+1] + beta * tf[j*4+1], 
@@ -232,7 +250,7 @@ __device__ __host__ static inline void rc(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf,
+        float4 *tf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -261,6 +279,7 @@ __device__ __host__ static inline void rc(
         lit = cook(N, V, L, Ka, Kd, Ks);
         // lit = phong(N, V, L, Ka, Kd, Ks, 100);
 #ifdef  __CUDA_ARCH__
+        // src = make_float4(N.x, N.y, N.z, src.w);
         src.x = __saturatef(src.x + lit.x); 
         src.y = __saturatef(src.y + lit.y); 
         src.z = __saturatef(src.z + lit.z); 
@@ -270,8 +289,12 @@ __device__ __host__ static inline void rc(
         src.z = clamp(src.z + lit.z, 0.f, 1.f);
 #endif
       }
-      
+     
+#ifdef __CUDA_ARCH__
+      src.w = 1.f - __powf(1.f - src.w, stepsize*4); // alpha correction  
+#else
       src.w = 1.f - pow(1.f - src.w, stepsize*4); // alpha correction  
+#endif
 
       dst.x += (1.0 - dst.w) * src.x * src.w;
       dst.y += (1.0 - dst.w) * src.y * src.w;
@@ -296,7 +319,7 @@ __device__ __host__ static inline void raycasting(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf, 
+        float4 *tf, 
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -374,7 +397,7 @@ __global__ static void raycasting_kernel(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf,
+        float4 *tf,
         float2 trans, 
         float stepsize)
 {
@@ -419,7 +442,7 @@ static void raycasting_cpu(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf,
+        float4 *tf,
         float2 trans, 
         float stepsize)
 {
@@ -481,7 +504,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_bvh,
           ctx->d_disp,
           ctx->d_invdet,
-          ctx->d_tf,
+          (float4*)ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 
@@ -506,7 +529,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->h_bvh,
           ctx->h_disp,
           ctx->h_invdet,
-          ctx->h_tf,
+          (float4*)ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 }
@@ -545,6 +568,7 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
     memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
 
 #if WITH_CUDA
+  fprintf(stderr, "sizeof(float4)=%d\n", sizeof(float4));
   cudaMemcpy(ctx->d_tf, tf, sizeof(float)*size_tf*4, cudaMemcpyHostToDevice);
  
 #if 0
