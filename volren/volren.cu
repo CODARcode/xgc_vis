@@ -143,22 +143,26 @@ inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, in
   int p1 = (p0+1)%nPhi;
   float alpha = (phi - deltaAngle*p0) / deltaAngle;
 
-  float dx = disp[nid*2], dy = disp[nid*2+1];
-  
-  // float dx = (1 - alpha) * disp[nid*2], 
-  //       dy = (1 - alpha) * disp[nid*2+1];
+  // interpolate disp
+  const QuadNodeD &q = bvh[nid];
+  float dx = lambda.x * disp[q.i0*2] + lambda.y * disp[q.i1*2] + lambda.z * disp[q.i2*2];
+  float dy = lambda.x * disp[q.i0*2+1] + lambda.y * disp[q.i1*2+1] + lambda.z * disp[q.i2*2+1];
  
   float3 lambda0, lambda1;
-  int nid0 = QuadNodeD_locatePoint(bvh, r+dx*(1-alpha), z+dy*(1-alpha), lambda0);
-  int nid1 = QuadNodeD_locatePoint(bvh, r+dx*alpha, z+dy*alpha, lambda1);
-  if (nid0 == -1 || nid1 == -1) return false;
+  int nid0 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*(1-alpha), z+dy*(1-alpha), lambda0);
+  int nid1 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*alpha, z+dy*alpha, lambda1);
+  if (nid0 == -1 || nid1 == -1) {
+    // fprintf(stderr, "nid=%d, nid0=%d, nid1=%d, dx=%f, dy=%f\n", nid, nid0, nid1, dx, dy);
+    return false;
+  }
 
   float v0 = QuadNodeD_sample(bvh, nid0, lambda0, data + nNodes*p0); //  + nNodes*p0);
   float v1 = QuadNodeD_sample(bvh, nid1, lambda1, data + nNodes*p1); //  + nNodes*p1);
 
+  // if (alpha<0 || alpha>=1) fprintf(stderr, "%f\n", alpha);
+  
   value = (1-alpha)*v0 + alpha*v1;
   return true;
-
 }
 
 __device__ __host__ 
@@ -212,6 +216,7 @@ __device__ __host__ static inline void rc(
     pos = rayO + rayD*t;
 
     const bool succ = interpolateXGC(value, bvh, pos, nPhi, nNodes, data);
+    // const bool succ = interpolateXGC2(value, bvh, pos, nPhi, nNodes, data, disp);
     if (succ) {
       src = value2color(value, tf, trans);
 #if 0
@@ -225,7 +230,7 @@ __device__ __host__ static inline void rc(
       }
 #endif
       
-      src.w = 1.f - pow(1.f - src.w, stepsize); // alpha correction  
+      src.w = 1.f - pow(1.f - src.w, stepsize*4); // alpha correction  
 
       dst.x += (1.0 - dst.w) * src.x * src.w;
       dst.y += (1.0 - dst.w) * src.y * src.w;
@@ -340,6 +345,8 @@ __global__ static void raycasting_kernel(
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
   output_rgba8[(y*viewport[2]+x)*4+2] = dst.z * 255;
   output_rgba8[(y*viewport[2]+x)*4+3] = dst.w * 255;
+
+  // if (y == 300) printf("%f\n", dst.w);
 
 #if 0
   // GL_ONE_MINUS_DST_ALPHA, GL_ONE
@@ -590,14 +597,21 @@ void rc_clear_output(ctx_rc *ctx)
 {
   memset(ctx->h_output, 0, ctx->viewport[2]*ctx->viewport[3]*4);
 #if WITH_CUDA
-  cudaMemset(ctx->d_output_rgba8, 0, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3]);
+  cudaMemset(ctx->d_output_rgba8, 0, 4*ctx->viewport[2]*ctx->viewport[3]);
 #endif
 }
 
 void rc_copy_output_to_host(ctx_rc *ctx)
 {
 #if WITH_CUDA
-  cudaMemcpy(ctx->h_output, ctx->d_output_rgba8, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost); 
+  cudaMemcpy(ctx->h_output, ctx->d_output_rgba8, 4*ctx->viewport[2]*ctx->viewport[3], cudaMemcpyDeviceToHost);
+#if 0
+  unsigned char* img = (unsigned char*)ctx->h_output;
+  const int j = 0;
+  for (int i=0; i<720; i++) {
+    fprintf(stderr, "%f\n", img[(j*720+i)*4+3]);
+  }
+#endif
 #endif
 }
 

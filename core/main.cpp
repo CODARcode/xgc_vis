@@ -54,7 +54,8 @@ struct XGCMesh {
     for (int i=0; i<nNodes; i++) {
       int j = nextNode[i];
       dispf[i*2] = coords[j*2] - coords[i*2];
-      dispf[i*2+1] = coords[j*2+1] - coords[j*2+1];
+      dispf[i*2+1] = coords[j*2+1] - coords[i*2+1];
+      // fprintf(stderr, "%d, %d, %f, %f\n", i, j, dispf[i*2], dispf[i*2+1]);
     }
   }
 
@@ -75,12 +76,19 @@ enum {
   VOLREN_EXIT = 1
 };
 
+enum {
+  VOLREN_FORMAT_RGBA8 = 0,
+  VOLREN_FORMAT_PNG = 1
+};
+
 struct VolrenTask {
   int tag = VOLREN_RENDER;
+  int format = VOLREN_FORMAT_PNG;
   int viewport[4];
   double invmvpd[16];
   float *tf = NULL;
   png_mem_buffer png;
+  unsigned char *fb = NULL;
   std::condition_variable cond;
   std::mutex mutex;
 };
@@ -95,6 +103,8 @@ void freeVolrenTask(VolrenTask **task)
 {
   if ((*task)->tf != NULL) 
     free((*task)->tf);
+  if ((*task)->fb != NULL) 
+    free((*task)->fb);
   if ((*task)->png.buffer != NULL)
     free((*task)->png.buffer);
   delete *task;
@@ -104,6 +114,7 @@ void freeVolrenTask(VolrenTask **task)
 VolrenTask* createVolrenTaskFromString(const std::string& query)
 {
   const int defaulat_viewport[4] = {0, 0, 720, 382};
+  // const int defaulat_viewport[4] = {0, 0, 1440, 764};
   const double defaulat_invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
     
   // create task
@@ -212,13 +223,27 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/requestVolren") {
     std::string posts = con->get_request_body();
-    // fprintf(stderr, "post_length=%zu, posts=%s\n", posts.size(), posts.c_str());
 
     VolrenTask *task = createVolrenTaskFromString(posts);
     enqueueAndWaitVolrenTask(task);
 
     // response
-    std::string response(task->png.buffer, task->png.size); 
+    std::string response(task->png.buffer, task->png.size);
+    con->set_body(response);
+    con->set_status(websocketpp::http::status_code::ok);
+    // con->defer_http_response();
+
+    // clean
+    freeVolrenTask(&task);
+  } else if (query == "/requestVolrenRGBA8") {
+    std::string posts = con->get_request_body();
+
+    VolrenTask *task = createVolrenTaskFromString(posts);
+    task->format = VOLREN_FORMAT_RGBA8;
+    enqueueAndWaitVolrenTask(task);
+
+    // response
+    std::string response((char*)task->fb, task->viewport[2] * task->viewport[3] * 4); 
     con->set_body(response);
     con->set_status(websocketpp::http::status_code::ok);
 
@@ -331,6 +356,7 @@ void startWebsocketServer(int port)
     // Set logging settings
     wss.set_access_channels(websocketpp::log::alevel::all);
     wss.clear_access_channels(websocketpp::log::alevel::frame_payload);
+    wss.set_open_handshake_timeout(0); // disable timer
 
     // Initialize Asio
     wss.init_asio();
@@ -431,13 +457,18 @@ void startVolren(XGCMesh& m, double *dpot)
       
       // fprintf(stderr, "[volren] converting to png...\n");
       auto t4 = clock::now();
+      if (task->format == VOLREN_FORMAT_PNG) {
 #if WITH_PNG
-      task->png = save_png(task->viewport[2], task->viewport[3], 8, 
-          PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*task->viewport[2], PNG_TRANSFORM_IDENTITY);
+        task->png = save_png(task->viewport[2], task->viewport[3], 8, 
+            PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*task->viewport[2], PNG_TRANSFORM_IDENTITY);
 #endif
+      } else if (task->format == VOLREN_FORMAT_RGBA8) {
+        task->fb = (unsigned char*)malloc(task->viewport[2]*task->viewport[3]*4);
+        memcpy(task->fb, rc->h_output, task->viewport[2]*task->viewport[3]*4);
+      }
       auto t5 = clock::now();
       float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
-      fprintf(stderr, "[volren] png compression time: %f ns\n", tt4);
+      fprintf(stderr, "[volren] png compression time: %f ns, size=%zu\n", tt4, task->png.size);
       
       task->cond.notify_one();
     } else if (task->tag == VOLREN_EXIT) {
@@ -795,6 +826,7 @@ int main(int argc, char **argv)
    
     // FIXME
     volren_thread = new std::thread(startVolren, std::ref(mesh), dpot);
+    enqueueAndWaitVolrenTask( createVolrenTaskFromString("") );
 
     mutex_ex.lock();
     ex->setData(current_time_index, mesh.nPhi, dpot);
