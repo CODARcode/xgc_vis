@@ -238,8 +238,8 @@ inline bool intersectCylinder(float3 rayO, float3 rayD, float &tnear, float &tfa
   else {
     float t0 = (-B-sqrtf(D))/(2*A);
     float t1 = (-B+sqrtf(D))/(2*A);
-    tnear = max(t0, tnear); 
-    tfar  = min(t1, tfar);
+    tnear = fmaxf(t0, tnear); 
+    tfar  = fminf(t1, tfar);
     return true;
   }
 }

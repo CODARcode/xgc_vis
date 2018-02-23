@@ -42,6 +42,31 @@ using json = nlohmann::json;
 
 server wss;
 
+struct XGCMesh {
+  int nNodes, nTriangles, nPhi;
+  int *conn = NULL, *nextNode = NULL;
+  double *coords = NULL;
+  double *psi = NULL;
+  float *dispf = NULL; // displacement derived from nextNode
+
+  void deriveDisplacements() {
+    dispf = (float*)realloc(dispf, sizeof(float)*nNodes*2);
+    for (int i=0; i<nNodes; i++) {
+      int j = nextNode[i];
+      dispf[i*2] = coords[j*2] - coords[i*2];
+      dispf[i*2+1] = coords[j*2+1] - coords[j*2+1];
+    }
+  }
+
+  ~XGCMesh() {
+    free(conn);
+    free(psi);
+    free(nextNode);
+    free(coords);
+    free(dispf);
+  }
+} mesh;
+
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
@@ -54,6 +79,7 @@ struct VolrenTask {
   int tag = VOLREN_RENDER;
   int viewport[4];
   double invmvpd[16];
+  float *tf = NULL;
   png_mem_buffer png;
   std::condition_variable cond;
   std::mutex mutex;
@@ -67,6 +93,8 @@ std::condition_variable cond_volrenTaskQueue;
 
 void freeVolrenTask(VolrenTask **task)
 {
+  if ((*task)->tf != NULL) 
+    free((*task)->tf);
   if ((*task)->png.buffer != NULL)
     free((*task)->png.buffer);
   delete *task;
@@ -100,6 +128,13 @@ VolrenTask* createVolrenTaskFromString(const std::string& query)
     else {
       for (int i=0; i<16; i++) 
         task->invmvpd[i] = j["matrix"][i];
+    }
+
+    if (!j["tf"].is_null()) {
+      json jtf = j["tf"];
+      task->tf = (float*)malloc(sizeof(float)*1024);
+      for (int i=0; i<1024; i++) 
+        task->tf[i] = jtf.at(i).get<float>() / 255.f;
     }
 
   } catch (...) {
@@ -333,23 +368,27 @@ void startWebsocketServer(int port)
   }
 }
 
-void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn, double *dpot)
+void startVolren(XGCMesh& m, double *dpot)
 {
   fprintf(stderr, "[volren] building BVH...\n");
-  std::vector<QuadNodeD> bvh = buildBVHGPU(nNodes, nTriangles, coords, conn);
-  // double invmvpd[16] = {1.26259, 0, 0, 0, 0, 0.669873, 0, 0, 0, 0, -30.9375, -4.95, 0, 0, 29.0625, 5.05};
+  std::vector<QuadNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
 
   fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
   rc_create_ctx(&rc);
-  rc_set_stepsize(rc, 0.001);
+  rc_set_range(rc, -100.f, 100.f); // TODO
+  // rc_set_range(rc, -50.f, 50.f); // TODO
+  rc_set_default_tf(rc);
+  // rc_set_stepsize(rc, 0.001);
+  rc_set_stepsize(rc, 0.002);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
-  rc_test_point_locator(rc, 2.3f, -0.4f);
+  // rc_test_point_locator(rc, 2.3f, -0.4f);
   
-  float *dpotf = (float*)malloc(sizeof(float)*nNodes*nPhi);
-  for (int i=0; i<nNodes*nPhi; i++)
+  float *dpotf = (float*)malloc(sizeof(float)*m.nNodes*m.nPhi);
+  for (int i=0; i<m.nNodes*m.nPhi; i++)
     dpotf[i] = dpot[i];
-  rc_bind_data(rc, nNodes, nPhi, dpotf);
+  rc_bind_disp(rc, m.nNodes, m.dispf);
+  rc_bind_data(rc, m.nNodes, m.nPhi, dpotf);
   free(dpotf);
 
   volren_started = true;
@@ -375,6 +414,8 @@ void startVolren(int nPhi, int nNodes, int nTriangles, double *coords, int *conn
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
+      if (task->tf) 
+        rc_set_tf(rc, task->tf);
       rc_clear_output(rc);
       rc_render(rc);
       // rc_render_cpu(rc);
@@ -656,18 +697,14 @@ int main(int argc, char **argv)
     } else break;
   }
   adios_read_bp_reset_dimension_order(meshFP, 0);
-  
-  int nNodes, nTriangles;
 
   fprintf(stderr, "reading mesh...\n");
-  double *coords;
-  int *conn, *nextNode;
-  double *psi;
-  readTriangularMesh(meshFP, nNodes, nTriangles, &coords, &conn, &nextNode);
-  readScalars<double>(meshFP, "psi", &psi);
+  readTriangularMesh(meshFP, mesh.nNodes, mesh.nTriangles, &mesh.coords, &mesh.conn, &mesh.nextNode);
+  readScalars<double>(meshFP, "psi", &mesh.psi);
+  mesh.deriveDisplacements();
   // adios_close(*meshFP);
 
-  ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
+  ex = new XGCBlobExtractor(mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn);
   
   // starting server
   if (vm.count("server")) {
@@ -723,8 +760,8 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
 
-    int nPhi = 1;
-    readValueInt(varFP, "nphi", &nPhi);
+    mesh.nPhi = 1;
+    readValueInt(varFP, "nphi", &mesh.nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
 
     ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
@@ -735,14 +772,14 @@ int main(int argc, char **argv)
     adios_inq_var_meshinfo(varFP, avi);
 
     // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), static_cast<uint64_t>(nPhi), 1, 1};
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nPhi), static_cast<uint64_t>(nNodes), 1, 1};
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(mesh.nPhi), static_cast<uint64_t>(mesh.nNodes), 1, 1};
     ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
     // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
 
     assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
     if (dpot == NULL) 
-      dpot = (double*)malloc(sizeof(double)*nPhi*nNodes);
+      dpot = (double*)malloc(sizeof(double)*mesh.nPhi*mesh.nNodes);
 
     adios_schedule_read_byid(varFP, sel, avi->varid, 0, 1, dpot);
     adios_perform_reads(varFP, 1);
@@ -757,10 +794,10 @@ int main(int argc, char **argv)
     fprintf(stderr, "starting analysis..\n");
    
     // FIXME
-    volren_thread = new std::thread(startVolren, nPhi, nNodes, nTriangles, coords, conn, dpot);
+    volren_thread = new std::thread(startVolren, std::ref(mesh), dpot);
 
     mutex_ex.lock();
-    ex->setData(current_time_index, nPhi, dpot);
+    ex->setData(current_time_index, mesh.nPhi, dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
@@ -783,7 +820,7 @@ int main(int argc, char **argv)
         ex->dumpLabels(filename_output);
       else 
         writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
-            nNodes, nTriangles, coords, conn, dpot, psi, labels);
+            mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn, dpot, mesh.psi, labels);
     }
    
     // write branches
@@ -830,9 +867,7 @@ int main(int argc, char **argv)
   if (dpot != NULL) free(dpot);
   delete ex;
   ex = NULL;
-  free(coords);
-  free(conn);
-  free(nextNode);
+
   adios_finalize(0);
 
   fprintf(stderr, "exiting...\n");
