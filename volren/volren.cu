@@ -91,12 +91,28 @@ inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x,
 }
 
 __device__ __host__
+inline float QuadNodeD_sample(int i0, int i1, int i2, float3 lambda, float *data) {
+  return lambda.x * data[i0] + lambda.y * data[i1] + lambda.z * data[i2];
+}
+
+__device__ __host__
+inline float2 QuadNodeD_sample2(int i0, int i1, int i2, float3 lambda, float *data) {
+  return make_float2(lambda.x * data[i0*2] + lambda.y * data[i1*2] + lambda.z * data[i2*2],
+      lambda.x * data[i0*2+1] + lambda.y * data[i1*2+1] + lambda.z * data[i2*2+1]);
+}
+
+__device__ __host__
 inline float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
   const QuadNodeD &q = bvh[nid];
+  return lambda.x * data[q.i0] + lambda.y * data[q.i1] + lambda.z * data[q.i2];
+}
 
-  return lambda.x * data[q.i0] 
-    + lambda.y * data[q.i1]
-    + lambda.z * data[q.i2];
+__device__ __host__
+inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
+  const QuadNodeD &q = bvh[nid];
+  return QuadNodeD_sample2(q.i0, q.i1, q.i2, lambda, data);
+  // return make_float2(lambda.x * data[q.i0*2] + lambda.y * data[q.i1*2] + lambda.z * data[q.i2*2],
+  //     lambda.x * data[q.i0*2+1] + lambda.y * data[q.i1*2+1] + lambda.z * data[q.i2*2+1]);
 }
 
 __device__ __host__
@@ -113,15 +129,19 @@ inline int interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int 
   
   int nid = QuadNodeD_locatePoint(bvh, r, z, lambda, invdet);
   if (nid == -1) return nid; 
-      
-  const float deltaAngle = pi2/nPhi;
+  
+  const QuadNodeD &q = bvh[nid];
 
+  const float deltaAngle = pi2/nPhi;
   int p0 = (int)(phi/deltaAngle)%nPhi;
   int p1 = (p0+1)%nPhi;
 
   float alpha = (phi - deltaAngle*p0) / deltaAngle;
-  float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0); //  + nNodes*p0);
-  float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1); //  + nNodes*p1);
+  // float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0);
+  // float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1);
+  float v0 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p0); //  + nNodes*p0);
+  float v1 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p1); //  + nNodes*p1);
+  // float dr0 = QuadNodeD
 
   value = (1-alpha)*v0 + alpha*v1;
   return nid;
