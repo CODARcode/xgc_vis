@@ -25,7 +25,7 @@ struct ctx_rc {
 
   float *d_data, *h_data;
   float *d_grad, *h_grad;
-  int nNodes, nPhi;
+  int nNodes, nPhi, nTriangles;
 
   // float *d_output;
   unsigned char *d_output_rgba8;

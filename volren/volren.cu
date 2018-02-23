@@ -116,13 +116,14 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
 }
 
 __device__ __host__
-inline int interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *invdet)
+inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float *grad, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
   
   // cylindar coordinates
-  float r = sqrt(p.x*p.x + p.y*p.y);
+  float r2 = p.x*p.x + p.y*p.y;
+  float r = sqrt(r2);
   float phi = atan2(p.y, p.x) + pi;
   float z = p.z;
   float3 lambda;
@@ -136,19 +137,27 @@ inline int interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int 
   int p0 = (int)(phi/deltaAngle)%nPhi;
   int p1 = (p0+1)%nPhi;
 
+  // coef
   float alpha = (phi - deltaAngle*p0) / deltaAngle;
+ 
+  // value interpolation
   // float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0);
   // float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1);
-  float v0 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p0); //  + nNodes*p0);
-  float v1 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p1); //  + nNodes*p1);
-  // float dr0 = QuadNodeD
-
+  float v0 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p0);
+  float v1 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p1);
   value = (1-alpha)*v0 + alpha*v1;
+  
+  // gradient interpolation
+  float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
+  float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
+  float2 cgrad = (1-alpha)*cgrad0 + alpha*cgrad1;
+  g = make_float3(p.x/r*cgrad.x - p.y/r2, p.y/r*cgrad.x - p.x/r2, cgrad.y);
+
   return nid;
 }
 
 __device__ __host__
-inline int interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *disp, float *invdet)
+inline int interpolateXGC2(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float *disp, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -217,6 +226,7 @@ __device__ __host__ static inline void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
+        int nTriangles,           // number of triangles 
         float *data,              // volume data in unstructured mesh
         float *grad,              // gradient
         QuadNodeD *bvh,
@@ -235,15 +245,15 @@ __device__ __host__ static inline void rc(
   //        Kd = make_float3(0.3), 
   //        Ks = make_float3(0.2); 
   // const float delta = 0.5f / dsz.x;   // for shading 
-  float3 pos;
+  float3 pos, g;
   float value;
   float t = tnear;
 
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    const int nid = interpolateXGC(value, bvh, pos, nPhi, nNodes, data, invdet);
-    // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, data, disp, invdet);
+    const int nid = interpolateXGC(value, g, bvh, pos, nPhi, nNodes, nTriangles, data, invdet, grad);
+    // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, nTriangles, data, disp, invdet);
     if (nid >= 0) {
       src = value2color(value, tf, trans);
 
@@ -277,6 +287,7 @@ __device__ __host__ static inline void raycasting(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
+        int nTriangles, 
         float *data,              // volume data in unstructured mesh
         float *grad,
         QuadNodeD *bvh,
@@ -297,10 +308,10 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -354,6 +365,7 @@ __global__ static void raycasting_kernel(
         float *invmvp,
         int nPhi, 
         int nNodes, 
+        int nTriangles, 
         float *data, 
         float *grad,
         QuadNodeD *bvh,
@@ -372,7 +384,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
+  raycasting<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
 
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -399,6 +411,7 @@ static void raycasting_cpu(
         float *invmvp,
         int nPhi, 
         int nNodes, 
+        int nTriangles,
         float *data, 
         float *grad,
         QuadNodeD *bvh,
@@ -416,7 +429,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
+      raycasting<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -459,6 +472,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_invmvp,
           ctx->nPhi, 
           ctx->nNodes,
+          ctx->nTriangles,
           ctx->d_data, 
           ctx->d_grad,
           ctx->d_bvh,
@@ -483,6 +497,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->invmvp,
           ctx->nPhi, 
           ctx->nNodes,
+          ctx->nTriangles,
           ctx->h_data, 
           ctx->h_grad,
           ctx->h_bvh,
@@ -567,6 +582,7 @@ void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data
   ctx->h_grad = grad;
   ctx->nNodes = nNodes;
   ctx->nPhi = nPhi;
+  ctx->nTriangles = nTriangles;
 #if WITH_CUDA
   if (ctx->d_data == NULL)
     cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNodes*nPhi);
