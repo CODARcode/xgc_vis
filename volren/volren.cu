@@ -146,7 +146,7 @@ inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int
   float v0 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p0);
   float v1 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p1);
   value = (1-alpha)*v0 + alpha*v1;
-  
+ 
   // gradient interpolation
   float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
   float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
@@ -240,11 +240,8 @@ __device__ __host__ static inline void rc(
         float tnear, float tfar)
 {
   float4 src;
-  // float3 N, L = make_float3(1, 0, 0), V = rayD; 
-  // float3 Ka = make_float3(0.04), 
-  //        Kd = make_float3(0.3), 
-  //        Ks = make_float3(0.2); 
-  // const float delta = 0.5f / dsz.x;   // for shading 
+  float3 N, L = make_float3(-1, 0, 0), V = rayD; 
+  const float3 Ka = make_float3(0.04), Kd = make_float3(0.3), Ks = make_float3(0.2); 
   float3 pos, g;
   float value;
   float t = tnear;
@@ -257,16 +254,22 @@ __device__ __host__ static inline void rc(
     if (nid >= 0) {
       src = value2color(value, tf, trans);
 
-#if 0
-      if (SHADING) {
+      // if (SHADING) {
+      {
         float3 lit; 
-        N = gradient(texVolume, coords, delta); 
-        lit = cook(N, V, L, Ka, Kd, Ks); 
-        src.x += lit.x; 
-        src.y += lit.y; 
-        src.z += lit.z; 
-      }
+        N = normalize(g);
+        lit = cook(N, V, L, Ka, Kd, Ks);
+        // lit = phong(N, V, L, Ka, Kd, Ks, 100);
+#ifdef  __CUDA_ARCH__
+        src.x = __saturatef(src.x + lit.x); 
+        src.y = __saturatef(src.y + lit.y); 
+        src.z = __saturatef(src.z + lit.z); 
+#else
+        src.x = clamp(src.x + lit.x, 0.f, 1.f);
+        src.y = clamp(src.y + lit.y, 0.f, 1.f);
+        src.z = clamp(src.z + lit.z, 0.f, 1.f);
 #endif
+      }
       
       src.w = 1.f - pow(1.f - src.w, stepsize*4); // alpha correction  
 
@@ -379,13 +382,12 @@ __global__ static void raycasting_kernel(
   uint y = blockIdx.y*blockDim.y + threadIdx.y;
 
   if (x >= viewport[2] || y>= viewport[3]) return;
- 
   float3 rayO, rayD;
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
   raycasting<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
-
+  
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
   output_rgba8[(y*viewport[2]+x)*4+2] = dst.z * 255;
@@ -458,6 +460,7 @@ void rc_test_point_locator(ctx_rc *ctx, float x, float y)
 void rc_render(ctx_rc *ctx)
 {
 #if WITH_CUDA
+  checkLastCudaError("[rc_render][0]");
   const dim3 blockSize(16, 16); 
   const dim3 gridSize = dim3(iDivUp(ctx->viewport[2], blockSize.x), iDivUp(ctx->viewport[3], blockSize.y));
 
@@ -542,16 +545,17 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
     memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
 
 #if WITH_CUDA
-  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
-
   cudaMemcpy(ctx->d_tf, tf, sizeof(float)*size_tf*4, cudaMemcpyHostToDevice);
+ 
+#if 0
+  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
   cudaMemcpyToArray( ctx->d_tfArray, 0, 0, tf, size_tf*4, cudaMemcpyHostToDevice ); 
 
   texTransferFunc.normalized = true; 
   texTransferFunc.filterMode = cudaFilterModeLinear; 
   texTransferFunc.addressMode[0] = cudaAddressModeClamp; 
   cudaBindTextureToArray(texTransferFunc, ctx->d_tfArray, channelDesc); 
-
+#endif
   checkLastCudaError("[rc_set_tf]");
 #endif
 }
@@ -573,6 +577,8 @@ void rc_bind_invdet(ctx_rc *ctx, int nTriangles, float *invdet)
   if (ctx->d_invdet == NULL)
     cudaMalloc((void**)&ctx->d_invdet, sizeof(float)*nTriangles);
   cudaMemcpy(ctx->d_invdet, invdet, sizeof(float)*nTriangles, cudaMemcpyHostToDevice);
+  
+  checkLastCudaError("[rc_bind_invdet]");
 #endif
 }
 
@@ -588,8 +594,10 @@ void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data
     cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNodes*nPhi);
   cudaMemcpy(ctx->d_data, data, sizeof(float)*nNodes*nPhi, cudaMemcpyHostToDevice);
   if (ctx->d_grad == NULL)
-    cudaMalloc((void**)&ctx->d_grad, sizeof(float)*nNodes*nTriangles*2);
-  cudaMemcpy(ctx->d_grad, grad, sizeof(float)*nNodes*nTriangles*2, cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&ctx->d_grad, sizeof(float)*nPhi*nTriangles*2);
+  cudaMemcpy(ctx->d_grad, grad, sizeof(float)*nPhi*nTriangles*2, cudaMemcpyHostToDevice);
+  
+  checkLastCudaError("[rc_bind_data]");
 #endif
 }
 
@@ -607,8 +615,8 @@ void rc_create_ctx(ctx_rc **ctx)
   cudaSetDevice(0);
   cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
   
-  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
-  cudaMallocArray( &(*ctx)->d_tfArray, &channelDesc, size_tf*4, 1 ); 
+  // cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+  // cudaMallocArray( &(*ctx)->d_tfArray, &channelDesc, size_tf*4, 1 ); 
 
   cudaMalloc((void**)&((*ctx)->d_tf), sizeof(float)*size_tf*4);
   cudaMalloc((void**)&((*ctx)->d_viewport), sizeof(int)*4);

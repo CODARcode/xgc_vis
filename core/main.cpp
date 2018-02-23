@@ -105,7 +105,7 @@ struct XGCData {
         float x0 = m.coords[i0*2], x1 = m.coords[i1*2], x2 = m.coords[i2*2],
               y0 = m.coords[i0*2+1], y1 = m.coords[i1*2+1], y2 = m.coords[i2*2+1];
         double f0 = dpot[j*m.nNodes+i0], f1 = dpot[j*m.nNodes+i1], f2 = dpot[j*m.nNodes+i2];
-        double invdet = m.invdetf[j*m.nTriangles];
+        double invdet = m.invdetf[i]; 
 
         graddpotf[j*m.nTriangles*2]   = ((y1-y2)*f0 + (y2-y0)*f1 + (y1-y2)*f2) * invdet;
         graddpotf[j*m.nTriangles*2+1] = ((x2-x1)*f0 + (x0-x2)*f1 + (x2-x1)*f2) * invdet;
