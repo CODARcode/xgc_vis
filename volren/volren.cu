@@ -100,7 +100,7 @@ inline float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *dat
 }
 
 __device__ __host__
-inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *invdet)
+inline int interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -112,7 +112,7 @@ inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int
   float3 lambda;
   
   int nid = QuadNodeD_locatePoint(bvh, r, z, lambda, invdet);
-  if (nid == -1) return false;
+  if (nid == -1) return nid; 
       
   const float deltaAngle = pi2/nPhi;
 
@@ -124,11 +124,11 @@ inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int
   float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1); //  + nNodes*p1);
 
   value = (1-alpha)*v0 + alpha*v1;
-  return true;
+  return nid;
 }
 
 __device__ __host__
-inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *disp, float *invdet)
+inline int interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *disp, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -140,7 +140,7 @@ inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, in
   float3 lambda;
   
   int nid = QuadNodeD_locatePoint(bvh, r, z, lambda, invdet);
-  if (nid == -1) return false;
+  if (nid == -1) return nid; 
       
   const float deltaAngle = pi2/nPhi;
 
@@ -158,7 +158,7 @@ inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, in
   int nid1 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*alpha, z+dy*alpha, lambda1, invdet);
   if (nid0 == -1 || nid1 == -1) {
     // fprintf(stderr, "nid=%d, nid0=%d, nid1=%d, dx=%f, dy=%f\n", nid, nid0, nid1, dx, dy);
-    return false;
+    return -1;
   }
 
   float v0 = QuadNodeD_sample(bvh, nid0, lambda0, data + nNodes*p0); //  + nNodes*p0);
@@ -167,7 +167,7 @@ inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, in
   // if (alpha<0 || alpha>=1) fprintf(stderr, "%f\n", alpha);
   
   value = (1-alpha)*v0 + alpha*v1;
-  return true;
+  return nid;
 }
 
 __device__ __host__ 
@@ -198,6 +198,7 @@ __device__ __host__ static inline void rc(
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
         float *data,              // volume data in unstructured mesh
+        float *grad,              // gradient
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -221,10 +222,11 @@ __device__ __host__ static inline void rc(
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    const bool succ = interpolateXGC(value, bvh, pos, nPhi, nNodes, data, invdet);
-    // const bool succ = interpolateXGC2(value, bvh, pos, nPhi, nNodes, data, disp, invdet);
-    if (succ) {
+    const int nid = interpolateXGC(value, bvh, pos, nPhi, nNodes, data, invdet);
+    // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, data, disp, invdet);
+    if (nid >= 0) {
       src = value2color(value, tf, trans);
+
 #if 0
       if (SHADING) {
         float3 lit; 
@@ -256,6 +258,7 @@ __device__ __host__ static inline void raycasting(
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
         float *data,              // volume data in unstructured mesh
+        float *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -274,10 +277,10 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -332,6 +335,7 @@ __global__ static void raycasting_kernel(
         int nPhi, 
         int nNodes, 
         float *data, 
+        float *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -348,7 +352,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
+  raycasting<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
 
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -376,6 +380,7 @@ static void raycasting_cpu(
         int nPhi, 
         int nNodes, 
         float *data, 
+        float *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -391,7 +396,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
+      raycasting<SHADING>(dst, nPhi, nNodes, data, grad, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -435,6 +440,7 @@ void rc_render(ctx_rc *ctx)
           ctx->nPhi, 
           ctx->nNodes,
           ctx->d_data, 
+          ctx->d_grad,
           ctx->d_bvh,
           ctx->d_disp,
           ctx->d_invdet,
@@ -458,6 +464,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->nPhi, 
           ctx->nNodes,
           ctx->h_data, 
+          ctx->h_grad,
           ctx->h_bvh,
           ctx->h_disp,
           ctx->h_invdet,
@@ -534,15 +541,19 @@ void rc_bind_invdet(ctx_rc *ctx, int nTriangles, float *invdet)
 #endif
 }
 
-void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data)
+void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data, float *grad)
 {
   ctx->h_data = data;
+  ctx->h_grad = grad;
   ctx->nNodes = nNodes;
   ctx->nPhi = nPhi;
 #if WITH_CUDA
   if (ctx->d_data == NULL)
     cudaMalloc((void**)&ctx->d_data, sizeof(float)*nNodes*nPhi);
   cudaMemcpy(ctx->d_data, data, sizeof(float)*nNodes*nPhi, cudaMemcpyHostToDevice);
+  if (ctx->d_grad == NULL)
+    cudaMalloc((void**)&ctx->d_grad, sizeof(float)*nNodes*nTriangles*2);
+  cudaMemcpy(ctx->d_grad, grad, sizeof(float)*nNodes*nTriangles*2, cudaMemcpyHostToDevice);
 #endif
 }
 

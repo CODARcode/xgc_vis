@@ -24,6 +24,7 @@ struct ctx_rc {
   float *d_disp, *h_disp;
 
   float *d_data, *h_data;
+  float *d_grad, *h_grad;
   int nNodes, nPhi;
 
   // float *d_output;
@@ -46,7 +47,7 @@ void rc_destroy_ctx(ctx_rc **ctx);
 void rc_bind_invdet(ctx_rc *ctx, int nTriangles, float *invdet); // determinant of triangles
 void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp); // displacements of nodes
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh);
-void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data);
+void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data, float *grad);
 
 void rc_set_default_tf(ctx_rc *ctx);
 void rc_set_tf(ctx_rc *ctx, float *tf); 

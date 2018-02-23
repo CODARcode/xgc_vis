@@ -457,7 +457,7 @@ void startVolren(XGCMesh& m, XGCData& d)
   
   rc_bind_disp(rc, m.nNodes, m.dispf);
   rc_bind_invdet(rc, m.nTriangles, m.invdetf);
-  rc_bind_data(rc, m.nNodes, m.nPhi, d.dpotf);
+  rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, d.dpotf, d.graddpotf);
 
   volren_started = true;
   while (1) { // volren loop
