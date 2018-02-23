@@ -8,13 +8,13 @@ texture<float4, 1, cudaReadModeElementType> texTransferFunc;
 
 
 __device__ __host__
-bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
+inline bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
 {
   return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
 }
 
 __device__ __host__
-bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float3 &lambda)
+inline bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float3 &lambda)
 {
   lambda.x = ((q.y1 - q.y2)*(x - q.x2) + (q.x2 - q.x1)*(y - q.y2)) /
           ((q.y1 - q.y2)*(q.x0 - q.x2) + (q.x2 - q.x1)*(q.y0 - q.y2));
@@ -26,7 +26,7 @@ bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float3 &lamb
 }
 
 __device__ __host__
-int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, float x, float y, float3 &lambda)
+inline int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, float x, float y, float3 &lambda)
 {
   if (q->triangleId >= 0) { //leaf node
     bool succ = QuadNodeD_insideTriangle(*q, x, y, lambda);
@@ -43,7 +43,7 @@ int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, 
 }
 
 __device__ __host__
-int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda)
+inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda)
 {
   // float lambda.x, lambda.y, lambda.z;
   static const int maxStackSize = 64;
@@ -72,7 +72,7 @@ int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda)
 }
 
 __device__ __host__
-int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda)
+inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda)
 {
   // check if last_nid is valid
   if (last_nid<0) return QuadNodeD_locatePoint(bvh, x, y, lambda);
@@ -86,7 +86,7 @@ int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float 
 }
 
 __device__ __host__
-float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
+inline float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
   const QuadNodeD &q = bvh[nid];
 
   return lambda.x * data[q.i0] 
@@ -95,14 +95,31 @@ float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *data) {
 }
 
 __device__ __host__
-float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
+inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data)
 {
-  // compute cylindrical coordiates
-  float r = sqrt(pos.x*pos.x + pos.y + pos.y);
-  float theta = atan2(pos.y, pos.x);
-  // float z = pos.z;
+  static const float pi = 3.141592654f;
+  static const float pi2 = 2*pi;
   
-  return 0;
+  // cylindar coordinates
+  float r = sqrt(p.x*p.x + p.y*p.y);
+  float phi = atan2(p.y, p.x) + pi;
+  float z = p.z;
+  float3 lambda;
+  
+  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
+  if (nid == -1) return false;
+      
+  const float deltaAngle = pi2/nPhi;
+
+  int p0 = (int)(phi/deltaAngle)%nPhi;
+  int p1 = (p0+1)%nPhi;
+
+  float alpha = (phi - deltaAngle*p0) / deltaAngle;
+  float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0); //  + nNodes*p0);
+  float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1); //  + nNodes*p1);
+
+  value = (1-alpha)*v0 + alpha*v1;
+  return true;
 }
 
 __device__ __host__ 
@@ -128,7 +145,7 @@ static inline float4 value2color(float value, float *tf, float2 trans)
 
   
 template <int SHADING>
-__device__ __host__ static void rc(
+__device__ __host__ static inline void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
@@ -142,8 +159,6 @@ __device__ __host__ static void rc(
         float stepsize, 
         float tnear, float tfar)
 {
-  const float pi = 3.141592654f;
-  const float pi2 = 2*pi;
   float4 src;
   // float3 N, L = make_float3(1, 0, 0), V = rayD; 
   // float3 Ka = make_float3(0.04), 
@@ -151,51 +166,15 @@ __device__ __host__ static void rc(
   //        Ks = make_float3(0.2); 
   // const float delta = 0.5f / dsz.x;   // for shading 
   float3 pos;
+  float value;
   float t = tnear;
-
-  int last_nid = -1, nid;
 
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    // cylindar coordinates
-    float r = sqrt(pos.x*pos.x + pos.y*pos.y);
-    float phi = atan2(pos.y, pos.x) + pi;
-    float z = pos.z;
-
-    float3 lambda;
-    nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
-    // nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda);
-    
-    if (nid != -1) {
-      const float deltaAngle = pi2/nPhi;
-
-      int p0 = phi/deltaAngle; 
-      int p1 = p0 + p1;
-      // int p0 = ((int)(phi/deltaAngle))%nPhi;
-      // int p1 = (p0+1)%nPhi;
-    
-      float alpha = (phi - deltaAngle*p0) / deltaAngle;
-      float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*(p0%nPhi)); //  + nNodes*p0);
-      float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*(p1%nPhi)); //  + nNodes*p1);
-
-      float value = (1-alpha)*v0 + alpha*v1;
-      
-      // sample = interpolateXGC(bvh, pos, data); 
-      // sample = QuadNodeD_sample(bvh, x, y, data);
-      // sample = tex3Dtrans<DataType, readMode, TRANSFORM>(texVolume, trans, coords); 
-      // src = make_float4(sample, 1.0-sample, 0.0, 0.9);
-      // sample = pow(1.f - sample, 2.f); 
-      // src = make_float4(sample*2, 1.f-sample*2, 0.0, sample*0.4); 
-      // src = make_float4(lambda.x, lambda.y, lambda.z, 0.5);
-      
-      // src = tex1D(texTransferFunc, value * trans.x + trans.y);
+    const bool succ = interpolateXGC(value, bvh, pos, nPhi, nNodes, data);
+    if (succ) {
       src = value2color(value, tf, trans);
-      // src = make_float4(1, 0, 0, 0.5); 
-
-      // float v = clamp(value*0.01, -0.5f, 0.5f);
-      // src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
-
 #if 0
       if (SHADING) {
         float3 lit; 
@@ -222,7 +201,7 @@ __device__ __host__ static void rc(
 }
 
 template <int SHADING>
-__device__ __host__ static void raycasting(
+__device__ __host__ static inline void raycasting(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
         int nNodes,               // number of nodes 
@@ -267,7 +246,7 @@ __global__ static void test_point_locator_kernel(
 }
 #endif
 
-__device__ __host__ bool setup_ray(
+__device__ __host__ inline bool setup_ray(
     int *viewport, 
     float *invmvp, 
     uint x, uint y,
@@ -299,7 +278,7 @@ __global__ static void raycasting_kernel(
         int *viewport, 
         float *invmvp,
         int nPhi, 
-        int nNode, 
+        int nNodes, 
         float *data, 
         QuadNodeD *bvh,
         float *disp,
@@ -316,7 +295,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
+  raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
 
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -340,7 +319,7 @@ static void raycasting_cpu(
         int *viewport, 
         float *invmvp,
         int nPhi, 
-        int nNode, 
+        int nNodes, 
         float *data, 
         QuadNodeD *bvh,
         float *disp,
@@ -356,7 +335,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
+      raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
