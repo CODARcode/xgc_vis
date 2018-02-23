@@ -79,6 +79,7 @@ struct VolrenTask {
   int tag = VOLREN_RENDER;
   int viewport[4];
   double invmvpd[16];
+  float *tf = NULL;
   png_mem_buffer png;
   std::condition_variable cond;
   std::mutex mutex;
@@ -92,6 +93,8 @@ std::condition_variable cond_volrenTaskQueue;
 
 void freeVolrenTask(VolrenTask **task)
 {
+  if ((*task)->tf != NULL) 
+    free((*task)->tf);
   if ((*task)->png.buffer != NULL)
     free((*task)->png.buffer);
   delete *task;
@@ -125,6 +128,13 @@ VolrenTask* createVolrenTaskFromString(const std::string& query)
     else {
       for (int i=0; i<16; i++) 
         task->invmvpd[i] = j["matrix"][i];
+    }
+
+    if (!j["tf"].is_null()) {
+      json jtf = j["tf"];
+      task->tf = (float*)malloc(sizeof(float)*1024);
+      for (int i=0; i<1024; i++) 
+        task->tf[i] = jtf.at(i).get<float>() / 255.f;
     }
 
   } catch (...) {
@@ -404,6 +414,8 @@ void startVolren(XGCMesh& m, double *dpot)
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
+      if (task->tf) 
+        rc_set_tf(rc, task->tf);
       rc_clear_output(rc);
       rc_render(rc);
       // rc_render_cpu(rc);
