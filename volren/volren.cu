@@ -116,7 +116,7 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
 }
 
 __device__ __host__
-inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float *grad, float *invdet)
+inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -156,8 +156,10 @@ inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int
   value = (1-alpha)*v0 + alpha*v1;
  
   // gradient interpolation
-  float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
-  float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
+  float2 cgrad0 = grad[nTriangles*p0 + q.triangleId];
+  float2 cgrad1 = grad[nTriangles*p1 + q.triangleId];
+  // float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
+  // float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
   float2 cgrad = (1-alpha)*cgrad0 + alpha*cgrad1;
   g = make_float3(p.x/r*cgrad.x - p.y/r2, p.y/r*cgrad.x - p.x/r2, cgrad.y);
 
@@ -246,7 +248,7 @@ __device__ __host__ static inline void rc(
         int nNodes,               // number of nodes 
         int nTriangles,           // number of triangles 
         float *data,              // volume data in unstructured mesh
-        float *grad,              // gradient
+        float2 *grad,              // gradient
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -267,7 +269,7 @@ __device__ __host__ static inline void rc(
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    const int nid = interpolateXGC(value, g, bvh, pos, nPhi, nNodes, nTriangles, data, invdet, grad);
+    const int nid = interpolateXGC(value, g, bvh, pos, nPhi, nNodes, nTriangles, data, grad, invdet);
     // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, nTriangles, data, disp, invdet);
     if (nid >= 0) {
       src = value2color(value, tf, trans);
@@ -315,7 +317,7 @@ __device__ __host__ static inline void raycasting(
         int nNodes,               // number of nodes 
         int nTriangles, 
         float *data,              // volume data in unstructured mesh
-        float *grad,
+        float2 *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -393,7 +395,7 @@ __global__ static void raycasting_kernel(
         int nNodes, 
         int nTriangles, 
         float *data, 
-        float *grad,
+        float2 *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -438,7 +440,7 @@ static void raycasting_cpu(
         int nNodes, 
         int nTriangles,
         float *data, 
-        float *grad,
+        float2 *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
@@ -500,7 +502,7 @@ void rc_render(ctx_rc *ctx)
           ctx->nNodes,
           ctx->nTriangles,
           ctx->d_data, 
-          ctx->d_grad,
+          (float2*)ctx->d_grad,
           ctx->d_bvh,
           ctx->d_disp,
           ctx->d_invdet,
@@ -525,7 +527,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->nNodes,
           ctx->nTriangles,
           ctx->h_data, 
-          ctx->h_grad,
+          (float2*)ctx->h_grad,
           ctx->h_bvh,
           ctx->h_disp,
           ctx->h_invdet,
