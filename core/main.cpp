@@ -81,6 +81,23 @@ struct XGCMesh {
   }
 } mesh;
 
+struct XGCData {
+  double *dpot = NULL;
+  float *dpotf = NULL, *graddpotf = NULL;
+
+  ~XGCData() {
+    free(dpot);
+    free(dpotf);
+    free(graddpotf);
+  }
+
+  void deriveSinglePrecisionData(const XGCMesh& m) {
+    dpotf = (float*)realloc(dpotf, sizeof(float)*m.nNodes*m.nPhi);
+    for (int i=0; i<m.nNodes*m.nPhi; i++) 
+      dpotf[i] = dpot[i];
+  }
+} xgcData;
+
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
@@ -407,7 +424,7 @@ void startWebsocketServer(int port)
   }
 }
 
-void startVolren(XGCMesh& m, double *dpot)
+void startVolren(XGCMesh& m, XGCData& d)
 {
   fprintf(stderr, "[volren] building BVH...\n");
   std::vector<QuadNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
@@ -423,13 +440,9 @@ void startVolren(XGCMesh& m, double *dpot)
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
   // rc_test_point_locator(rc, 2.3f, -0.4f);
   
-  float *dpotf = (float*)malloc(sizeof(float)*m.nNodes*m.nPhi);
-  for (int i=0; i<m.nNodes*m.nPhi; i++)
-    dpotf[i] = dpot[i];
   rc_bind_disp(rc, m.nNodes, m.dispf);
   rc_bind_invdet(rc, m.nTriangles, m.invdetf);
-  rc_bind_data(rc, m.nNodes, m.nPhi, dpotf);
-  free(dpotf);
+  rc_bind_data(rc, m.nNodes, m.nPhi, d.dpotf);
 
   volren_started = true;
   while (1) { // volren loop
@@ -777,7 +790,6 @@ int main(int argc, char **argv)
   }
   adios_read_bp_reset_dimension_order(varFP, 0);
     
-  double *dpot = NULL;
   size_t current_time_index = 0; // only for multiple inputs.
 
   // output
@@ -824,10 +836,10 @@ int main(int argc, char **argv)
 
     assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
-    if (dpot == NULL) 
-      dpot = (double*)malloc(sizeof(double)*mesh.nPhi*mesh.nNodes);
+    if (xgcData.dpot == NULL)
+      xgcData.dpot = (double*)malloc(sizeof(double)*mesh.nPhi*mesh.nNodes);
 
-    adios_schedule_read_byid(varFP, sel, avi->varid, 0, 1, dpot);
+    adios_schedule_read_byid(varFP, sel, avi->varid, 0, 1, xgcData.dpot);
     adios_perform_reads(varFP, 1);
     adios_selection_delete(sel);
 
@@ -840,11 +852,11 @@ int main(int argc, char **argv)
     fprintf(stderr, "starting analysis..\n");
    
     // FIXME
-    volren_thread = new std::thread(startVolren, std::ref(mesh), dpot);
+    volren_thread = new std::thread(startVolren, std::ref(mesh), std::ref(xgcData));
     enqueueAndWaitVolrenTask( createVolrenTaskFromString("") );
 
     mutex_ex.lock();
-    ex->setData(current_time_index, mesh.nPhi, dpot);
+    ex->setData(current_time_index, mesh.nPhi, xgcData.dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
@@ -867,7 +879,7 @@ int main(int argc, char **argv)
         ex->dumpLabels(filename_output);
       else 
         writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
-            mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn, dpot, mesh.psi, labels);
+            mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn, xgcData.dpot, mesh.psi, labels);
     }
    
     // write branches
@@ -910,8 +922,6 @@ int main(int argc, char **argv)
   }
    
   // adios_close(*varFP);
-
-  if (dpot != NULL) free(dpot);
   delete ex;
   ex = NULL;
 
