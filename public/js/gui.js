@@ -20,16 +20,20 @@ var menuText = function() {
 
   this.refresh = function() {
     requestData();
-  }
+  };
 
   this.resetCamera = function() {
     controls.reset();
+  };
+
+  this.transferFunction = function() {
+    ViewTF.toggle();
   }
 };
 
 function initializeControlPanel(domElem) {
   var text = new menuText();
-  var gui = new dat.GUI();
+  var gui = new dat.GUI({autoPlace: false, width: 400});
 
   // var f1 = gui.addFolder("Simulation");
   // f1.add(text, 'dataName');
@@ -48,7 +52,7 @@ function initializeControlPanel(domElem) {
   f2.add(text, 'renderWireframe').onChange(function() {
     View2D.updateRenderWireframe(text.renderWireframe);
   });
-  f2.add(text, 'resetCamera');
+  f2.add(text, 'transferFunction');
   f2.open();
 
   var f3 = gui.addFolder("Connection");
@@ -69,11 +73,8 @@ function initializeControlPanel(domElem) {
   f3.add(text, 'reconnect');
   f3.open();
 
-  // var f4 = gui.addFoler('Tree');
-  // f4.add(text, 'saveCamera');
-  // f4.add(text, 'loadCamera');
-
   domElem.appendChild(gui.domElement);
+  return gui.domElement;
 };
 
 (function initialConnectDialog() {
@@ -131,6 +132,9 @@ function initializeControlPanel(domElem) {
 
 var layout = (function initialLayout() {
   var layout = {};
+  var totalWidth = $(window).width();
+  var left2Pct = (totalWidth - 400) / totalWidth / 2 * 100;
+  var rightPct = 400 / totalWidth * 100;
   var config = {
       settings: {
         showPopoutIcon: false,
@@ -144,36 +148,41 @@ var layout = (function initialLayout() {
               content:[{
                   type: 'component',
                   componentName: '2D View',
+                  isClosable: false,
                   componentState: {}
               },{
                   type: 'component',
                   componentName: 'FFT View',
+                  isClosable: false,
                   componentState: {}
-              }]
+              }],
+              width: left2Pct
           },
           {
               type: 'column',
               content:[{
                   type: 'component',
                   componentName: '3D View',
+                  isClosable: false,
                   componentState: {}
               },{
                   type: 'component',
                   componentName: 'Tree View',
+                  isClosable: false,
                   componentState: {}
-              }]
+              }],
+              width: left2Pct
           },
           {
               type: 'column',
-              content:[{
-                  type: 'component',
-                  componentName: 'TF View',
-                  componentState: {}
-              },{
+              content:[
+              {
                   type: 'component',
                   componentName: 'Console',
-                  componentState: {}
-              }]
+                  componentState: {},
+                  isClosable: false
+              }],
+              width: rightPct
           }]
       }]
   };
@@ -208,19 +217,52 @@ var layout = (function initialLayout() {
   myLayout.registerComponent('FFT View', function(container, componentState){
   });
 
-  myLayout.registerComponent('TF View', function(container, componentState){
+  myLayout.registerComponent('Console', function(container, componentState){
+    var guiDomElem = initializeControlPanel(container.getElement()[0]);
+    window.guiDomElem = guiDomElem;
+    $(guiDomElem).find('.close-button').remove();
     ViewTF.initial();
-    var elem = container.getElement()[0];
-    var legendElem = $('#legend-div').detach();
-    $(elem).append(legendElem);
+    // var elem = container.getElement()[0];
+    // var legendElem = $('#legend-div').detach();
+    // $(elem).append(legendElem);
     var tfElem = $('#tf-holder').detach();
-    $(elem).append(tfElem);
-    layout.ViewTF = elem;
+    // $(elem).append(tfElem);
+    $(guiDomElem).find('li.folder').first().append(tfElem);
+    // layout.ViewTF = elem;
   });
 
-  myLayout.registerComponent('Console', function(container, componentState){
-    initializeControlPanel(container.getElement()[0]);
-  });
+  // myLayout.on( 'stackCreated', function( stack ){
+
+  //   //HTML for the colorDropdown is stored in a template tag
+  //   var colorDropdown = $( $( 'template' ).html() ),
+  //       colorDropdownBtn = colorDropdown.find( '.selectedColor' );
+
+
+  //   var setColor = function( color ){
+  //       var container = stack.getActiveContentItem().container;
+
+  //       // Set the color on both the dropDown and the background
+  //       colorDropdownBtn.css( 'background-color', color );
+  //       container.getElement().css( 'background-color', color );
+
+  //       // Update the state
+  //       container.extendState({ color: color });
+  //   };
+
+  //   // Add the colorDropdown to the header
+  //   stack.header.controlsContainer.prepend( colorDropdown );
+
+  //   // Update the color initially and whenever the tab changes
+  //   stack.on( 'activeContentItemChanged', function( contentItem ){
+  //        setColor( contentItem.container.getState().color );
+  //   });
+       
+  //   // Update the color when the user selects a different color
+  //   // from the dropdown
+  //   colorDropdown.find( 'li' ).click(function(){
+  //       setColor( $(this).css( 'background-color' ) );
+  //   });
+  // });
 
   myLayout.init();
   return layout;

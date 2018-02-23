@@ -153,7 +153,7 @@ function requestImage(tfArray) {
     }
   }
   console.log('POST! ', msg);
-  if (VIEW3D_OFF) return;
+  if (DEBUG_MODE || VIEW3D_OFF) return;
 
   if (ws && ws.readyState == 1) {
     var url = 'http://' + ws.url.substr(5);
@@ -219,7 +219,7 @@ function onMessage(evt)
       View2D.drawMesh();
       requestData();
       View3D.drawMesh();
-      requestImage();
+      // requestImage();
       requestMultipleSliceRawData();
     } else if (msg.type == 'data') {
       console.log(msg);

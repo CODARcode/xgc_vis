@@ -373,7 +373,7 @@ jQuery.tfWidget = function(container, callback, settings) {
   return container.tfWidget || (container.tfWidget = new jQuery._tfWidget(container, callback, settings));
 }
 
-jQuery._tfWidget = function(container, callback) {
+jQuery._tfWidget = function(container, callback, settings) {
   var tf = this;
   var str = '<div id="tf-container">'+
               '<div id="tf-widget"></div>'+
@@ -886,21 +886,30 @@ jQuery._tfWidget = function(container, callback) {
 
   /*********** Initialize ************/
   // Control points
-  var p0 = new ControlPoint(0.0, 0.0, '#000000'),
-      p1 = new ControlPoint(1.0, 1.0, '#ffffff');
   var controlPoints = [];
-  controlPoints.push(p0);
-  controlPoints.push(p1);
-  var highlightedCPIndex = 1;
+  if (settings) {
+    settings.controlPoints.forEach(function(d) {
+      var p = new ControlPoint(d.percent, d.alpha, d.rgb);
+      controlPoints.push(p);
+    });
+  }
+  else {
+    var p0 = new ControlPoint(0.0, 0.0, '#000000'),
+    p1 = new ControlPoint(1.0, 1.0, '#ffffff');  
+    controlPoints.push(p0);
+    controlPoints.push(p1);
+  }
+  var highlightedCPIndex = controlPoints.length-1;
 
   // Add color picker into div#picker
   //$('#tf-picker').farbtastic(changeColorCallback);
   var colorPicker = $.farbtastic('#tf-picker');
-  colorPicker.setColor('#ffffff');
+  // colorPicker.setColor('#ffffff');
+  colorPicker.setColor(controlPoints[controlPoints.length-1].rgb);
   colorPicker.linkTo(changeColorCallback);
 
   // Transfer function widget
-  var tfWidth = 360,
+  var tfWidth = 260,
       tfHeight = 150;
 
   // Color bar
@@ -931,5 +940,5 @@ jQuery._tfWidget = function(container, callback) {
   document.getElementById('load-tf-file')
       .addEventListener('change', readTFFile, false);
 
-  // if (callback) callback.call(tf, controlPoints, controlPointsToArray());
+  if (callback) callback.call(tf, controlPoints, controlPointsToArray());
 }

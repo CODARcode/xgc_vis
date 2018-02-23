@@ -16,17 +16,22 @@
     - hide 3d when show picture
   - 2d check hovering point
     - mouse out -> hide tip 
-
   - tf 
     - add settings
-  - reconnect bug 
   - layout
     - hide tf widget
     - console width 
-    - expand header for individual menus
-    - mouse down -> pointer cursor
-  - loading img
+
   - 2d
+    - timestep, color legend
     - change hover color
-    - timestep
+  - expand header for individual menus
+    - save camera
+    - reset camera
+    - load camera
+    - save image
+  - mouse down -> pointer cursor
+  - loading img
   - 3d customer color transparent
+  - tree
+    - interaction -> node hover
