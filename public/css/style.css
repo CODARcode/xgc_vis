@@ -165,3 +165,50 @@ body {margin: 0;}
   pointer-events: none;
   background-color: white;
 }
+
+
+
+
+
+
+.chooseColor{
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  float: left;
+  margin: 5px 5px 0 0;
+  cursor: pointer;
+}
+
+.chooseColor .selectedColor{
+  width: 10px;
+  height: 10px;
+}
+
+.chooseColor ul{
+  display: none;
+  box-shadow: 2px 2px 3px rgba( 0, 0, 0, 0.7 );
+}
+
+.chooseColor:hover ul{
+  display: block;
+}
+
+.chooseColor ul,
+.chooseColor ul li{
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+.chooseColor ul li{
+  width: 10px;
+  height: 10px;
+  cursor: pointer;
+}
+
+.chooseColor ul li:hover{
+  border: 1px solid orange;
+  width: 8px;
+  height: 8px;
+};

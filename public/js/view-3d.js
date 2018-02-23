@@ -179,7 +179,9 @@ var View3D = (function() {
     View3D.camera.updateProjectionMatrix();
     View3D.renderer.setSize(width, height);
     View3D.hideVolrenImage();
-    requestImageWait();
+    if (ViewTF.initialized) {
+      requestImageWait();
+    }
   }
 
   View3D.updateData = function() {

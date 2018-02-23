@@ -16,10 +16,9 @@
     - hide 3d when show picture
   - 2d check hovering point
     - mouse out -> hide tip 
-
   - tf 
     - add settings
-  - reconnect bug 
+
   - layout
     - hide tf widget
     - console width 
@@ -30,3 +29,5 @@
     - change hover color
     - timestep
   - 3d customer color transparent
+  - tree
+    - interaction -> node hover

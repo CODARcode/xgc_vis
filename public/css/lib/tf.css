@@ -18,16 +18,18 @@
  */
 #tf-container {
   height: 184px;
-  width: 492px;
+  /* width: 492px; */
+  width: 392px;
   border: 1px solid grey;
   background-color: white;
   margin: auto;
+  display: flex;
 }
 
 #tf-widget {
-  position: relative;
+  /*position: relative;
   left: 0;
-  top: 0;
+  top: 0;*/
 }
 
 .tf-button {
@@ -36,9 +38,9 @@
 }
 
 #tf-picker-and-buttons {
-  position: relative;
+  /*position: relative;
   left: 360px;
-  top: -184px;
+  top: -184px;*/
 }
 
 .control-point {
