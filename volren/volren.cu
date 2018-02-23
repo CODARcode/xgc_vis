@@ -108,10 +108,14 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
 __device__ __host__ 
 static float4 value2color(float value, float *tf, float2 trans)
 {
+  // const float x = clamp(value * trans.x + trans.y, 0.f, 1.f);
+  const float x = clamp(value * trans.x + trans.y, 0.f, 1.f);
+  // float v = x-0.5;
+  // return make_float4(x, 1-x, 0, min(1.f, v*v*10));
+  
   static const int n = 256;
   static const float delta = 1.f / (n-1);
-  const float x = clamp(value * trans.x + trans.y, 0.f, 0.9999f);
-  const int i = max((int)(x*delta), n-2) , j = i + 1;
+  const int i = min((int)(x*(n-1)), n-2) , j = i + 1;
   const float beta = x - i*delta, alpha = 1 - beta;
 
   return make_float4(
@@ -435,11 +439,11 @@ void rc_set_default_tf(ctx_rc *ctx)
 {
   float *tf = ctx->h_tf;
   for (int i=0; i<size_tf; i++) {
-    float x = (float)i / size_tf;
+    float x = (float)i / (size_tf-1);
     tf[i*4] = x;
     tf[i*4+1] = 1-x;
     tf[i*4+2] = 0.f;
-    tf[i*4+3] = 0.2;
+    tf[i*4+3] = min(1.f, (x-0.5)*(x-0.5)*10);
   }
   rc_set_tf(ctx, tf);
 }

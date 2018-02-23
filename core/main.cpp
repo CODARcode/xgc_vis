@@ -377,8 +377,10 @@ void startVolren(XGCMesh& m, double *dpot)
   ctx_rc *rc;
   rc_create_ctx(&rc);
   rc_set_range(rc, -100.f, 100.f); // TODO
+  // rc_set_range(rc, -50.f, 50.f); // TODO
   rc_set_default_tf(rc);
-  rc_set_stepsize(rc, 0.001);
+  // rc_set_stepsize(rc, 0.001);
+  rc_set_stepsize(rc, 0.002);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
   // rc_test_point_locator(rc, 2.3f, -0.4f);
   
