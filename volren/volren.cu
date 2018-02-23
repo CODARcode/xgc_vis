@@ -10,7 +10,12 @@ texture<float4, 1, cudaReadModeElementType> texTransferFunc;
 __device__ __host__
 inline bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
 {
-  return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
+#if __CUDA_ARCH__
+  return __fmul_rz(x-q.Ax, x-q.Bx) <= 0 && __fmul_rz(y-q.Ay, y-q.By) <= 0;
+#else
+  return (x - q.Ax) * (x - q.Bx) <= 0 && (y - q.Ay) * (y - q.By) <= 0;
+#endif
+  // return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
 }
 
 __device__ __host__
@@ -115,6 +120,7 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
   //     lambda.x * data[q.i0*2+1] + lambda.y * data[q.i1*2+1] + lambda.z * data[q.i2*2+1]);
 }
 
+template <int SHADING>
 __device__ __host__
 inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet)
 {
@@ -122,10 +128,11 @@ inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int
   static const float pi2 = 2*pi;
   
   // cylindar coordinates
-  float r2 = p.x*p.x + p.y*p.y;
 #ifdef __CUDA_ARCH__
+  float r2 = __fmul_rd(p.x, p.x) + __fmul_rd(p.y, p.y);
   float r = __fsqrt_rd(r2);
 #else
+  float r2 = p.x*p.x + p.y*p.y;
   float r = sqrt(r2);
 #endif
   float phi = atan2(p.y, p.x) + pi;
@@ -146,22 +153,25 @@ inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int
   int p1 = (p0+1)%nPhi;
 
   // coef
+  // float alpha = __fdiv_rd((phi - __fmul_rd(deltaAngle, p0)), deltaAngle);
   float alpha = (phi - deltaAngle*p0) / deltaAngle;
- 
+
   // value interpolation
   // float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0);
   // float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1);
   float v0 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p0);
   float v1 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p1);
   value = (1-alpha)*v0 + alpha*v1;
- 
-  // gradient interpolation
-  float2 cgrad0 = grad[nTriangles*p0 + q.triangleId];
-  float2 cgrad1 = grad[nTriangles*p1 + q.triangleId];
-  // float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
-  // float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
-  float2 cgrad = (1-alpha)*cgrad0 + alpha*cgrad1;
-  g = make_float3(p.x/r*cgrad.x - p.y/r2, p.y/r*cgrad.x - p.x/r2, cgrad.y);
+
+  if (SHADING) {
+    // gradient interpolation
+    float2 cgrad0 = grad[nTriangles*p0 + q.triangleId];
+    float2 cgrad1 = grad[nTriangles*p1 + q.triangleId];
+    // float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
+    // float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
+    float2 cgrad = (1-alpha)*cgrad0 + alpha*cgrad1;
+    g = make_float3(p.x/r*cgrad.x - p.y/r2, p.y/r*cgrad.x - p.x/r2, cgrad.y);
+  }
 
   return nid;
 }
@@ -269,13 +279,12 @@ __device__ __host__ static inline void rc(
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    const int nid = interpolateXGC(value, g, bvh, pos, nPhi, nNodes, nTriangles, data, grad, invdet);
+    const int nid = interpolateXGC<SHADING>(value, g, bvh, pos, nPhi, nNodes, nTriangles, data, grad, invdet);
     // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, nTriangles, data, disp, invdet);
     if (nid >= 0) {
       src = value2color(value, tf, trans);
 
-      // if (SHADING) {
-      {
+      if (SHADING) {
         float3 lit; 
         N = normalize(g);
         lit = cook(N, V, L, Ka, Kd, Ks);
@@ -304,7 +313,7 @@ __device__ __host__ static inline void rc(
       dst.w += (1.0 - dst.w) * src.w;
     }
     
-    // if (dst.w > 0.98) return; // early ray termination
+    if (dst.w > 0.98) return; // early ray termination
     t += stepsize; 
   }
   // dst.x = 1; dst.y = 0; dst.z = 0; dst.w = 1;
@@ -494,7 +503,7 @@ void rc_render(ctx_rc *ctx)
   cudaMemcpy(ctx->d_invmvp, ctx->invmvp, sizeof(float)*16, cudaMemcpyHostToDevice);
   // cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
  
-  raycasting_kernel<0><<<gridSize, blockSize>>>(
+  raycasting_kernel<1><<<gridSize, blockSize>>>(
           ctx->d_output_rgba8,
           ctx->d_viewport, 
           ctx->d_invmvp,
@@ -519,7 +528,7 @@ void rc_render(ctx_rc *ctx)
 
 void rc_render_cpu(ctx_rc *ctx)
 {
-  raycasting_cpu<0>(
+  raycasting_cpu<1>(
           (unsigned char*)ctx->h_output,
           ctx->viewport, 
           ctx->invmvp,
@@ -570,7 +579,6 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
     memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
 
 #if WITH_CUDA
-  fprintf(stderr, "sizeof(float4)=%d\n", sizeof(float4));
   cudaMemcpy(ctx->d_tf, tf, sizeof(float)*size_tf*4, cudaMemcpyHostToDevice);
  
 #if 0
