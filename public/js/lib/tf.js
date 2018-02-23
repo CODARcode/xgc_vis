@@ -363,14 +363,14 @@ jQuery._farbtastic = function (container, callback) {
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-jQuery.fn.tfWidget = function(callback) {
-  $.tfWidget(this, callback);
+jQuery.fn.tfWidget = function(callback, settings) {
+  $.tfWidget(this, callback, settings);
   return this;
 }
 
-jQuery.tfWidget = function(container, callback) {
+jQuery.tfWidget = function(container, callback, settings) {
   var container = $(container).get(0);
-  return container.tfWidget || (container.tfWidget = new jQuery._tfWidget(container, callback));
+  return container.tfWidget || (container.tfWidget = new jQuery._tfWidget(container, callback, settings));
 }
 
 jQuery._tfWidget = function(container, callback) {
@@ -930,4 +930,6 @@ jQuery._tfWidget = function(container, callback) {
   });
   document.getElementById('load-tf-file')
       .addEventListener('change', readTFFile, false);
+
+  // if (callback) callback.call(tf, controlPoints, controlPointsToArray());
 }

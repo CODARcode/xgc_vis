@@ -48,6 +48,10 @@ var View2D = (function() {
       onDocumentMouseMove(event);
     });
 
+    $(elem).mouseout(function(evt) {
+      $('.info-tooltip').hide();
+    });
+
     View2D.render();
   };
 
@@ -103,16 +107,6 @@ var View2D = (function() {
     // stats.end();
   };
 
-  function onMouseDown(evt) {
-    View2D.mousePos.x = (evt.clientX / window.innerWidth) * 2 - 1;
-    View2D.mousePos.y = -(evt.clientY / window.innerHeight) * 2 + 1;
-  }
-
-  function onMouseMove(evt) {
-    View2D.mousePos.x = (evt.clientX / window.innerWidth) * 2 - 1;
-    View2D.mousePos.y = -(evt.clientY / window.innerHeight) * 2 + 1;
-  }
-
   View2D.resize = function() {
     if (!View2D.initialized) return;
     var elem = View2D.getView();
@@ -161,7 +155,7 @@ var View2D = (function() {
       if (d > labelRange.max) labelRange.max = d;
       if (d < labelRange.min) labelRange.min = d;
     });
-    console.log(labelRange);
+    // console.log(labelRange);
     var cs2 = d3.scaleLinear().domain([labelRange.min, 0, labelRange.max])
         .range([d3.rgb(green), d3.rgb(black), d3.rgb(red)]);
     var labelColorScale = function(l) {
@@ -241,8 +235,13 @@ var View2D = (function() {
     if (isDialogShown()) return;
     if (data.values == undefined) return;
     var mouse = {};
-    mouse.x = ( event.clientX / View2D.renderer.domElement.clientWidth ) * 2 - 1;
-    mouse.y = - ( event.clientY / View2D.renderer.domElement.clientHeight ) * 2 + 1;
+    var parentBound = View2D.getView().getBoundingClientRect();
+    var mouseX = event.clientX - parentBound.left;
+    var mouseY = event.clientY - parentBound.top;
+    // mouse.x = ( event.clientX / View2D.renderer.domElement.clientWidth ) * 2 - 1;
+    // mouse.y = - ( event.clientY / View2D.renderer.domElement.clientHeight ) * 2 + 1;
+    mouse.x = (mouseX / View2D.renderer.domElement.clientWidth) * 2 - 1;
+    mouse.y = - (mouseY / View2D.renderer.domElement.clientHeight) * 2 + 1;
     View2D.raycaster.setFromCamera(mouse, View2D.camera);
 
     var intersects = View2D.raycaster.intersectObjects(View2D.targetList);
@@ -272,8 +271,9 @@ var View2D = (function() {
 
   function hitFace(face, event) {
     // calculate closest point 
-    var mouseX = event.clientX;
-    var mouseY = event.clientY;
+    var parentBound = View2D.getView().getBoundingClientRect();
+    var mouseX = event.clientX - parentBound.left;
+    var mouseY = event.clientY - parentBound.top;
     var i1 = face.a;
     var i2 = face.b;
     var i3 = face.c;

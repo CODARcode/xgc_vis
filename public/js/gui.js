@@ -69,6 +69,10 @@ function initializeControlPanel(domElem) {
   f3.add(text, 'reconnect');
   f3.open();
 
+  // var f4 = gui.addFoler('Tree');
+  // f4.add(text, 'saveCamera');
+  // f4.add(text, 'loadCamera');
+
   domElem.appendChild(gui.domElement);
 };
 
@@ -116,7 +120,7 @@ function initializeControlPanel(domElem) {
       }
   });
 
-  $('#connectDialog').modal('show');
+  if (!DEBUG_MODE) $('#connectDialog').modal('show');
 })();
 
 // var stats = new Stats();
@@ -155,7 +159,7 @@ var layout = (function initialLayout() {
                   componentState: {}
               },{
                   type: 'component',
-                  componentName: 'TF View',
+                  componentName: 'Tree View',
                   componentState: {}
               }]
           },
@@ -163,7 +167,7 @@ var layout = (function initialLayout() {
               type: 'column',
               content:[{
                   type: 'component',
-                  componentName: 'Tree View',
+                  componentName: 'TF View',
                   componentState: {}
               },{
                   type: 'component',
@@ -195,6 +199,7 @@ var layout = (function initialLayout() {
   myLayout.registerComponent('Tree View', function(container, componentState){
     layout.ViewTree = container.getElement()[0];
     ViewTree.initial();
+    requestTree();
     new ResizeSensor($(layout.ViewTree), function(){ 
       ViewTree.resize();
     });
