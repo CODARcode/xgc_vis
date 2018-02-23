@@ -106,13 +106,13 @@ float interpolateXGC(QuadNodeD *bvh, float3 pos, float *data)
 }
 
 __device__ __host__ 
-static float4 value2color(float value, float *tf, float2 trans)
+static inline float4 value2color(float value, float *tf, float2 trans)
 {
-  // const float x = clamp(value * trans.x + trans.y, 0.f, 1.f);
   const float x = clamp(value * trans.x + trans.y, 0.f, 1.f);
-  // float v = x-0.5;
-  // return make_float4(x, 1-x, 0, min(1.f, v*v*10));
-  
+#if 0
+  float v = x-0.5;
+  return make_float4(x, 1-x, 0, fminf(0.999f, v*v*40));
+#else 
   static const int n = 256;
   static const float delta = 1.f / (n-1);
   const int i = min((int)(x*(n-1)), n-2) , j = i + 1;
@@ -123,6 +123,7 @@ static float4 value2color(float value, float *tf, float2 trans)
       alpha * tf[i*4+1] + beta * tf[j*4+1], 
       alpha * tf[i*4+2] + beta * tf[j*4+2], 
       alpha * tf[i*4+3] + beta * tf[j*4+3]);
+#endif
 }
 
   
@@ -165,16 +166,18 @@ __device__ __host__ static void rc(
     float3 lambda;
     nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
     // nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda);
-
-    if (nid != -1) {
-      const float unitAngle = pi2/nPhi;
-
-      int p0 = (int)(phi/unitAngle)%nPhi;
-      int p1 = (p0+1)%nPhi;
     
-      float alpha = (phi - unitAngle*p0) / unitAngle;
-      float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0); //  + nNodes*p0);
-      float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1); //  + nNodes*p1);
+    if (nid != -1) {
+      const float deltaAngle = pi2/nPhi;
+
+      int p0 = phi/deltaAngle; 
+      int p1 = p0 + p1;
+      // int p0 = ((int)(phi/deltaAngle))%nPhi;
+      // int p1 = (p0+1)%nPhi;
+    
+      float alpha = (phi - deltaAngle*p0) / deltaAngle;
+      float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*(p0%nPhi)); //  + nNodes*p0);
+      float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*(p1%nPhi)); //  + nNodes*p1);
 
       float value = (1-alpha)*v0 + alpha*v1;
       
@@ -188,6 +191,7 @@ __device__ __host__ static void rc(
       
       // src = tex1D(texTransferFunc, value * trans.x + trans.y);
       src = value2color(value, tf, trans);
+      // src = make_float4(1, 0, 0, 0.5); 
 
       // float v = clamp(value*0.01, -0.5f, 0.5f);
       // src = make_float4(v+0.5, 0.5-v, 0, min(1.f, v*v*10));
@@ -211,7 +215,7 @@ __device__ __host__ static void rc(
       dst.w += (1.0 - dst.w) * src.w;
     }
     
-    if (dst.w > 0.98) return; // early ray termination
+    // if (dst.w > 0.98) return; // early ray termination
     t += stepsize; 
   }
   // dst.x = 1; dst.y = 0; dst.z = 0; dst.w = 1;
@@ -233,9 +237,8 @@ __device__ __host__ static void raycasting(
 {
   const QuadNodeD &root = bvh[0];
   const float innerRadius = root.Ax, outerRadius = root.Bx;
-  // const float innerRadius = 1.0, outerRadius = 1.2;
   const float z0 = root.Ay, z1 = root.By; 
-  float tnear0, tfar0, tnear1, tfar1;
+  float tnear0=-FLT_MAX, tfar0=FLT_MAX, tnear1=-FLT_MAX, tfar1=FLT_MAX;
   bool b0 = intersectCylinder(rayO, rayD, tnear0, tfar0, outerRadius, z0, z1), 
        b1 = intersectCylinder(rayO, rayD, tnear1, tfar1, innerRadius, z0, z1);
   
@@ -247,8 +250,9 @@ __device__ __host__ static void raycasting(
     rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
-  if (b1)
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, trans, rayO, rayD, stepsize, tnear1, tfar1);
+  if (b0) {
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+  }
 #endif
 }
 
@@ -344,6 +348,7 @@ static void raycasting_cpu(
         float2 trans, 
         float stepsize)
 {
+  fprintf(stderr, "[volren] CPU rendering, width=%d, height=%d\n", viewport[2], viewport[3]);
 #pragma omp parallel for collapse(2)
   for (uint x = 0; x < viewport[2]; x ++) {
     for (uint y = 0; y < viewport[3]; y ++) {
@@ -353,10 +358,10 @@ static void raycasting_cpu(
       float4 dst = make_float4(0.f); 
       raycasting<SHADING>(dst, nPhi, nNode, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
 
-      output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
-      output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
-      output_rgba8[(y*viewport[2]+x)*4+2] = dst.z * 255;
-      output_rgba8[(y*viewport[2]+x)*4+3] = dst.w * 255;
+      output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
+      output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
+      output_rgba8[(y*viewport[2]+x)*4+2] = clamp(dst.z, 0.f, 1.f) * 255;
+      output_rgba8[(y*viewport[2]+x)*4+3] = clamp(dst.w, 0.f, 1.f) * 255;
     }
   }
 }
@@ -403,6 +408,8 @@ void rc_render(ctx_rc *ctx)
 
   cudaDeviceSynchronize();
   checkLastCudaError("[rc_render]");
+#else
+  rc_render_cpu(ctx);
 #endif
 }
 
@@ -424,9 +431,8 @@ void rc_render_cpu(ctx_rc *ctx)
 
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 {
-#if WITH_CUDA
   ctx->h_bvh = bvh;
-
+#if WITH_CUDA
   if (ctx->d_bvh != NULL)
     cudaFree(ctx->d_bvh);
 
@@ -437,13 +443,16 @@ void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 
 void rc_set_default_tf(ctx_rc *ctx)
 {
+  float r[3] = {0.7215686274509804, 0.1803921568627451, 0.1803921568627451}, 
+        b[3] = {0.2, 0.4, 0.8};
+
   float *tf = ctx->h_tf;
   for (int i=0; i<size_tf; i++) {
     float x = (float)i / (size_tf-1);
-    tf[i*4] = x;
-    tf[i*4+1] = 1-x;
-    tf[i*4+2] = 0.f;
-    tf[i*4+3] = min(1.f, (x-0.5)*(x-0.5)*10);
+    tf[i*4] = x*b[0] + (1-x)*r[0];
+    tf[i*4+1] = x*b[1] + (1-x)*r[1];
+    tf[i*4+2] = x*b[2] + (1-x)*r[2];
+    tf[i*4+3] = fmin(0.999f, (x-0.5)*(x-0.5)*40);
   }
   rc_set_tf(ctx, tf);
 }
@@ -498,11 +507,11 @@ void rc_create_ctx(ctx_rc **ctx)
   (*ctx)->h_tf = (float*)malloc(sizeof(float)*size_tf*4);
 
   const size_t max_npx = 4096*4096;
+  (*ctx)->h_output = malloc(4*max_npx);
 
 #if WITH_CUDA
   cudaSetDevice(0);
   cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
-  (*ctx)->h_output = malloc(4*max_npx);
   
   cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
   cudaMallocArray( &(*ctx)->d_tfArray, &channelDesc, size_tf*4, 1 ); 
@@ -561,6 +570,7 @@ void rc_set_invmvpd(ctx_rc *ctx, double *invmvp)
 
 void rc_clear_output(ctx_rc *ctx)
 {
+  memset(ctx->h_output, 0, ctx->viewport[2]*ctx->viewport[3]*4);
 #if WITH_CUDA
   cudaMemset(ctx->d_output_rgba8, 0, 4*sizeof(float)*ctx->viewport[2]*ctx->viewport[3]);
 #endif

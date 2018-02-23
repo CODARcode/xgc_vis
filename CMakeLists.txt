@@ -11,6 +11,7 @@ option (WITH_CUDA "Build with CUDA" OFF)
 option (WITH_QT "Build with Qt" OFF)
 option (WITH_VTK "Build with VTK" OFF)
 option (WITH_PNG "Build with PNG" OFF)
+option (WITH_OPENMP "Build with OpenMP" OFF)
 
 set (CMAKE_CXX_STANDARD 11)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,6 +36,13 @@ include_directories (
   ${PROJECT_SOURCE_DIR}/third_party/cutil
   ${Boost_INCLUDE_DIR}
 )
+
+if (WITH_OPENMP)
+  find_package (OpenMP REQUIRED)
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif ()
 
 if (WITH_CUDA)
   find_package (CUDA REQUIRED)
