@@ -30,19 +30,21 @@ function requestTree() {
     var stack = [data.d3treeRoot];
     t1 = new Date();
     data.treeNodeCount = 0;
+    data.treeDepth = 0;
     while (stack.length > 0) {
       var curNode = stack.pop();
       data.treeNodeCount ++;
+      if (data.treeDepth < curNode.depth) data.treeDepth = curNode.depth;
       var x = curNode.x;
       var y = curNode.y;
       curNode.x = y * Math.cos(x);
       curNode.y = y * Math.sin(x);
       data.treeData[curNode.id] = curNode;
 
-      if (curNode.extremum_val > extremumMax) extremumMax = curNode.extremum_val;
-      if (curNode.extremum_val < extremumMin) extremumMin = curNode.extremum_val;
-      if (curNode.saddle_val > saddleMax) saddleMax = curNode.saddle_val;
-      if (curNode.saddle_val < saddleMin) saddleMin = curNode.saddle_val;
+      if (curNode.data.extremum_val > extremumMax) extremumMax = curNode.data.extremum_val;
+      if (curNode.data.extremum_val < extremumMin) extremumMin = curNode.data.extremum_val;
+      if (curNode.data.saddle_val > saddleMax) saddleMax = curNode.data.saddle_val;
+      if (curNode.data.saddle_val < saddleMin) saddleMin = curNode.data.saddle_val;
       if (curNode.children) {
         stack = stack.concat(curNode.children);
       }
@@ -57,11 +59,30 @@ function requestTree() {
     };
     t2 = new Date();
     // console.log(t2.getTime() - t1.getTime());
+
+    var maxExtremumAbs = Math.max(Math.abs(data.treeMinMax.extremumMin), data.treeMinMax.extremumMax);
+    var maxSaddleAbs = Math.max(Math.abs(data.treeMinMax.saddleMin), data.treeMinMax.saddleMax);
+    var maxAbs = Math.max(maxExtremumAbs, maxSaddleAbs);
+    var maxNodeHeight = 1;
+    var heightScale = d3.scaleLinear().domain([0, maxAbs])
+        .range([0, maxNodeHeight]);
+    for (var id in data.treeData) {
+      var extremumY = heightScale(data.treeData[id].data.extremum_val);
+      var saddleY = heightScale(data.treeData[id].data.saddle_val);
+      data.treeData[id].saddleY = saddleY;
+      data.treeData[id].extremumY = extremumY;
+      if (isNaN(saddleY) || isNaN(extremumY)) {
+        debugger;
+        console.log(data.treeData[id]);
+      }
+    }
+
     ViewTree.drawRadialTree();
   });
 }
 
 function requestData() {
+  if (VIEW2D_OFF) return;
   if (!doneRendering) return;
   doneRendering = false;
   console.log("requesting data...");
@@ -86,6 +107,7 @@ function requestSingleSliceRawData() {
 }
 
 function requestMultipleSliceRawData() {
+  if (VIEW3D_OFF) return;
   console.log("requesting multiple slice raw data...");
   var msg = {
     type: "requestMultipleSliceRawData"
@@ -93,6 +115,15 @@ function requestMultipleSliceRawData() {
 
   if (ws.readyState == 1) ws.send(JSON.stringify(msg));
   else connectToServer();
+}
+
+function requestImageWait(tfArray) {
+  if (volrenTimer) {
+    clearTimeout(volrenTimer);
+  }
+  volrenTimer = setTimeout(function() {
+    requestImage(tfArray);
+  }, 1000 * VOLREN_TIME);
 }
 
 function requestImage(tfArray) {
@@ -106,21 +137,36 @@ function requestImage(tfArray) {
     near: View3D.getCameraNear(),
     far: View3D.getCameraFar()
   };
-  if (tfArray != undefined) {
-    msg.tf = tfArray;
+  if (!tfArray) {
+    tfArray = ViewTF.getTF();
   }
-  console.log(msg);
+  if (tfArray && tfArray.length === 1024) {
+    var containsNaN = false;
+    for (var i = 0; i < tfArray.length; i ++) {
+      if (isNaN(tfArray[i])) {
+        containsNaN = true;
+        break;
+      }
+    }
+    if (!containsNaN) {
+      msg.tf = tfArray;
+    }
+  }
+  console.log('POST! ', msg);
+  if (VIEW3D_OFF) return;
 
-  var url = 'http://' + ws.url.substr(5);
-  fetch(url + 'requestVolren', {
-    body: JSON.stringify(msg),
-    method: 'POST'
-  })
-  .then(function(response) {
-    return response.blob();
-  }).then(function(imageDataBlob) {
-    View3D.updateImage(imageDataBlob);
-  });
+  if (ws && ws.readyState == 1) {
+    var url = 'http://' + ws.url.substr(5);
+    fetch(url + 'requestVolren', {
+      body: JSON.stringify(msg),
+      method: 'POST'
+    })
+    .then(function(response) {
+      return response.blob();
+    }).then(function(imageDataBlob) {
+      View3D.updateImage(imageDataBlob);
+    });
+  }
 
   // if (ws.readyState == 1) ws.send(JSON.stringify(msg));
   // else connectToServer();
@@ -150,7 +196,6 @@ function onOpen(evt)
 {
   console.log("connected to server.");
   requestMesh();
-  requestTree();
 }
 
 function onClose(evt)
@@ -163,7 +208,7 @@ function onMessage(evt)
 {
   console.log(evt);
   var isBinary = !(typeof evt.data === 'string');
-  console.log('is binary: ', isBinary);
+  // console.log('is binary: ', isBinary);
   if (!isBinary) {
     var msg = JSON.parse(evt.data);
     if (msg.type == 'mesh') {

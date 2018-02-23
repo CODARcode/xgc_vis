@@ -1,19 +1,32 @@
   - remove stats
   - resize
-  
   - 3d image
+  - TF widget
+  - seperate initial and rendering 
   - tree
     - calculate y value
     - draw O -> xz project 
     - draw y link
+    - draw transparent line
     - draw red / blue color 
-  - TF widget
-  - seperate initial and rendering 
-
-  - console width 
-  - timestep
+  - 3d refresh image
+    - scroll
+    - hide when mousedown
+    - cancel too quick request
+    - hide 3d when show picture
   - 2d check hovering point
-  - 3d customer color transparent
-  - 2d remove timestep 
-  - reconnect
+    - mouse out -> hide tip 
+
+  - tf 
+    - add settings
+  - reconnect bug 
+  - layout
+    - hide tf widget
+    - console width 
+    - expand header for individual menus
+    - mouse down -> pointer cursor
   - loading img
+  - 2d
+    - change hover color
+    - timestep
+  - 3d customer color transparent

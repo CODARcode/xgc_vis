@@ -6,10 +6,16 @@ var ViewTF = (function() {
   };
   
   ViewTF.initial = function() {
-    $('#tf-holder').tfWidget(callback);
+    window.tfWidget = $('#tf-holder').tfWidget(callback);
+    console.log(tfWidget);
     function callback(controlPoints, tfArray) {
-      requestImage(tfArray);
+      data.tfArray = tfArray;
+      requestImageWait(tfArray);
     }
+  };
+
+  ViewTF.getTF = function() {
+    return data.tfArray;
   };
 
   return ViewTF;

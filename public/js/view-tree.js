@@ -60,21 +60,41 @@ var ViewTree = (function() {
     var linePositions = [];
     var lineColors = [];
 
+    var cs = d3.scaleLinear().domain([data.treeMinMax.extremumMin, 0, data.treeMinMax.extremumMax])
+        .range([d3.rgb(PresetColor.blue), d3.rgb(PresetColor.black), d3.rgb(PresetColor.red)]);
+    var valueColorScale = function(v) {
+      return new THREE.Color(cs(v).toString());
+    };
+
     for (var id in data.treeData) {
       var i = Number(id);
       
-      // pointPositions.push(data.treeData[id].x, data.treeData[id].y, 0);
-      pointPositions.push(data.treeData[id].x, 0, data.treeData[id].y);
-      pointColors.push( 0.01 + 0.1 * ( i / data.treeNodeCount ), 1.0, 0.5 );
+      // point 
+      pointPositions.push(data.treeData[id].x, data.treeData[id].extremumY, data.treeData[id].y);
+      pointColors.push((data.treeData[id].depth / data.treeDepth), 1.0, 1.0);
+
+      // point-parent line 
       var parent = data.treeData[id].parent;
       if (parent != undefined) {
         var parentId = parent.id;
-        // linePositions.push(data.treeData[id].x, data.treeData[id].y, 0);
-        linePositions.push(data.treeData[id].x, 0, data.treeData[id].y);
-        // linePositions.push(data.treeData[parentId].x, data.treeData[parentId].y, 0);
-        linePositions.push(data.treeData[parentId].x, 0, data.treeData[parentId].y);
-        lineColors.push(0.01 + 0.1 * ( i / data.treeNodeCount ), 1.0, 0.5);
-        lineColors.push(0.01 + 0.1 * ( i / data.treeNodeCount ), 1.0, 0.5);
+        var extremumColorArr = valueColorScale(data.treeData[id].data.extremum_val).toArray();
+        var saddleColorArr = valueColorScale(data.treeData[id].data.saddle_val).toArray();
+        var parentExtremumColorArr = valueColorScale(data.treeData[parentId].data.extremum_val).toArray();
+
+        linePositions.push(data.treeData[id].x, data.treeData[id].extremumY, data.treeData[id].y);
+        linePositions.push(data.treeData[id].x, data.treeData[id].saddleY, data.treeData[id].y);
+        lineColors.push(extremumColorArr[0], extremumColorArr[1], extremumColorArr[2]);
+        lineColors.push(saddleColorArr[0], saddleColorArr[1], saddleColorArr[2]);
+
+        linePositions.push(data.treeData[id].x, data.treeData[id].saddleY, data.treeData[id].y);
+        linePositions.push(data.treeData[parentId].x, data.treeData[id].saddleY, data.treeData[parentId].y);
+        lineColors.push(saddleColorArr[0], saddleColorArr[1], saddleColorArr[2]);
+        lineColors.push(saddleColorArr[0], saddleColorArr[1], saddleColorArr[2]);
+
+        linePositions.push(data.treeData[parentId].x, data.treeData[id].saddleY, data.treeData[parentId].y);
+        linePositions.push(data.treeData[parentId].x, data.treeData[parentId].extremumY, data.treeData[parentId].y);
+        lineColors.push(saddleColorArr[0], saddleColorArr[1], saddleColorArr[2]);
+        lineColors.push(parentExtremumColorArr[0], parentExtremumColorArr[1], parentExtremumColorArr[2]);
       }
     }
     console.log(pointPositions, pointColors);
@@ -94,15 +114,26 @@ var ViewTree = (function() {
     console.log(points);
     ViewTree.scene.add( points );
 
+    console.log(linePositions, lineColors);
     var lineGeometry = new THREE.BufferGeometry();
-    var lineGeometry = new THREE.BufferGeometry();
-    lineGeometry.addAttribute( 'position', new THREE.Float32BufferAttribute( linePositions, 3 ) );
-    lineGeometry.addAttribute( 'color', new THREE.Float32BufferAttribute( lineColors, 3 ) );
-    var lineMaterial = new THREE.LineBasicMaterial({color: 0x0000ff});
+    lineGeometry.addAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+    lineGeometry.addAttribute('color', new THREE.Float32BufferAttribute(lineColors, 3));
+    var lineMaterial = new THREE.LineBasicMaterial({
+      vertexColors: THREE.VertexColors, 
+      // color: 0xffffff, 
+      opacity: 1
+      // transparent: true, 
+      // blending: THREE.AdditiveBlending
+    });
     var lines = new THREE.LineSegments(lineGeometry, lineMaterial);
     console.log(lines);
     ViewTree.scene.add( lines );
-    
+
+    var zeroPlaneGeometry = new THREE.PlaneGeometry(500, 500);
+    var zeroPlaneMaterial = new THREE.MeshBasicMaterial({color: 0xeeeeee, side: THREE.DoubleSide, transparent: true, opacity: .5});
+    var zeroPlane = new THREE.Mesh(zeroPlaneGeometry, zeroPlaneMaterial);
+    zeroPlane.rotateX(Math.PI / 2);
+    ViewTree.scene.add(zeroPlane);
   }
 
   ViewTree.resize = function() {

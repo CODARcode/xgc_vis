@@ -3,7 +3,7 @@ var View3D = (function() {
 
   View3D.getView = function() {
     return layout.View3D;
-  }
+  };
 
   View3D.getWH = function() {
     return {
@@ -19,8 +19,6 @@ var View3D = (function() {
     var mul = projectionMatrix.multiply(cameraModelMatrixInverse);
     var inv = new THREE.Matrix4();
     inv.getInverse(mul);
-    // inv.getInverse(projectionMatrix);
-    console.log(inv);
     return inv.elements;
   };
 
@@ -83,6 +81,28 @@ var View3D = (function() {
     $(parentNode).mouseup(function() {
       requestImage();
     });
+
+    $(parentNode).bind('mousewheel', function(e){
+      View3D.hideVolrenImage();
+      requestImageWait();
+    });
+
+    $(parentNode).bind('touchmove', function(e) {
+      View3D.hideVolrenImage();
+      requestImageWait();
+    });
+
+    $(parentNode).mousedown(function() {
+      View3D.hideVolrenImage();
+    });
+  };
+
+  View3D.hideVolrenImage = function() {
+    $('.volren-image').hide();
+  };
+
+  View3D.showVolrenImage = function() {
+    $('.volren-image').show();
   };
 
   View3D.updateImage = function(imageBlob) {
@@ -93,7 +113,7 @@ var View3D = (function() {
     var parentNode = View3D.getView();
     var top = '-' + $(parentNode).height() + 'px';
     $(imgNode).css('top', top);
-    
+    View3D.showVolrenImage();
     // $('.volren-image').html('<img src="data:image/png;base64,' + data + '" />');
   };
 
@@ -158,6 +178,8 @@ var View3D = (function() {
     View3D.camera.aspect = width / height;
     View3D.camera.updateProjectionMatrix();
     View3D.renderer.setSize(width, height);
+    View3D.hideVolrenImage();
+    requestImageWait();
   }
 
   View3D.updateData = function() {
@@ -207,7 +229,7 @@ var View3D = (function() {
         if (d < labelRange.min) labelRange.min = d;
       });
     });
-    console.log(labelRange);
+    // console.log(labelRange);
     var cs2 = d3.scaleLinear().domain([labelRange.min, 0, labelRange.max])
         .range([d3.rgb(green), d3.rgb(black), d3.rgb(red)]);
     var labelColorScale = function(l) {
