@@ -14,27 +14,32 @@ inline bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
 }
 
 __device__ __host__
-inline bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float3 &lambda)
+inline bool QuadNodeD_insideTriangle(const QuadNodeD &q, float x, float y, float3 &lambda, float *invdet)
 {
+#if 0
   lambda.x = ((q.y1 - q.y2)*(x - q.x2) + (q.x2 - q.x1)*(y - q.y2)) /
           ((q.y1 - q.y2)*(q.x0 - q.x2) + (q.x2 - q.x1)*(q.y0 - q.y2));
   lambda.y = ((q.y2 - q.y0)*(x - q.x2) + (q.x0 - q.x2)*(y - q.y2)) /
          ((q.y1 - q.y2)*(q.x0 - q.x2) + (q.x2 - q.x1)*(q.y0 - q.y2));
+#endif
+  const float d = invdet[q.triangleId];
+  lambda.x = ((q.y1 - q.y2)*(x - q.x2) + (q.x2 - q.x1)*(y - q.y2)) * d; 
+  lambda.y = ((q.y2 - q.y0)*(x - q.x2) + (q.x0 - q.x2)*(y - q.y2)) * d;
   lambda.z = 1.0 - lambda.x - lambda.y;
   // fprintf(stderr, "barycentric=%f, %f, %f\n", lambda.x, lambda.y, lambda.z);
   return lambda.x >= 0 && lambda.y >= 0 && lambda.z >= 0;
 }
 
 __device__ __host__
-inline int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, float x, float y, float3 &lambda)
+inline int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *nodes, float x, float y, float3 &lambda, float *invdet)
 {
   if (q->triangleId >= 0) { //leaf node
-    bool succ = QuadNodeD_insideTriangle(*q, x, y, lambda);
+    bool succ = QuadNodeD_insideTriangle(*q, x, y, lambda, invdet);
     if (succ) return q->triangleId;
   } else if (QuadNodeD_insideQuad(*q, x, y)) {
     for (int j=0; j<4; j++) {
       if (q->childrenIds[j] > 0) {
-        int result = QuadNodeD_locatePoint_recursive(&nodes[q->childrenIds[j]], nodes, x, y, lambda);
+        int result = QuadNodeD_locatePoint_recursive(&nodes[q->childrenIds[j]], nodes, x, y, lambda, invdet);
         if (result >= 0) return result;
       }
     }
@@ -43,7 +48,7 @@ inline int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *
 }
 
 __device__ __host__
-inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda)
+inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda, float *invdet)
 {
   // float lambda.x, lambda.y, lambda.z;
   static const int maxStackSize = 64;
@@ -59,7 +64,7 @@ inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lam
     // fprintf(stderr, "D_checking node %d\n", i);
 
     if (q.triangleId >= 0) { // leaf node
-      bool succ = QuadNodeD_insideTriangle(q, x, y, lambda);
+      bool succ = QuadNodeD_insideTriangle(q, x, y, lambda, invdet);
       if (succ) return q.triangleId;
     } else if (QuadNodeD_insideQuad(q, x, y)) { // non-leaf node
       for (int j=0; j<4; j++) {
@@ -72,17 +77,17 @@ inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lam
 }
 
 __device__ __host__
-inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda)
+inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda, float *invdet)
 {
   // check if last_nid is valid
-  if (last_nid<0) return QuadNodeD_locatePoint(bvh, x, y, lambda);
+  if (last_nid<0) return QuadNodeD_locatePoint(bvh, x, y, lambda, invdet);
 
   // check if in the same triangle
-  if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda)) return last_nid;
+  if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda, invdet)) return last_nid;
 
   // TODO: check if in the neighbors of last_nid
 
-  return QuadNodeD_locatePoint(bvh, x, y, lambda);
+  return QuadNodeD_locatePoint(bvh, x, y, lambda, invdet);
 }
 
 __device__ __host__
@@ -95,7 +100,7 @@ inline float QuadNodeD_sample(QuadNodeD* bvh, int nid, float3 lambda, float *dat
 }
 
 __device__ __host__
-inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data)
+inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -106,7 +111,7 @@ inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int
   float z = p.z;
   float3 lambda;
   
-  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
+  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda, invdet);
   if (nid == -1) return false;
       
   const float deltaAngle = pi2/nPhi;
@@ -123,7 +128,7 @@ inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int
 }
 
 __device__ __host__
-inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *disp)
+inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *disp, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -134,7 +139,7 @@ inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, in
   float z = p.z;
   float3 lambda;
   
-  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
+  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda, invdet);
   if (nid == -1) return false;
       
   const float deltaAngle = pi2/nPhi;
@@ -149,8 +154,8 @@ inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, in
   float dy = lambda.x * disp[q.i0*2+1] + lambda.y * disp[q.i1*2+1] + lambda.z * disp[q.i2*2+1];
  
   float3 lambda0, lambda1;
-  int nid0 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*(1-alpha), z+dy*(1-alpha), lambda0);
-  int nid1 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*alpha, z+dy*alpha, lambda1);
+  int nid0 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*(1-alpha), z+dy*(1-alpha), lambda0, invdet);
+  int nid1 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*alpha, z+dy*alpha, lambda1, invdet);
   if (nid0 == -1 || nid1 == -1) {
     // fprintf(stderr, "nid=%d, nid0=%d, nid1=%d, dx=%f, dy=%f\n", nid, nid0, nid1, dx, dy);
     return false;
@@ -195,6 +200,7 @@ __device__ __host__ static inline void rc(
         float *data,              // volume data in unstructured mesh
         QuadNodeD *bvh,
         float *disp,
+        float *invdet,
         float *tf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -215,8 +221,8 @@ __device__ __host__ static inline void rc(
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    const bool succ = interpolateXGC(value, bvh, pos, nPhi, nNodes, data);
-    // const bool succ = interpolateXGC2(value, bvh, pos, nPhi, nNodes, data, disp);
+    const bool succ = interpolateXGC(value, bvh, pos, nPhi, nNodes, data, invdet);
+    // const bool succ = interpolateXGC2(value, bvh, pos, nPhi, nNodes, data, disp, invdet);
     if (succ) {
       src = value2color(value, tf, trans);
 #if 0
@@ -252,6 +258,7 @@ __device__ __host__ static inline void raycasting(
         float *data,              // volume data in unstructured mesh
         QuadNodeD *bvh,
         float *disp,
+        float *invdet,
         float *tf, 
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -267,10 +274,10 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -283,10 +290,11 @@ __device__ __host__ static inline void raycasting(
 __global__ static void test_point_locator_kernel(
     int *output, 
     float x, float y,
-    QuadNodeD *bvh)
+    QuadNodeD *bvh,
+    float *invdet)
 {
   float3 lambda;
-  *output = QuadNodeD_locatePoint(bvh, x, y, lambda);
+  *output = QuadNodeD_locatePoint(bvh, x, y, lambda, invdet);
 }
 #endif
 
@@ -326,6 +334,7 @@ __global__ static void raycasting_kernel(
         float *data, 
         QuadNodeD *bvh,
         float *disp,
+        float *invdet,
         float *tf,
         float2 trans, 
         float stepsize)
@@ -339,7 +348,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
+  raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
 
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -369,6 +378,7 @@ static void raycasting_cpu(
         float *data, 
         QuadNodeD *bvh,
         float *disp,
+        float *invdet,
         float *tf,
         float2 trans, 
         float stepsize)
@@ -381,7 +391,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize);
+      raycasting<SHADING>(dst, nPhi, nNodes, data, bvh, disp, invdet, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -399,7 +409,7 @@ void rc_test_point_locator(ctx_rc *ctx, float x, float y)
 #if WITH_CUDA
   test_point_locator_kernel<<<1, 1>>>(
       (int*)ctx->d_output_rgba8, 
-      x, y, ctx->d_bvh);
+      x, y, ctx->d_bvh, ctx->d_invdet);
 
   int nid;
   cudaMemcpy(&nid, ctx->d_output_rgba8, sizeof(int), cudaMemcpyDeviceToHost);
@@ -427,6 +437,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_data, 
           ctx->d_bvh,
           ctx->d_disp,
+          ctx->d_invdet,
           ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -449,6 +460,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->h_data, 
           ctx->h_bvh,
           ctx->h_disp,
+          ctx->h_invdet,
           ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -512,6 +524,16 @@ void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp)
 #endif
 }
 
+void rc_bind_invdet(ctx_rc *ctx, int nTriangles, float *invdet)
+{
+  ctx->h_invdet = invdet;
+#if WITH_CUDA
+  if (ctx->d_invdet == NULL)
+    cudaMalloc((void**)&ctx->d_invdet, sizeof(float)*nTriangles);
+  cudaMemcpy(ctx->d_invdet, invdet, sizeof(float)*nTriangles, cudaMemcpyHostToDevice);
+#endif
+}
+
 void rc_bind_data(ctx_rc *ctx, int nNodes, int nPhi, float *data)
 {
   ctx->h_data = data;
@@ -554,6 +576,8 @@ void rc_destroy_ctx(ctx_rc **ctx)
   // TODO: free any resources
 #if WITH_CUDA
   cudaFree((*ctx)->d_output_rgba8);
+  cudaFree((*ctx)->d_disp);
+  cudaFree((*ctx)->d_invdet);
 #endif
   free((*ctx)->h_output);
   free((*ctx)->h_tf);

@@ -48,6 +48,18 @@ struct XGCMesh {
   double *coords = NULL;
   double *psi = NULL;
   float *dispf = NULL; // displacement derived from nextNode
+  float *invdetf = NULL; // inversed determinant of triangles
+
+  void deriveInversedDeterminants() {
+    invdetf = (float*)realloc(invdetf, sizeof(float)*nTriangles);
+    for (int i=0; i<nTriangles; i++) {
+      const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+      float x0 = coords[i0*2], x1 = coords[i1*2], x2 = coords[i2*2],
+            y0 = coords[i0*2+1], y1 = coords[i1*2+1], y2 = coords[i2*2+1];
+      float det = (y1-y2)*(x0-x2) + (x2-x1)*(y0-y2);
+      invdetf[i] = 1.f / det;
+    }
+  }
 
   void deriveDisplacements() {
     dispf = (float*)realloc(dispf, sizeof(float)*nNodes*2);
@@ -65,6 +77,7 @@ struct XGCMesh {
     free(nextNode);
     free(coords);
     free(dispf);
+    free(invdetf);
   }
 } mesh;
 
@@ -414,6 +427,7 @@ void startVolren(XGCMesh& m, double *dpot)
   for (int i=0; i<m.nNodes*m.nPhi; i++)
     dpotf[i] = dpot[i];
   rc_bind_disp(rc, m.nNodes, m.dispf);
+  rc_bind_invdet(rc, m.nTriangles, m.invdetf);
   rc_bind_data(rc, m.nNodes, m.nPhi, dpotf);
   free(dpotf);
 
@@ -733,6 +747,7 @@ int main(int argc, char **argv)
   readTriangularMesh(meshFP, mesh.nNodes, mesh.nTriangles, &mesh.coords, &mesh.conn, &mesh.nextNode);
   readScalars<double>(meshFP, "psi", &mesh.psi);
   mesh.deriveDisplacements();
+  mesh.deriveInversedDeterminants();
   // adios_close(*meshFP);
 
   ex = new XGCBlobExtractor(mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn);
