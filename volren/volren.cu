@@ -122,6 +122,45 @@ inline bool interpolateXGC(float &value, QuadNodeD *bvh, float3 p, int nPhi, int
   return true;
 }
 
+__device__ __host__
+inline bool interpolateXGC2(float &value, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, float *data, float *disp)
+{
+  static const float pi = 3.141592654f;
+  static const float pi2 = 2*pi;
+  
+  // cylindar coordinates
+  float r = sqrt(p.x*p.x + p.y*p.y);
+  float phi = atan2(p.y, p.x) + pi;
+  float z = p.z;
+  float3 lambda;
+  
+  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda);
+  if (nid == -1) return false;
+      
+  const float deltaAngle = pi2/nPhi;
+
+  int p0 = (int)(phi/deltaAngle)%nPhi;
+  int p1 = (p0+1)%nPhi;
+  float alpha = (phi - deltaAngle*p0) / deltaAngle;
+
+  float dx = disp[nid*2], dy = disp[nid*2+1];
+  
+  // float dx = (1 - alpha) * disp[nid*2], 
+  //       dy = (1 - alpha) * disp[nid*2+1];
+ 
+  float3 lambda0, lambda1;
+  int nid0 = QuadNodeD_locatePoint(bvh, r+dx*(1-alpha), z+dy*(1-alpha), lambda0);
+  int nid1 = QuadNodeD_locatePoint(bvh, r+dx*alpha, z+dy*alpha, lambda1);
+  if (nid0 == -1 || nid1 == -1) return false;
+
+  float v0 = QuadNodeD_sample(bvh, nid0, lambda0, data + nNodes*p0); //  + nNodes*p0);
+  float v1 = QuadNodeD_sample(bvh, nid1, lambda1, data + nNodes*p1); //  + nNodes*p1);
+
+  value = (1-alpha)*v0 + alpha*v1;
+  return true;
+
+}
+
 __device__ __host__ 
 static inline float4 value2color(float value, float *tf, float2 trans)
 {
