@@ -70,7 +70,7 @@ inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lam
 
     if (q.triangleId >= 0) { // leaf node
       bool succ = QuadNodeD_insideTriangle(q, x, y, lambda, invdet);
-      if (succ) return q.triangleId;
+      if (succ) return i; // q.triangleId;
     } else if (QuadNodeD_insideQuad(q, x, y)) { // non-leaf node
       for (int j=0; j<4; j++) {
         if (q.childrenIds[j] > 0)
@@ -122,7 +122,7 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
 
 template <int SHADING>
 __device__ __host__
-inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet)
+inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -139,7 +139,7 @@ inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int
   float z = p.z;
   float3 lambda;
   
-  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda, invdet);
+  int nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda, invdet);
   if (nid == -1) return nid; 
   
   const QuadNodeD &q = bvh[nid];
@@ -275,12 +275,14 @@ __device__ __host__ static inline void rc(
   float3 pos, g;
   float value;
   float t = tnear;
+  int nid, last_nid = -1;
 
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    const int nid = interpolateXGC<SHADING>(value, g, bvh, pos, nPhi, nNodes, nTriangles, data, grad, invdet);
+    nid = interpolateXGC<SHADING>(value, g, last_nid, bvh, pos, nPhi, nNodes, nTriangles, data, grad, invdet);
     // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, nTriangles, data, disp, invdet);
+    last_nid = nid;
     if (nid >= 0) {
       src = value2color(value, tf, trans);
 
