@@ -154,9 +154,9 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
   //     lambda.x * data[q.i0*2+1] + lambda.y * data[q.i1*2+1] + lambda.z * data[q.i2*2+1]);
 }
 
-template <int SHADING>
+template <int PSI, int SHADING>
 __device__ __host__
-inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet)
+inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh, float3 p, float2 psi_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, float *psi)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -175,12 +175,18 @@ inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh,
   
   int nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda, invdet);
   if (nid == -1) return nid; 
-  
+ 
   const QuadNodeD &q = bvh[nid];
+  
+  if (PSI) {
+    float psi_val = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, psi);
+    if ((psi_val-psi_range.x)*(psi_val-psi_range.y) >= 0) // outside psi_range
+      return -1;
+  }
 
   const float deltaAngle = pi2/nPhi;
 #ifdef __CUDA_ARCH__
-  int p0 = __float2int_rd(fdividef(phi, deltaAngle)) % nPhi;
+  int p0 = __float2int_rd(__fdividef(phi, deltaAngle)) % nPhi;
 #else
   int p0 = (int)(phi/deltaAngle) % nPhi;
 #endif
@@ -285,7 +291,7 @@ static inline float4 value2color(float value, float4 *tf, float2 trans)
 }
 
   
-template <int SHADING>
+template <int PSI, int SHADING>
 __device__ __host__ static inline void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
@@ -297,6 +303,7 @@ __device__ __host__ static inline void rc(
         float *disp,
         float *invdet,
         float *psi,
+        float2 psi_range,
         float4 *tf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -315,7 +322,7 @@ __device__ __host__ static inline void rc(
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    nid = interpolateXGC<SHADING>(value, g, last_nid, bvh, pos, nPhi, nNodes, nTriangles, data, grad, invdet);
+    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, pos, psi_range, nPhi, nNodes, nTriangles, data, grad, invdet, psi);
     // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, nTriangles, data, disp, invdet);
     last_nid = nid;
     if (nid >= 0) {
@@ -356,7 +363,7 @@ __device__ __host__ static inline void rc(
   // dst.x = 1; dst.y = 0; dst.z = 0; dst.w = 1;
 }
 
-template <int SHADING>
+template <int PSI, int SHADING>
 __device__ __host__ static inline void raycasting(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
@@ -368,6 +375,7 @@ __device__ __host__ static inline void raycasting(
         float *disp,
         float *invdet,
         float *psi,
+        float2 psi_range,
         float4 *tf, 
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -383,10 +391,10 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -433,7 +441,7 @@ __device__ __host__ inline bool setup_ray(
 }
 
 #if WITH_CUDA
-template <int SHADING>
+template <int PSI, int SHADING>
 __global__ static void raycasting_kernel(
         unsigned char *output_rgba8,
         int *viewport, 
@@ -447,6 +455,7 @@ __global__ static void raycasting_kernel(
         float *disp,
         float *invdet,
         float *psi,
+        float2 psi_range,
         float4 *tf,
         float2 trans, 
         float stepsize)
@@ -459,7 +468,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, tf, trans, rayO, rayD, stepsize);
+  raycasting<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize);
   
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -479,7 +488,7 @@ __global__ static void raycasting_kernel(
 }
 #endif
 
-template <int SHADING>
+template <int PSI, int SHADING>
 static void raycasting_cpu(
         unsigned char *output_rgba8,
         int *viewport, 
@@ -493,6 +502,7 @@ static void raycasting_cpu(
         float *disp,
         float *invdet,
         float *psi,
+        float2 psi_range,
         float4 *tf,
         float2 trans, 
         float stepsize)
@@ -505,7 +515,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, tf, trans, rayO, rayD, stepsize);
+      raycasting<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -543,7 +553,7 @@ void rc_render(ctx_rc *ctx)
   cudaMemcpy(ctx->d_invmvp, ctx->invmvp, sizeof(float)*16, cudaMemcpyHostToDevice);
   // cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
  
-  raycasting_kernel<1><<<gridSize, blockSize>>>(
+  raycasting_kernel<0,1><<<gridSize, blockSize>>>(
           ctx->d_output_rgba8,
           ctx->d_viewport, 
           ctx->d_invmvp,
@@ -556,6 +566,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_disp,
           ctx->d_invdet,
           ctx->d_psi,
+          make_float2(ctx->psi_min, ctx->psi_max),
           (float4*)ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -569,7 +580,7 @@ void rc_render(ctx_rc *ctx)
 
 void rc_render_cpu(ctx_rc *ctx)
 {
-  raycasting_cpu<1>(
+  raycasting_cpu<0,1>(
           (unsigned char*)ctx->h_output,
           ctx->viewport, 
           ctx->invmvp,
@@ -582,6 +593,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->h_disp,
           ctx->h_invdet,
           ctx->h_psi,
+          make_float2(ctx->psi_min, ctx->psi_max),
           (float4*)ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -636,14 +648,23 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
 #endif
 }
 
-void rc_bind_psi(ctx_rc *ctx, int nNodes, float *psi)
+void rc_bind_psi(ctx_rc *ctx, int nNodes, float *psi, float psi_min, float psi_max)
 {
   ctx->h_psi = psi;
+  ctx->psi_min = psi_min;
+  ctx->psi_max = psi_max;
 #if WITH_CUDA
   if (ctx->d_psi == NULL)
     cudaMalloc((void**)&ctx->d_psi, sizeof(float)*nNodes);
   cudaMemcpy(ctx->d_psi, psi, sizeof(float)*nNodes, cudaMemcpyHostToDevice);
 #endif
+}
+
+void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_range_min, float psi_range_max)
+{
+  ctx->toggle_psi_range = on;
+  ctx->psi_range_min = psi_range_min; 
+  ctx->psi_range_max = psi_range_max;
 }
 
 void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp)

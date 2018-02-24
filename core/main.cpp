@@ -468,7 +468,7 @@ void startVolren(XGCMesh& m, XGCData& d)
   // rc_test_point_locator(rc, 2.3f, -0.4f);
  
   // mesh 
-  rc_bind_psi(rc, m.nNodes, m.psif);
+  rc_bind_psi(rc, m.nNodes, m.psif, m.psi_min, m.psi_max);
   rc_bind_disp(rc, m.nNodes, m.dispf);
   rc_bind_invdet(rc, m.nTriangles, m.invdetf);
 
@@ -498,6 +498,7 @@ void startVolren(XGCMesh& m, XGCData& d)
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
+      rc_set_psi_range(rc, true, 0, 0.2); // TODO: argument
       if (task->tf) 
         rc_set_tf(rc, task->tf);
       rc_clear_output(rc);
