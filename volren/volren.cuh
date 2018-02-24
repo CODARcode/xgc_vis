@@ -39,7 +39,7 @@ struct ctx_rc {
 
   int transform; 
   int shading;
-};  
+};
 
 void rc_create_ctx(ctx_rc **ctx); 
 void rc_destroy_ctx(ctx_rc **ctx); 
