@@ -47,8 +47,15 @@ struct XGCMesh {
   int *conn = NULL, *nextNode = NULL;
   double *coords = NULL;
   double *psi = NULL;
+  float *psif = NULL;
   float *dispf = NULL; // displacement derived from nextNode
   float *invdetf = NULL; // inversed determinant of triangles
+
+  void deriveSinglePrecisionPsi() {
+    psif = (float*)realloc(psif, sizeof(float)*nNodes);
+    for (int i=0; i<nNodes; i++) 
+      psif[i] = psi[i];
+  }
 
   void deriveInversedDeterminants() {
     invdetf = (float*)realloc(invdetf, sizeof(float)*nTriangles);
@@ -91,7 +98,7 @@ struct XGCData {
     free(graddpotf);
   }
 
-  void deriveSinglePrecisionData(const XGCMesh& m) {
+  void deriveSinglePrecisionDpot(const XGCMesh& m) {
     dpotf = (float*)realloc(dpotf, sizeof(float)*m.nNodes*m.nPhi);
     for (int i=0; i<m.nNodes*m.nPhi; i++) 
       dpotf[i] = dpot[i];
@@ -454,9 +461,13 @@ void startVolren(XGCMesh& m, XGCData& d)
   rc_set_stepsize(rc, 0.005);
   rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
   // rc_test_point_locator(rc, 2.3f, -0.4f);
-  
+ 
+  // mesh 
+  rc_bind_psi(rc, m.nNodes, m.psif);
   rc_bind_disp(rc, m.nNodes, m.dispf);
   rc_bind_invdet(rc, m.nTriangles, m.invdetf);
+
+  // dpot
   rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, d.dpotf, d.graddpotf);
 
   volren_started = true;
@@ -774,6 +785,7 @@ int main(int argc, char **argv)
   fprintf(stderr, "reading mesh...\n");
   readTriangularMesh(meshFP, mesh.nNodes, mesh.nTriangles, &mesh.coords, &mesh.conn, &mesh.nextNode);
   readScalars<double>(meshFP, "psi", &mesh.psi);
+  mesh.deriveSinglePrecisionPsi();
   mesh.deriveDisplacements();
   mesh.deriveInversedDeterminants();
   // adios_close(*meshFP);
@@ -858,7 +870,7 @@ int main(int argc, char **argv)
     adios_perform_reads(varFP, 1);
     adios_selection_delete(sel);
 
-    xgcData.deriveSinglePrecisionData(mesh);
+    xgcData.deriveSinglePrecisionDpot(mesh);
     xgcData.deriveGradient(mesh);
 
 
