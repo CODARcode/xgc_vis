@@ -50,11 +50,16 @@ struct XGCMesh {
   float *psif = NULL;
   float *dispf = NULL; // displacement derived from nextNode
   float *invdetf = NULL; // inversed determinant of triangles
+  float psi_min = FLT_MAX, psi_max = -FLT_MAX;
 
   void deriveSinglePrecisionPsi() {
     psif = (float*)realloc(psif, sizeof(float)*nNodes);
-    for (int i=0; i<nNodes; i++) 
+    for (int i=0; i<nNodes; i++) {
       psif[i] = psi[i];
+      psi_min = std::min(psi_min, psif[i]);
+      psi_max = std::max(psi_max, psif[i]);
+    }
+    fprintf(stderr, "psi_min=%f, psi_max=%f\n", psi_min, psi_max);
   }
 
   void deriveInversedDeterminants() {
