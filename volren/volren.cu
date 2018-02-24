@@ -53,13 +53,13 @@ inline int QuadNodeD_locatePoint_recursive(const QuadNodeD *q, const QuadNodeD *
 }
 
 __device__ __host__
-inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda, float *invdet)
+inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lambda, float *invdet, int root=0)
 {
   // float lambda.x, lambda.y, lambda.z;
   static const int maxStackSize = 64;
   int stack[maxStackSize];
   int stackPos = 0;
-  stack[stackPos++] = 0; // push root
+  stack[stackPos++] = root; // push root
 
   while (stackPos > 0) {
     const int i = stack[--stackPos]; // pop
@@ -90,8 +90,14 @@ inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x,
   // check if in the same triangle
   if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda, invdet)) return last_nid;
 
-  // TODO: check if in the neighbors of last_nid
+  // traverse from parents
+  // int nid = QuadNodeD_locatePoint(bvh, x, y, lambda, invdet, bvh[bvh[last_nid].parentId].parentId);
+  // int nid = QuadNodeD_locatePoint(bvh, x, y, lambda, invdet, bvh[last_nid].parentId);
+  // if (nid >= 0) return nid;
 
+  // TODO: check if in triangle neighbors of last_nid
+
+  // fallback
   return QuadNodeD_locatePoint(bvh, x, y, lambda, invdet);
 }
 
