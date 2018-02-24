@@ -5,6 +5,24 @@ var ViewTree = (function() {
     return layout.ViewTree;
   };
 
+  ViewTree.getCameraMatrix = function() {
+    return ViewTree.camera.matrix.toArray();
+  }
+
+  ViewTree.setCameraMatrix = function(str) {
+    var cameraState = JSON.parse(str);
+    ViewTree.camera.matrix.fromArray(cameraState);
+    ViewTree.camera.matrix.decompose(ViewTree.camera.position, ViewTree.camera.quaternion, ViewTree.camera.scale); 
+  }
+
+  ViewTree.resetCamera = function() {
+    ViewTree.controls.reset();
+  }
+
+  ViewTree.getRenderer = function() {
+    return ViewTree.renderer;
+  }
+
   ViewTree.initial = function() {
     ViewTree.initialized = true;
     var elem = ViewTree.getView();
@@ -31,12 +49,24 @@ var ViewTree = (function() {
     ViewTree.directionalLight = new THREE.DirectionalLight(0xffffff);
     ViewTree.scene.add(ViewTree.directionalLight);
 
-    var controls = new THREE.OrbitControls(ViewTree.camera, ViewTree.renderer.domElement);
-    controls.mouseButtons = {
+    ViewTree.controls = new THREE.OrbitControls(ViewTree.camera, ViewTree.renderer.domElement);
+    ViewTree.controls.mouseButtons = {
       ZOOM: THREE.MOUSE.MIDDLE,
       PAN: THREE.MOUSE.RIGHT,
       ORBIT: THREE.MOUSE.LEFT
     }
+
+    // ViewTree.controls = new THREE.TrackballControls(ViewTree.camera);
+    // ViewTree.controls.rotateSpeed = 1.0;
+    // ViewTree.controls.zoomSpeed = 1.2;
+    // ViewTree.controls.panSpeed = 0.8;
+    // ViewTree.controls.noZoom = false;
+    // ViewTree.controls.noPan = false;
+    // ViewTree.controls.staticMoving = true;
+    // ViewTree.controls.dynamicDampingFactor = 0.3;
+    // ViewTree.controls.keys = [65, 83, 68];
+    // ViewTree.controls.addEventListener('change', ViewTree.render);
+
     ViewTree.raycaster = new THREE.Raycaster();
 
     ViewTree.render();
@@ -48,7 +78,7 @@ var ViewTree = (function() {
     // scene
     var delta = ViewTree.clock.getDelta();
     requestAnimationFrame(ViewTree.render);
-    // cameraControls.update(delta);
+    // ViewTree.controls.update();
     ViewTree.directionalLight.position.copy(ViewTree.camera.position);
     ViewTree.renderer.render(ViewTree.scene, ViewTree.camera);
   };

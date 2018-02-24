@@ -1,6 +1,7 @@
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 const VIEW2D_OFF = false;
 const VIEW3D_OFF = false;
+const IMAGE_OFF = true;
 const VOLREN_TIME = .3; // second
 const PresetColor = {
   red: '#b82e2e',
@@ -26,7 +27,7 @@ var data = {
 
 var doneRendering = true;
 var volrenTimer = undefined;
-var status = {
+var globalStatus = {
   tfArray: undefined,
   doneRendering: true,
   volrenTimer: undefined

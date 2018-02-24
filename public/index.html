@@ -8,6 +8,8 @@
     <link rel="stylesheet" type="text/css" href="css/lib/goldenlayout-base.css">
     <link rel="stylesheet" type="text/css" href="css/lib/goldenlayout-dark-theme.css">
     <link rel="stylesheet" type="text/css" href="css/lib/tf.css">
+    <!-- <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"> -->
+    <link rel="stylesheet" type="text/css" href="css/lib/fontawesome-all.css">
     <script src="js/lib/jquery-3.1.0.min.js"></script>
     <script src="js/lib/three.min.js"></script>
     <script src="js/lib/OrbitControls.js"></script>
@@ -22,7 +24,7 @@
     <script src="js/lib/tf.js"></script>
   </head>
   <body>  
-    <input type="file" id="file_open" accept=".json" style="display:none"/>
+    <!-- <input type="file" id="file_open" accept=".json" style="display:none"/> -->
 
     <div class="modal fade" data-backdrop="static" data-keyboard="false" tabindex="-1" role="dialog" id='connectDialog'>
       <div class="modal-dialog" role="document">
@@ -95,14 +97,19 @@
     </div>
 
     <img class='volren-image' />
+    <div style='display: none;'><input type='file' id='load-camera-file'/></div>
 
-    <!-- <ul>
-      <li style="background: #014FA1"></li>
-      <li style="background: #1D84BD"></li>
-      <li style="background: #EEEEEE"></li>
-      <li style="background: #F15C25"></li>
-      <li style="background: #EB0506"></li>
-    </ul> -->
+    <template type="text/html">
+      <div class="camera-menu-div">
+        <div class="camera-icon"><i class="fa fa-camera"></i></div>
+        <ul class='camera-menu-ul'>
+          <li class='camera-menu-list' action='save-image'><i class="fa fa-image"></i> save image</li>
+          <li class='camera-menu-list' action='reset-camera'><i class="fa fa-sync"></i> reset camera </li>
+          <li class='camera-menu-list' action='save-camera'><i class="fa fa-download"></i> save camera </li>
+          <li class='camera-menu-list' action='load-camera'><i class="fa fa-upload"></i> load camera </li>
+        </ul>
+      </div>
+    </template>
 
   </body>
     <script src="js/globalStatus.js"></script>

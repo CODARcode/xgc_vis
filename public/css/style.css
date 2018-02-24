@@ -167,49 +167,52 @@ body {margin: 0;}
   background-color: white;
 }
 
-
-
-
-
-
-.chooseColor{
-  width: 10px;
-  height: 10px;
-  background: #fff;
-  float: left;
-  margin: 5px 5px 0 0;
+.camera-menu-div{
   cursor: pointer;
+  color: #aaaaaa;
 }
 
-.chooseColor .selectedColor{
-  width: 10px;
-  height: 10px;
+.camera-icon {
+  text-align: right;
 }
 
-.chooseColor ul{
+.camera-menu-div .camera-icon{
+  padding-top: 2px;
+}
+
+.camera-menu-div ul{
   display: none;
   box-shadow: 2px 2px 3px rgba( 0, 0, 0, 0.7 );
+  padding: 4px;
 }
 
-.chooseColor:hover ul{
+.camera-menu-div ul.camera-menu-ul {
+  margin-top: 2px;
+}
+
+.camera-menu-div:hover ul{
   display: block;
+  background-color: #000000;
 }
 
-.chooseColor ul,
-.chooseColor ul li{
+.camera-menu-div ul,
+.camera-menu-div ul li{
   margin: 0;
   padding: 0;
   list-style-type: none;
 }
 
-.chooseColor ul li{
-  width: 10px;
-  height: 10px;
+.camera-menu-div ul li{
   cursor: pointer;
+  padding: 0 12px;
+  font-size: 14px;
 }
 
-.chooseColor ul li:hover{
-  border: 1px solid orange;
-  width: 8px;
-  height: 8px;
+.camera-menu-div ul li .fa {
+  padding-right: 4px;
+}
+
+.camera-menu-div ul li:hover{
+  background-color: #eeeeee;
+  color: #333333;
 };

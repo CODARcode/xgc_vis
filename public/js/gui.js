@@ -149,12 +149,17 @@ var layout = (function initialLayout() {
                   type: 'component',
                   componentName: '2D View',
                   isClosable: false,
-                  componentState: {}
+                  componentState: {
+                    cameraMenu: true,
+                    viewId: '2d'
+                  }
               },{
                   type: 'component',
                   componentName: 'FFT View',
                   isClosable: false,
-                  componentState: {}
+                  componentState: {
+                    // cameraMenu: true
+                  }
               }],
               width: left2Pct
           },
@@ -164,12 +169,18 @@ var layout = (function initialLayout() {
                   type: 'component',
                   componentName: '3D View',
                   isClosable: false,
-                  componentState: {}
+                  componentState: {
+                    cameraMenu: true,
+                    viewId: '3d'
+                  }
               },{
                   type: 'component',
                   componentName: 'Tree View',
                   isClosable: false,
-                  componentState: {}
+                  componentState: {
+                    cameraMenu: true,
+                    viewId: 'tree'
+                  }
               }],
               width: left2Pct
           },
@@ -179,7 +190,9 @@ var layout = (function initialLayout() {
               {
                   type: 'component',
                   componentName: 'Console',
-                  componentState: {},
+                  componentState: {
+                    cameraMenu: false
+                  },
                   isClosable: false
               }],
               width: rightPct
@@ -231,39 +244,83 @@ var layout = (function initialLayout() {
     // layout.ViewTF = elem;
   });
 
-  // myLayout.on( 'stackCreated', function( stack ){
+  myLayout.on('stackCreated', function(stack) {
+    if (!stack.contentItems[0].config.componentState.cameraMenu) {
+      return;
+    }
 
-  //   //HTML for the colorDropdown is stored in a template tag
-  //   var colorDropdown = $( $( 'template' ).html() ),
-  //       colorDropdownBtn = colorDropdown.find( '.selectedColor' );
+    console.log('create stack', stack);
+    console.log(stack.childElementContainer[0]);
 
+    var dropdown = $($('template').html()),
+      dropdownBtn = dropdown.find('.camera-menu-list');
+    dropdownBtn.attr('viewId', stack.contentItems[0].config.componentState.viewId);
 
-  //   var setColor = function( color ){
-  //       var container = stack.getActiveContentItem().container;
+    var cameraAction = function(action, viewId) {
+        var target;
+        switch (viewId) {
+          case '2d': 
+            target = View2D;
+            break;
+          case '3d': 
+            target = View3D;
+            break;
+          case 'tree': 
+            target = ViewTree;
+            break;
+        }
+        globalStatus.cameraActionTarget = target;
+        switch (action) {
+          case'save-image': 
+            window.open(target.getRenderer().domElement.toDataURL('image/png'), 'screenshot');
+            break;
+          case 'save-camera':
+            var cameraState = JSON.stringify(target.getCameraMatrix());
+            var pom = document.createElement('a');
+            pom.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(cameraState));
+            pom.setAttribute('download', 'camera');
+            if (document.createEvent) {
+                var event = document.createEvent('MouseEvents');
+                event.initEvent('click', true, true);
+                pom.dispatchEvent(event);
+            }
+            else {
+                pom.click();
+            }
+            break;
+          case 'load-camera':
+            document.getElementById('load-camera-file').click();
+            break;
+          case 'reset-camera':
+            target.resetCamera();
+            break;
+        }
+    };
 
-  //       // Set the color on both the dropDown and the background
-  //       colorDropdownBtn.css( 'background-color', color );
-  //       container.getElement().css( 'background-color', color );
+    stack.header.controlsContainer.prepend(dropdown);
 
-  //       // Update the state
-  //       container.extendState({ color: color });
-  //   };
+    dropdown.find('li').click(function(){
+        cameraAction($(this).attr('action'), $(this).attr('viewid'))
+    });
+  });
 
-  //   // Add the colorDropdown to the header
-  //   stack.header.controlsContainer.prepend( colorDropdown );
-
-  //   // Update the color initially and whenever the tab changes
-  //   stack.on( 'activeContentItemChanged', function( contentItem ){
-  //        setColor( contentItem.container.getState().color );
-  //   });
-       
-  //   // Update the color when the user selects a different color
-  //   // from the dropdown
-  //   colorDropdown.find( 'li' ).click(function(){
-  //       setColor( $(this).css( 'background-color' ) );
-  //   });
-  // });
+  function readSingleFile(e) {
+    var file = e.target.files[0];
+    if (!file) {
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var contents = e.target.result;
+      globalStatus.cameraActionTarget.setCameraMatrix(contents);
+    };
+    reader.readAsText(file);
+  }
+  // document.getElementsByClassName('.load-camera-file')[0]
+  $('.load-camera-file').bind('input', readSingleFile);
+    // .addEventListener('input', readSingleFile, false);
 
   myLayout.init();
   return layout;
 })();
+
