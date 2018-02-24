@@ -127,6 +127,7 @@ function requestImageWait(tfArray) {
 }
 
 function requestImage(tfArray) {
+  if (IMAGE_OFF) return;
   var wh = View3D.getWH();
   var msg = {
     type: "requestVolren", 

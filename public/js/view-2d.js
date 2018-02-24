@@ -4,6 +4,24 @@ var View2D = (function() {
   View2D.getView = function() {
     return layout.View2D;
   };
+
+  View2D.getCameraMatrix = function() {
+    return View2D.camera.matrix.toArray();
+  }
+
+  View2D.setCameraMatrix = function(str) {
+    var cameraState = JSON.parse(str);
+    View2D.camera.matrix.fromArray(cameraState);
+    View2D.camera.matrix.decompose(View2D.camera.position, View2D.camera.quaternion, View2D.camera.scale); 
+  }
+
+  View2D.resetCamera = function() {
+    View2D.controls.reset();
+  }
+
+  View2D.getRenderer = function() {
+    return View2D.renderer;
+  }
   
   View2D.initial = function() {
     View2D.initialized = true;

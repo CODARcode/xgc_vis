@@ -38,6 +38,24 @@ var View3D = (function() {
     return View3D.camera.far;
   };
 
+  View3D.getCameraMatrix = function() {
+    return View3D.camera.matrix.toArray();
+  }
+
+  View3D.setCameraMatrix = function(str) {
+    var cameraState = JSON.parse(str);
+    View3D.camera.matrix.fromArray(cameraState);
+    View3D.camera.matrix.decompose(View3D.camera.position, View3D.camera.quaternion, View3D.camera.scale); 
+  }
+
+  View3D.resetCamera = function() {
+    View3D.controls.reset();
+  }
+
+  View3D.getRenderer = function() {
+    return View3D.renderer;
+  }
+
   View3D.initial = function() {
     View3D.initialized = true;
     var elem = View3D.getView();
@@ -64,12 +82,28 @@ var View3D = (function() {
     View3D.directionalLight = new THREE.DirectionalLight(0xffffff);
     View3D.scene.add(View3D.directionalLight);
 
-    var controls = new THREE.OrbitControls(View3D.camera, View3D.renderer.domElement);
-    controls.mouseButtons = {
+    View3D.controls = new THREE.OrbitControls(View3D.camera, View3D.renderer.domElement);
+    View3D.controls.mouseButtons = {
       ZOOM: THREE.MOUSE.MIDDLE,
       PAN: THREE.MOUSE.RIGHT,
       ORBIT: THREE.MOUSE.LEFT
     }
+    View3D.controls.minAzimuthAngle = - Infinity;
+    View3D.controls.maxAzimuthAngle = Infinity;
+    View3D.controls.maxPolarAngle = Infinity;
+    View3D.controls.minPolarAngle = -Infinity;
+
+    // View3D.controls = new THREE.TrackballControls(View3D.camera);
+    // View3D.controls.rotateSpeed = 1.0;
+    // View3D.controls.zoomSpeed = 1.2;
+    // View3D.controls.panSpeed = 0.8;
+    // View3D.controls.noZoom = false;
+    // View3D.controls.noPan = false;
+    // View3D.controls.staticMoving = true;
+    // View3D.controls.dynamicDampingFactor = 0.3;
+    // View3D.controls.keys = [65, 83, 68];
+    // View3D.controls.addEventListener('change', View3D.render);
+
     View3D.raycaster = new THREE.Raycaster();
 
     View3D.render();
