@@ -180,7 +180,8 @@ inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh,
   
   if (PSI) {
     float psi_val = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, psi);
-    if ((psi_val-psi_range.x)*(psi_val-psi_range.y) >= 0) // outside psi_range
+    // if (psi_val > 0.1) return -1;
+    if ((psi_val-psi_range.x)*(psi_val-psi_range.y) > 0) // outside psi_range
       return -1;
   }
 
@@ -553,7 +554,7 @@ void rc_render(ctx_rc *ctx)
   cudaMemcpy(ctx->d_invmvp, ctx->invmvp, sizeof(float)*16, cudaMemcpyHostToDevice);
   // cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
  
-  raycasting_kernel<0,1><<<gridSize, blockSize>>>(
+  raycasting_kernel<1,1><<<gridSize, blockSize>>>(
           ctx->d_output_rgba8,
           ctx->d_viewport, 
           ctx->d_invmvp,
@@ -566,7 +567,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_disp,
           ctx->d_invdet,
           ctx->d_psi,
-          make_float2(ctx->psi_min, ctx->psi_max),
+          make_float2(ctx->psi_range_min, ctx->psi_range_max),
           (float4*)ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -593,7 +594,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->h_disp,
           ctx->h_invdet,
           ctx->h_psi,
-          make_float2(ctx->psi_min, ctx->psi_max),
+          make_float2(ctx->psi_range_min, ctx->psi_range_max),
           (float4*)ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -663,8 +664,13 @@ void rc_bind_psi(ctx_rc *ctx, int nNodes, float *psi, float psi_min, float psi_m
 void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_range_min, float psi_range_max)
 {
   ctx->toggle_psi_range = on;
-  ctx->psi_range_min = psi_range_min; 
-  ctx->psi_range_max = psi_range_max;
+  if (on) {
+    ctx->psi_range_min = psi_range_min; 
+    ctx->psi_range_max = psi_range_max;
+  } else {
+    ctx->psi_range_min = ctx->psi_min; 
+    ctx->psi_range_max = ctx->psi_max;
+  }
 }
 
 void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp)
