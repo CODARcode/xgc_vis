@@ -10,7 +10,12 @@ texture<float4, 1, cudaReadModeElementType> texTransferFunc;
 __device__ __host__
 inline bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
 {
-  return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
+#if __CUDA_ARCH__
+  return __fmul_rz(x-q.Ax, x-q.Bx) <= 0 && __fmul_rz(y-q.Ay, y-q.By) <= 0;
+#else
+  return (x - q.Ax) * (x - q.Bx) <= 0 && (y - q.Ay) * (y - q.By) <= 0;
+#endif
+  // return x >= q.Ax && x < q.Bx && y >= q.Ay && y < q.By;
 }
 
 __device__ __host__
@@ -65,7 +70,7 @@ inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lam
 
     if (q.triangleId >= 0) { // leaf node
       bool succ = QuadNodeD_insideTriangle(q, x, y, lambda, invdet);
-      if (succ) return q.triangleId;
+      if (succ) return i; // q.triangleId;
     } else if (QuadNodeD_insideQuad(q, x, y)) { // non-leaf node
       for (int j=0; j<4; j++) {
         if (q.childrenIds[j] > 0)
@@ -115,43 +120,58 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
   //     lambda.x * data[q.i0*2+1] + lambda.y * data[q.i1*2+1] + lambda.z * data[q.i2*2+1]);
 }
 
+template <int SHADING>
 __device__ __host__
-inline int interpolateXGC(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float *grad, float *invdet)
+inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
   
   // cylindar coordinates
+#ifdef __CUDA_ARCH__
+  float r2 = __fmul_rd(p.x, p.x) + __fmul_rd(p.y, p.y);
+  float r = __fsqrt_rd(r2);
+#else
   float r2 = p.x*p.x + p.y*p.y;
   float r = sqrt(r2);
+#endif
   float phi = atan2(p.y, p.x) + pi;
   float z = p.z;
   float3 lambda;
   
-  int nid = QuadNodeD_locatePoint(bvh, r, z, lambda, invdet);
+  int nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda, invdet);
   if (nid == -1) return nid; 
   
   const QuadNodeD &q = bvh[nid];
 
   const float deltaAngle = pi2/nPhi;
-  int p0 = (int)(phi/deltaAngle)%nPhi;
+#ifdef __CUDA_ARCH__
+  int p0 = __float2int_rd(fdividef(phi, deltaAngle)) % nPhi;
+#else
+  int p0 = (int)(phi/deltaAngle) % nPhi;
+#endif
   int p1 = (p0+1)%nPhi;
 
   // coef
+  // float alpha = __fdiv_rd((phi - __fmul_rd(deltaAngle, p0)), deltaAngle);
   float alpha = (phi - deltaAngle*p0) / deltaAngle;
- 
+
   // value interpolation
   // float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0);
   // float v1 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p1);
   float v0 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p0);
   float v1 = QuadNodeD_sample(q.i0, q.i1, q.i2, lambda, data + nNodes*p1);
   value = (1-alpha)*v0 + alpha*v1;
- 
-  // gradient interpolation
-  float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
-  float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
-  float2 cgrad = (1-alpha)*cgrad0 + alpha*cgrad1;
-  g = make_float3(p.x/r*cgrad.x - p.y/r2, p.y/r*cgrad.x - p.x/r2, cgrad.y);
+
+  if (SHADING) {
+    // gradient interpolation
+    float2 cgrad0 = grad[nTriangles*p0 + q.triangleId];
+    float2 cgrad1 = grad[nTriangles*p1 + q.triangleId];
+    // float2 cgrad0 = make_float2(grad[(nTriangles*p0 + q.triangleId)*2], grad[(nTriangles*p0 + q.triangleId)*2+1]);
+    // float2 cgrad1 = make_float2(grad[(nTriangles*p1 + q.triangleId)*2], grad[(nTriangles*p1 + q.triangleId)*2+1]);
+    float2 cgrad = (1-alpha)*cgrad0 + alpha*cgrad1;
+    g = make_float3(p.x/r*cgrad.x - p.y/r2, p.y/r*cgrad.x - p.x/r2, cgrad.y);
+  }
 
   return nid;
 }
@@ -200,18 +220,28 @@ inline int interpolateXGC2(float &value, float3 &g, QuadNodeD *bvh, float3 p, in
 }
 
 __device__ __host__ 
-static inline float4 value2color(float value, float *tf, float2 trans)
+static inline float4 value2color(float value, float4 *tf, float2 trans)
 {
+#ifdef __CUDA_ARCH__
+  const float x = __saturatef(value * trans.x + trans.y);
+#else
   const float x = clamp(value * trans.x + trans.y, 0.f, 1.f);
-#if 0
-  float v = x-0.5;
-  return make_float4(x, 1-x, 0, fminf(0.999f, v*v*40));
-#else 
+#endif
+
+  // float v = x-0.5;
+  // return make_float4(x, 1-x, 0, fminf(0.999f, v*v*40));
+  
   static const int n = 256;
   static const float delta = 1.f / (n-1);
+#ifdef __CUDA_ARCH__
+  const int i = min(__float2int_rd(x*(n-1)), n-2) , j = i + 1;
+#else
   const int i = min((int)(x*(n-1)), n-2) , j = i + 1;
+#endif
   const float beta = x - i*delta, alpha = 1 - beta;
 
+  return alpha * tf[i] + beta * tf[j];
+#if 0
   return make_float4(
       alpha * tf[i*4] + beta * tf[j*4], 
       alpha * tf[i*4+1] + beta * tf[j*4+1], 
@@ -228,11 +258,11 @@ __device__ __host__ static inline void rc(
         int nNodes,               // number of nodes 
         int nTriangles,           // number of triangles 
         float *data,              // volume data in unstructured mesh
-        float *grad,              // gradient
+        float2 *grad,              // gradient
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf,
+        float4 *tf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -245,22 +275,24 @@ __device__ __host__ static inline void rc(
   float3 pos, g;
   float value;
   float t = tnear;
+  int nid, last_nid = -1;
 
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    const int nid = interpolateXGC(value, g, bvh, pos, nPhi, nNodes, nTriangles, data, invdet, grad);
+    nid = interpolateXGC<SHADING>(value, g, last_nid, bvh, pos, nPhi, nNodes, nTriangles, data, grad, invdet);
     // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, nTriangles, data, disp, invdet);
+    last_nid = nid;
     if (nid >= 0) {
       src = value2color(value, tf, trans);
 
-      // if (SHADING) {
-      {
+      if (SHADING) {
         float3 lit; 
         N = normalize(g);
         lit = cook(N, V, L, Ka, Kd, Ks);
         // lit = phong(N, V, L, Ka, Kd, Ks, 100);
 #ifdef  __CUDA_ARCH__
+        // src = make_float4(N.x, N.y, N.z, src.w);
         src.x = __saturatef(src.x + lit.x); 
         src.y = __saturatef(src.y + lit.y); 
         src.z = __saturatef(src.z + lit.z); 
@@ -270,8 +302,12 @@ __device__ __host__ static inline void rc(
         src.z = clamp(src.z + lit.z, 0.f, 1.f);
 #endif
       }
-      
+     
+#ifdef __CUDA_ARCH__
+      src.w = 1.f - __powf(1.f - src.w, stepsize*4); // alpha correction  
+#else
       src.w = 1.f - pow(1.f - src.w, stepsize*4); // alpha correction  
+#endif
 
       dst.x += (1.0 - dst.w) * src.x * src.w;
       dst.y += (1.0 - dst.w) * src.y * src.w;
@@ -279,7 +315,7 @@ __device__ __host__ static inline void rc(
       dst.w += (1.0 - dst.w) * src.w;
     }
     
-    // if (dst.w > 0.98) return; // early ray termination
+    if (dst.w > 0.98) return; // early ray termination
     t += stepsize; 
   }
   // dst.x = 1; dst.y = 0; dst.z = 0; dst.w = 1;
@@ -292,11 +328,11 @@ __device__ __host__ static inline void raycasting(
         int nNodes,               // number of nodes 
         int nTriangles, 
         float *data,              // volume data in unstructured mesh
-        float *grad,
+        float2 *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf, 
+        float4 *tf, 
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -370,11 +406,11 @@ __global__ static void raycasting_kernel(
         int nNodes, 
         int nTriangles, 
         float *data, 
-        float *grad,
+        float2 *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf,
+        float4 *tf,
         float2 trans, 
         float stepsize)
 {
@@ -415,11 +451,11 @@ static void raycasting_cpu(
         int nNodes, 
         int nTriangles,
         float *data, 
-        float *grad,
+        float2 *grad,
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
-        float *tf,
+        float4 *tf,
         float2 trans, 
         float stepsize)
 {
@@ -469,7 +505,7 @@ void rc_render(ctx_rc *ctx)
   cudaMemcpy(ctx->d_invmvp, ctx->invmvp, sizeof(float)*16, cudaMemcpyHostToDevice);
   // cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
  
-  raycasting_kernel<0><<<gridSize, blockSize>>>(
+  raycasting_kernel<1><<<gridSize, blockSize>>>(
           ctx->d_output_rgba8,
           ctx->d_viewport, 
           ctx->d_invmvp,
@@ -477,11 +513,11 @@ void rc_render(ctx_rc *ctx)
           ctx->nNodes,
           ctx->nTriangles,
           ctx->d_data, 
-          ctx->d_grad,
+          (float2*)ctx->d_grad,
           ctx->d_bvh,
           ctx->d_disp,
           ctx->d_invdet,
-          ctx->d_tf,
+          (float4*)ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 
@@ -494,7 +530,7 @@ void rc_render(ctx_rc *ctx)
 
 void rc_render_cpu(ctx_rc *ctx)
 {
-  raycasting_cpu<0>(
+  raycasting_cpu<1>(
           (unsigned char*)ctx->h_output,
           ctx->viewport, 
           ctx->invmvp,
@@ -502,11 +538,11 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->nNodes,
           ctx->nTriangles,
           ctx->h_data, 
-          ctx->h_grad,
+          (float2*)ctx->h_grad,
           ctx->h_bvh,
           ctx->h_disp,
           ctx->h_invdet,
-          ctx->h_tf,
+          (float4*)ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 }

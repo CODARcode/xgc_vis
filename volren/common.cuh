@@ -379,15 +379,23 @@ inline float3 cook(float3 N, float3 V, float3 L, float3 Ka, float3 Kd, float3 Ks
           v_h = dot(V, H) + 1e-6f, 
           n_l = dot(N, L); 
 
-    float3 diffuse = Kd * max(n_l, 0.f); 
+#ifdef __CUDA_ARCH__
+    float3 diffuse = Kd * fmaxf(n_l, 0.f); 
+    float  fresnel = __powf(1.f + v_h, 4.f); 
+    float  delta   = acosf(n_h); 
+    float  exponent= -__powf(__fdividef(delta, mean), 2.f); 
+    float  microfacets = scale * __expf(exponent);
+#else
+    float3 diffuse = Kd * fmaxf(n_l, 0.f); 
     float  fresnel = pow(1.f + v_h, 4.f); 
     float  delta   = acos(n_h); 
     float  exponent= -pow((delta/mean), 2.f); 
     float  microfacets = scale * exp(exponent);
+#endif
 
     float  term1 = 2 * n_h * n_v / v_h, 
            term2 = 2 * n_h * n_l / v_h; 
-    float  selfshadow = min(1.f, min(term1, term2)); 
+    float  selfshadow = fminf(1.f, fminf(term1, term2)); 
 
     float3 specular = Ks * fresnel * microfacets * selfshadow / n_v; 
     
