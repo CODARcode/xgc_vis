@@ -705,6 +705,15 @@ void rc_set_angle_range(ctx_rc *ctx, bool on, float angle_range_min, float angle
   }
 }
 
+void rc_set_slice_highlight_ratio(ctx_rc *ctx, bool on, float ratio)
+{
+  ctx->toggle_slice_highlight = on;
+  if (on) 
+    ctx->slice_highlight_ratio = ratio;
+  else 
+    ctx->slice_highlight_ratio = 1;
+}
+
 void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp)
 {
   ctx->h_disp = disp;
