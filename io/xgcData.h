@@ -2,7 +2,7 @@
 #define _XGCDATA_H
 
 #include <string>
-#include "core/xgcMesh.h"
+#include "io/xgcMesh.h"
 
 struct XGCData {
   double *dpot = NULL;

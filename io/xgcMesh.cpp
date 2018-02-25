@@ -5,8 +5,8 @@
 #include <cassert>
 #include <cfloat>
 #include <iostream>
-#include "core/xgcMesh.h"
-#include "core/bp_utils.hpp"
+#include "io/xgcMesh.h"
+#include "io/bp_utils.hpp"
 
 void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm)
 {

@@ -15,13 +15,13 @@
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
 // #include <concurrentqueue.h>
-#include "core/png_utils.hpp"
-#include "core/bp_utils.hpp"
+#include "io/bp_utils.hpp"
+#include "io/xgcMesh.h"
+#include "io/xgcData.h"
 #include "core/xgcBlobExtractor.h"
-#include "core/xgcMesh.h"
-#include "core/xgcData.h"
-#include "volren/bvh.h"
-#include "volren/volren.cuh"
+#include "volren/volrenEngine.h"
+// #include "volren/bvh.h"
+// #include "volren/volren.cuh"
 
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
@@ -33,120 +33,11 @@ using json = nlohmann::json;
 XGCMesh mesh;
 XGCData xgcData;
 
+VolrenEngine volrenEngine;
+
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
-enum {
-  VOLREN_RENDER = 0,
-  VOLREN_EXIT = 1
-};
-
-enum {
-  VOLREN_FORMAT_RGBA8 = 0,
-  VOLREN_FORMAT_PNG = 1
-};
-
-struct VolrenTask {
-  int tag = VOLREN_RENDER;
-  int format = VOLREN_FORMAT_PNG;
-  int viewport[4];
-  double invmvpd[16];
-  float *tf = NULL;
-  png_mem_buffer png;
-  unsigned char *fb = NULL;
-  std::condition_variable cond;
-  std::mutex mutex;
-};
-
-bool volren_started = false;
-
-std::queue<VolrenTask*> volrenTaskQueue;
-std::mutex mutex_volrenTaskQueue;
-std::condition_variable cond_volrenTaskQueue;
-
-void freeVolrenTask(VolrenTask **task)
-{
-  if ((*task)->tf != NULL) 
-    free((*task)->tf);
-  if ((*task)->fb != NULL) 
-    free((*task)->fb);
-  if ((*task)->png.buffer != NULL)
-    free((*task)->png.buffer);
-  delete *task;
-  task = NULL;
-}
-
-VolrenTask* createVolrenTaskFromString(const std::string& query)
-{
-  const int defaulat_viewport[4] = {0, 0, 720, 382};
-  // const int defaulat_viewport[4] = {0, 0, 1440, 764};
-  const double defaulat_invmvpd[16] = {1.1604, 0.0367814, -0.496243, 0, -0.157143, 0.563898, -0.325661, 0, -9.79775, -16.6755, -24.1467, -4.95, 9.20395, 15.6649, 22.6832, 5.05};
-    
-  // create task
-  VolrenTask *task = new VolrenTask;
- 
-  // parse query
-  try {
-    json j = json::parse(query);
-    fprintf(stderr, "[volren] json parameter: %s\n", j.dump().c_str());
-
-    if (j["width"].is_null() || j["height"].is_null())
-      memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
-    else {
-      task->viewport[0] = 0;
-      task->viewport[1] = 0;
-      task->viewport[2] = j["width"];
-      task->viewport[3] = j["height"];
-    }
-
-    if (j["matrix"].is_null())
-      memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
-    else {
-      for (int i=0; i<16; i++) 
-        task->invmvpd[i] = j["matrix"][i];
-    }
-
-    if (!j["tf"].is_null()) {
-      json jtf = j["tf"];
-      task->tf = (float*)malloc(sizeof(float)*1024);
-      for (int i=0; i<1024; i++) 
-        task->tf[i] = jtf.at(i).get<float>() / 255.f;
-    }
-
-  } catch (...) {
-    fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");
-    memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
-    memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
-  }
-
-  return task;
-}
-
-void enqueueAndWaitVolrenTask(VolrenTask* task)
-{
-  // enqueue
-  {
-    std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
-    volrenTaskQueue.push(task);
-    mlock.unlock();
-    cond_volrenTaskQueue.notify_one();
-  }
-
-  // wait
-  {
-    std::unique_lock<std::mutex> mlock(task->mutex);
-    task->cond.wait(mlock);
-  }
-}
-
-void stopVolren()
-{
-  if (volren_started) {
-    VolrenTask *task = new VolrenTask;
-    task->tag = VOLREN_EXIT;
-    enqueueAndWaitVolrenTask(task);
-  }
-}
 
 std::set<size_t> loadSkipList(const std::string& filename)
 {
@@ -169,7 +60,6 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   server::connection_ptr con = s->get_con_from_hdl(hdl);
   con->append_header("Access-Control-Allow-Origin", "*");
   con->append_header("Access-Control-Allow-Headers", "*");
-  con->append_header("Content-Type", "image/png");
   
   std::string query = con->get_resource();
   // fprintf(stderr, "query=%s\n", query.c_str());
@@ -180,17 +70,17 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   } else if (query == "/exitServer") {
     con->close(0, "exit");
     wss.stop_listening();
-    stopVolren();
+    volrenEngine.stop();
   } else if (query == "/testPost") {
     std::string posts = con->get_request_body();
     fprintf(stderr, "posts=%s\n", posts.c_str());
     con->set_body("hello world😱😱😱");
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/requestVolren") {
+    con->append_header("Content-Type", "image/png");
+    
     std::string posts = con->get_request_body();
-
-    VolrenTask *task = createVolrenTaskFromString(posts);
-    enqueueAndWaitVolrenTask(task);
+    VolrenTask *task = volrenEngine.enqueueAndWait(posts);
 
     // response
     std::string response(task->png.buffer, task->png.size);
@@ -199,21 +89,7 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
     // con->defer_http_response();
 
     // clean
-    freeVolrenTask(&task);
-  } else if (query == "/requestVolrenRGBA8") {
-    std::string posts = con->get_request_body();
-
-    VolrenTask *task = createVolrenTaskFromString(posts);
-    task->format = VOLREN_FORMAT_RGBA8;
-    enqueueAndWaitVolrenTask(task);
-
-    // response
-    std::string response((char*)task->fb, task->viewport[2] * task->viewport[3] * 4); 
-    con->set_body(response);
-    con->set_status(websocketpp::http::status_code::ok);
-
-    // clean
-    freeVolrenTask(&task);
+    delete task;
   } else {
     std::string response = "<html><body>404 not found</body></html>";
     con->set_body(response);
@@ -359,117 +235,9 @@ void startWebsocketServer(int port)
   }
 }
 
-void startVolren(XGCMesh& m, XGCData& d)
-{
-  fprintf(stderr, "[volren] building BVH...\n");
-  std::vector<QuadNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
-
-  fprintf(stderr, "[volren] initialize volren...\n");
-  ctx_rc *rc;
-  rc_create_ctx(&rc);
-  rc_set_range(rc, -100.f, 100.f); // TODO
-  // rc_set_range(rc, -50.f, 50.f); // TODO
-  rc_set_default_tf(rc);
-  // rc_set_stepsize(rc, 0.001);
-  rc_set_stepsize(rc, 0.005);
-  rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
-  // rc_test_point_locator(rc, 2.3f, -0.4f);
- 
-  // mesh 
-  rc_bind_psi(rc, m.nNodes, m.psif, m.psi_min, m.psi_max);
-  rc_bind_disp(rc, m.nNodes, m.dispf);
-  rc_bind_invdet(rc, m.nTriangles, m.invdetf);
-
-  // dpot
-  rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, d.dpotf, d.graddpotf);
-
-  volren_started = true;
-  while (1) { // volren loop
-    VolrenTask *task = NULL;
-    // dequeue task
-    {
-      std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
-      while (volrenTaskQueue.empty()) {
-        cond_volrenTaskQueue.wait(mlock);
-      }
-      task = volrenTaskQueue.front();
-      volrenTaskQueue.pop();
-    }
-    
-    if (task->tag == VOLREN_RENDER) 
-    {
-      std::unique_lock<std::mutex> mlock(task->mutex);
-     
-      typedef std::chrono::high_resolution_clock clock;
-
-      fprintf(stderr, "[volren] rendering...\n");
-      auto t0 = clock::now();
-      rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
-      rc_set_invmvpd(rc, task->invmvpd);
-      rc_set_psi_range(rc, true, 0, 0.2); // TODO: argument
-      rc_set_angle_range(rc, true, 0, 4.5); // TODO: argument
-      rc_set_slice_highlight_ratio(rc, false, 0.999); // TODO: argument
-      if (task->tf) 
-        rc_set_tf(rc, task->tf);
-      rc_clear_output(rc);
-      rc_render(rc);
-      // rc_render_cpu(rc);
-      auto t1 = clock::now();
-      float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
-      fprintf(stderr, "[volren] volren time: %f ns\n", tt0);
-      
-      auto t2 = clock::now();
-      rc_copy_output_to_host(rc);
-      auto t3 = clock::now();
-      float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
-      fprintf(stderr, "[volren] volren download time: %f ns\n", tt2);
-      
-      // fprintf(stderr, "[volren] converting to png...\n");
-      auto t4 = clock::now();
-      if (task->format == VOLREN_FORMAT_PNG) {
-#if WITH_PNG
-        task->png = save_png(task->viewport[2], task->viewport[3], 8, 
-            PNG_COLOR_TYPE_RGBA, (unsigned char*)rc->h_output, 4*task->viewport[2], PNG_TRANSFORM_IDENTITY);
-#endif
-      } else if (task->format == VOLREN_FORMAT_RGBA8) {
-        task->fb = (unsigned char*)malloc(task->viewport[2]*task->viewport[3]*4);
-        memcpy(task->fb, rc->h_output, task->viewport[2]*task->viewport[3]*4);
-      }
-      auto t5 = clock::now();
-      float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
-      fprintf(stderr, "[volren] png compression time: %f ns, size=%zu\n", tt4, task->png.size);
-      
-      task->cond.notify_one();
-    } else if (task->tag == VOLREN_EXIT) {
-      fprintf(stderr, "[volren] exiting...\n");
-      rc_destroy_ctx(&rc);
-      volren_started = false;
-      task->cond.notify_one();
-      return;
-    }
-  }
-
-#if 0 // for testing
-  const int npx = 1024*768;
-  unsigned char *fb = (unsigned char*)malloc(npx*3);
-  for (int i=0; i<npx; i++) {
-    fb[i*3] = 255; 
-    fb[i*3+1] = 0;
-    fb[i*3+2] = 0;
-  }
-  volren_png_buffer = save_png(1024, 768, 8, PNG_COLOR_TYPE_RGB, fb, 3*1024, PNG_TRANSFORM_IDENTITY);
-  free(fb);
-
-  // FILE *fp = fopen("test1.png", "wb");
-  // fwrite(png.buffer, 1, png.size, fp);
-  // free(png.buffer);
-  // fclose(fp);
-#endif
-}
-
 void sigint_handler(int)
 {
-  stopVolren();
+  volrenEngine.stop();
   wss.stop_listening();
   exit(0);
 }
@@ -477,7 +245,6 @@ void sigint_handler(int)
 int main(int argc, char **argv)
 {
   std::thread *ws_thread = NULL;
-  std::thread *volren_thread = NULL;
 
   MPI_Init(&argc, &argv);
   
@@ -591,13 +358,6 @@ int main(int argc, char **argv)
     signal(SIGINT, sigint_handler);
   }
 
-  // starting volren
-#if 0
-  if (volren) {
-    volren_thread = new std::thread(startVolren, nNodes, nTriangles, coords, conn);
-  }
-#endif
-
   // read data
   fprintf(stderr, "opening data stream...\n");
   ADIOS_FILE *varFP;
@@ -678,8 +438,9 @@ int main(int argc, char **argv)
     fprintf(stderr, "starting analysis..\n");
    
     // FIXME
-    volren_thread = new std::thread(startVolren, std::ref(mesh), std::ref(xgcData));
-    enqueueAndWaitVolrenTask( createVolrenTaskFromString("") );
+   
+    volrenEngine.start(mesh, xgcData); 
+    volrenEngine.enqueueAndWait("");
 
     mutex_ex.lock();
     ex->setData(current_time_index, mesh.nPhi, xgcData.dpot);
@@ -742,11 +503,6 @@ int main(int argc, char **argv)
     ws_thread->join();
   }
 
-  if (volren_thread) {
-    fprintf(stderr, "waiting for volren to exit...\n");
-    volren_thread->join();
-  }
-   
   // adios_close(*varFP);
   delete ex;
   ex = NULL;
