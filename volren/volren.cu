@@ -154,9 +154,9 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
   //     lambda.x * data[q.i0*2+1] + lambda.y * data[q.i1*2+1] + lambda.z * data[q.i2*2+1]);
 }
 
-template <int PSI, int SHADING>
+template <int ANGLE, int PSI, int SHADING>
 __device__ __host__
-inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh, float3 p, float2 psi_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, float *psi)
+inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh, float3 p, float2 psi_range, float2 angle_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, float *psi)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -172,6 +172,9 @@ inline int interpolateXGC(float &value, float3 &g, int last_nid, QuadNodeD *bvh,
   float phi = atan2(p.y, p.x) + pi;
   float z = p.z;
   float3 lambda;
+
+  if (ANGLE && (phi-angle_range.x)*(phi-angle_range.y) > 0)
+    return -1;
   
   int nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda, invdet);
   if (nid == -1) return nid; 
@@ -292,7 +295,7 @@ static inline float4 value2color(float value, float4 *tf, float2 trans)
 }
 
   
-template <int PSI, int SHADING>
+template <int ANGLE, int PSI, int SHADING>
 __device__ __host__ static inline void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
@@ -305,6 +308,7 @@ __device__ __host__ static inline void rc(
         float *invdet,
         float *psi,
         float2 psi_range,
+        float2 angle_range,
         float4 *tf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -323,7 +327,7 @@ __device__ __host__ static inline void rc(
   while (t < tfar) {
     pos = rayO + rayD*t;
 
-    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, pos, psi_range, nPhi, nNodes, nTriangles, data, grad, invdet, psi);
+    nid = interpolateXGC<ANGLE, PSI, SHADING>(value, g, last_nid, bvh, pos, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, psi);
     // const int nid = interpolateXGC2(value, bvh, pos, nPhi, nNodes, nTriangles, data, disp, invdet);
     last_nid = nid;
     if (nid >= 0) {
@@ -364,7 +368,7 @@ __device__ __host__ static inline void rc(
   // dst.x = 1; dst.y = 0; dst.z = 0; dst.w = 1;
 }
 
-template <int PSI, int SHADING>
+template <int ANGLE, int PSI, int SHADING>
 __device__ __host__ static inline void raycasting(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
@@ -377,6 +381,7 @@ __device__ __host__ static inline void raycasting(
         float *invdet,
         float *psi,
         float2 psi_range,
+        float2 angle_range,
         float4 *tf, 
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -392,10 +397,10 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -442,7 +447,7 @@ __device__ __host__ inline bool setup_ray(
 }
 
 #if WITH_CUDA
-template <int PSI, int SHADING>
+template <int ANGLE, int PSI, int SHADING>
 __global__ static void raycasting_kernel(
         unsigned char *output_rgba8,
         int *viewport, 
@@ -457,6 +462,7 @@ __global__ static void raycasting_kernel(
         float *invdet,
         float *psi,
         float2 psi_range,
+        float2 angle_range,
         float4 *tf,
         float2 trans, 
         float stepsize)
@@ -469,7 +475,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize);
+  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, tf, trans, rayO, rayD, stepsize);
   
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -489,7 +495,7 @@ __global__ static void raycasting_kernel(
 }
 #endif
 
-template <int PSI, int SHADING>
+template <int ANGLE, int PSI, int SHADING>
 static void raycasting_cpu(
         unsigned char *output_rgba8,
         int *viewport, 
@@ -504,6 +510,7 @@ static void raycasting_cpu(
         float *invdet,
         float *psi,
         float2 psi_range,
+        float2 angle_range,
         float4 *tf,
         float2 trans, 
         float stepsize)
@@ -516,7 +523,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, tf, trans, rayO, rayD, stepsize);
+      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -554,7 +561,7 @@ void rc_render(ctx_rc *ctx)
   cudaMemcpy(ctx->d_invmvp, ctx->invmvp, sizeof(float)*16, cudaMemcpyHostToDevice);
   // cudaMemcpyToSymbol(c_invmvp, ctx->invmvp, sizeof(float)*16);
  
-  raycasting_kernel<1,1><<<gridSize, blockSize>>>(
+  raycasting_kernel<1,1,1><<<gridSize, blockSize>>>(
           ctx->d_output_rgba8,
           ctx->d_viewport, 
           ctx->d_invmvp,
@@ -568,6 +575,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_invdet,
           ctx->d_psi,
           make_float2(ctx->psi_range_min, ctx->psi_range_max),
+          make_float2(ctx->angle_range_min, ctx->angle_range_max),
           (float4*)ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -581,7 +589,7 @@ void rc_render(ctx_rc *ctx)
 
 void rc_render_cpu(ctx_rc *ctx)
 {
-  raycasting_cpu<0,1>(
+  raycasting_cpu<1,1,1>(
           (unsigned char*)ctx->h_output,
           ctx->viewport, 
           ctx->invmvp,
@@ -595,6 +603,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->h_invdet,
           ctx->h_psi,
           make_float2(ctx->psi_range_min, ctx->psi_range_max),
+          make_float2(ctx->angle_range_min, ctx->angle_range_max),
           (float4*)ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -670,6 +679,18 @@ void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_range_min, float psi_range
   } else {
     ctx->psi_range_min = ctx->psi_min; 
     ctx->psi_range_max = ctx->psi_max;
+  }
+}
+
+void rc_set_angle_range(ctx_rc *ctx, bool on, float angle_range_min, float angle_range_max)
+{
+  ctx->toggle_angle_range = on;
+  if (on) {
+    ctx->angle_range_min = angle_range_min;
+    ctx->angle_range_max = angle_range_max;
+  } else {
+    ctx->angle_range_min = -10;
+    ctx->angle_range_max = 10;
   }
 }
 

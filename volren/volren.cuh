@@ -29,6 +29,9 @@ struct ctx_rc {
   bool toggle_psi_range;
   float psi_range_min, psi_range_max;
 
+  bool toggle_angle_range;
+  float angle_range_min, angle_range_max;
+
   float *d_data, *h_data;
   int nNodes, nPhi, nTriangles;
 
@@ -63,6 +66,7 @@ void rc_set_invmvpf(ctx_rc *ctx, float *invmvp);
 void rc_set_invmvpd(ctx_rc *ctx, double *invmvp); 
 void rc_set_range(ctx_rc *ctx, float dpot_min, float dpot_max);
 void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_min, float psi_max);
+void rc_set_angle_range(ctx_rc *ctx, bool on, float angle_min, float angle_max);
 
 void rc_render(ctx_rc *ctx);
 void rc_render_cpu(ctx_rc *ctx);
