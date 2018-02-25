@@ -157,7 +157,7 @@ inline float2 QuadNodeD_sample2(QuadNodeD* bvh, int nid, float3 lambda, float *d
 template <int PSI, int SHADING>
 __device__ __host__
 inline int interpolateXGC(float &value, float3 &g, int &last_nid, QuadNodeD *bvh,
-    float3 p, float r2, float r, float phi, float z, 
+    float3 p, float r2, float r, float phi, float z, float &alpha,
     float2 psi_range, float2 angle_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, float *psi)
 {
   static const float pi = 3.141592654f;
@@ -187,7 +187,7 @@ inline int interpolateXGC(float &value, float3 &g, int &last_nid, QuadNodeD *bvh
 
   // coef
   // float alpha = __fdiv_rd((phi - __fmul_rd(deltaAngle, p0)), deltaAngle);
-  float alpha = (phi - deltaAngle*p0) / deltaAngle;
+  alpha = (phi - deltaAngle*p0) / deltaAngle;
 
   // value interpolation
   // float v0 = QuadNodeD_sample(bvh, nid, lambda, data + nNodes*p0);
@@ -333,11 +333,15 @@ __device__ __host__ static inline void rc(
       continue;
     }
 
+    float alpha;
     // const int nid = interpolateXGC2(value, bvh, p, nPhi, nNodes, nTriangles, data, disp, invdet);
-    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, psi);
-  
+    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, psi);
+ 
     if (nid >= 0) {
       src = value2color(value, tf, trans);
+      
+      // if (alpha < 0.001) src.w = fminf(0.999f, src.w*slice_highlight_ratio); // TODO: optimize if
+      // if (alpha < 0.01) src.w = 0.999f;
 
       if (SHADING) {
         float3 lit; 
@@ -643,7 +647,7 @@ void rc_set_default_tf(ctx_rc *ctx)
     tf[i*4] = x*b[0] + (1-x)*r[0];
     tf[i*4+1] = x*b[1] + (1-x)*r[1];
     tf[i*4+2] = x*b[2] + (1-x)*r[2];
-    tf[i*4+3] = fmin(0.999f, (x-0.5)*(x-0.5)*40);
+    tf[i*4+3] = fminf(0.999f, (x-0.5)*(x-0.5)*40);
   }
   rc_set_tf(ctx, tf);
 }
