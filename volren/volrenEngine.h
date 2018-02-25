@@ -3,6 +3,7 @@
 
 #include <queue>
 #include <mutex>
+#include <condition_variable>
 #include <chrono>
 #include <thread>
 #include "volren/png_utils.hpp"
