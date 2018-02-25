@@ -32,6 +32,9 @@ struct ctx_rc {
   bool toggle_angle_range;
   float angle_range_min, angle_range_max;
 
+  bool toggle_slice_highlight;
+  float slice_highlight_ratio;
+
   float *d_data, *h_data;
   int nNodes, nPhi, nTriangles;
 
@@ -67,6 +70,7 @@ void rc_set_invmvpd(ctx_rc *ctx, double *invmvp);
 void rc_set_range(ctx_rc *ctx, float dpot_min, float dpot_max);
 void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_min, float psi_max);
 void rc_set_angle_range(ctx_rc *ctx, bool on, float angle_min, float angle_max);
+void rc_set_slice_highlight_ratio(ctx_rc *ctx, bool on, float ratio);
 
 void rc_render(ctx_rc *ctx);
 void rc_render_cpu(ctx_rc *ctx);
