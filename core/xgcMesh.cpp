@@ -1,8 +1,6 @@
 #include "def.h"
 #include <unistd.h>
 #include <mpi.h>
-#include <adios.h>
-#include <adios_read.h>
 #include <adios_error.h>
 #include <cassert>
 #include <cfloat>

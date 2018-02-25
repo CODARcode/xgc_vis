@@ -2,6 +2,10 @@
 #define _XGCMESH_H
 
 #include <mpi.h>
+#include <adios.h>
+#include <adios_read.h>
+#include <string>
+#include <cfloat>
 
 struct XGCMesh {
   int nNodes, nTriangles, nPhi;
