@@ -1,6 +1,7 @@
 #ifndef _XGCMESH_H
 #define _XGCMESH_H
 
+#include "def.h"
 #include <mpi.h>
 #include <adios.h>
 #include <adios_read.h>
@@ -22,6 +23,10 @@ struct XGCMesh {
   void deriveSinglePrecisionPsi();
   void deriveInversedDeterminants();
   void deriveDisplacements();
+
+#if WITH_VTK
+  struct vtkDataSet* convert2DSliceToVTK(double *scalar);
+#endif
 
   ~XGCMesh();
 };
