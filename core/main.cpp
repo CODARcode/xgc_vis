@@ -498,9 +498,9 @@ void startVolren(XGCMesh& m, XGCData& d)
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
-      rc_set_psi_range(rc, false, 0, 0.2); // TODO: argument
-      rc_set_angle_range(rc, false, 0, 4.5); // TODO: argument
-      rc_set_slice_highlight_ratio(rc, true, 0.999); // TODO: argument
+      rc_set_psi_range(rc, true, 0, 0.2); // TODO: argument
+      rc_set_angle_range(rc, true, 0, 4.5); // TODO: argument
+      rc_set_slice_highlight_ratio(rc, false, 0.999); // TODO: argument
       if (task->tf) 
         rc_set_tf(rc, task->tf);
       rc_clear_output(rc);
