@@ -731,24 +731,7 @@ int main(int argc, char **argv)
   }
 
   /// read mesh
-  adios_read_init_method(read_method, MPI_COMM_WORLD, "");
-  ADIOS_FILE *meshFP = NULL;
-  while (1) {
-    meshFP = adios_read_open_file(filename_mesh.c_str(), ADIOS_READ_METHOD_BP, MPI_COMM_WORLD); // always use ADIOS_READ_METHOD_BP for mesh
-    if (meshFP == NULL) {
-      fprintf(stderr, "failed to open mesh: %s, will retry in 5 seconds.\n", filename_mesh.c_str()); 
-      sleep(5);
-    } else break;
-  }
-  adios_read_bp_reset_dimension_order(meshFP, 0);
-
-  fprintf(stderr, "reading mesh...\n");
-  readTriangularMesh(meshFP, mesh.nNodes, mesh.nTriangles, &mesh.coords, &mesh.conn, &mesh.nextNode);
-  readScalars<double>(meshFP, "psi", &mesh.psi);
-  mesh.deriveSinglePrecisionPsi();
-  mesh.deriveDisplacements();
-  mesh.deriveInversedDeterminants();
-  // adios_close(*meshFP);
+  mesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
 
   ex = new XGCBlobExtractor(mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn);
   

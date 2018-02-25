@@ -1,7 +1,44 @@
 #include "def.h"
+#include <unistd.h>
+#include <mpi.h>
+#include <adios.h>
+#include <adios_read.h>
+#include <adios_error.h>
+#include <cassert>
 #include <cfloat>
 #include <iostream>
-#include "xgcMesh.h"
+#include "core/xgcMesh.h"
+#include "core/bp_utils.hpp"
+
+void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm)
+{
+  adios_read_init_method(readMethod, comm, "");
+  ADIOS_FILE *fp = NULL;
+  while (1) {
+    fp = adios_read_open_file(filename.c_str(), ADIOS_READ_METHOD_BP, comm); // always use ADIOS_READ_METHOD_BP for mesh
+    if (fp == NULL) {
+      fprintf(stderr, "failed to open mesh: %s, will retry in 5 seconds.\n", filename.c_str()); 
+      sleep(5);
+    } else break;
+  }
+  adios_read_bp_reset_dimension_order(fp, 0);
+
+  fprintf(stderr, "reading mesh...\n");
+  
+  readValueInt(fp, "n_n", &nNodes);
+  readValueInt(fp, "n_t", &nTriangles);
+  readScalars<double>(fp, "/coordinates/values", &coords);
+  readScalars<int>(fp, "/cell_set[0]/node_connect_list", &conn);
+  readScalars<int>(fp, "nextnode", &nextNode);
+  readScalars<double>(fp, "psi", &psi);
+ 
+  adios_read_finalize_method (ADIOS_READ_METHOD_BP);
+  adios_read_close(fp);
+  
+  deriveSinglePrecisionPsi();
+  deriveDisplacements();
+  deriveInversedDeterminants();
+}
 
 void XGCMesh::deriveSinglePrecisionPsi() {
   psif = (float*)realloc(psif, sizeof(float)*nNodes);

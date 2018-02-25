@@ -6,7 +6,7 @@ extern "C"
 extern void adios_read_bp_reset_dimension_order (const ADIOS_FILE *fp, int is_fortran);
 }
 
-bool readValueInt(ADIOS_FILE *fp, const char *nm, int *val)
+static bool readValueInt(ADIOS_FILE *fp, const char *nm, int *val)
 {
   ADIOS_VARINFO *avi = adios_inq_var(fp, nm);
   if (avi == NULL || avi->type != adios_integer) return false;
@@ -15,7 +15,7 @@ bool readValueInt(ADIOS_FILE *fp, const char *nm, int *val)
 }
 
 
-template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr, bool allocate=true)
+template <typename T> static int readScalars(ADIOS_FILE *fp, const char *var, T **arr, bool allocate=true)
 {
   ADIOS_VARINFO *avi = adios_inq_var(fp, var);
   if (avi == NULL) return false;
@@ -45,27 +45,6 @@ template <typename T> int readScalars(ADIOS_FILE *fp, const char *var, T **arr, 
   
   adios_selection_delete(sel);
   return avi->ndim;
-}
-
-bool readTriangularMesh(ADIOS_FILE *fp, int &nNodes, int &nTriangles, double **coords, int **conn, int **nextNode) 
-{
-  // read number of nodes and triangles
-  readValueInt(fp, "n_n", &nNodes);
-  readValueInt(fp, "n_t", &nTriangles);
-  
-  // read coordinates
-  readScalars<double>(fp, "/coordinates/values", coords);
-
-  // read triangles
-  readScalars<int>(fp, "/cell_set[0]/node_connect_list", conn);
-
-  // read nextNode
-  readScalars<int>(fp, "nextnode", nextNode);
-  
-  fprintf(stderr, "mesh loaded: nNodes=%d, nTriangles=%d\n", 
-      nNodes, nTriangles);
-
-  return true;
 }
 
 #endif
