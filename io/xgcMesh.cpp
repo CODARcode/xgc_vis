@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cfloat>
 #include <iostream>
+#include <map>
 #include "io/xgcMesh.h"
 #include "io/bp_utils.hpp"
 
@@ -67,12 +68,49 @@ void XGCMesh::deriveDisplacements() {
   }
 }
 
+void XGCMesh::buildNeighbors()
+{
+  typedef std::tuple<int, int> edgeType;
+  std::map<edgeType, int> edgeTriangleMap;
+
+  auto makeEdge = [](int i0, int i1) {return std::make_tuple(i0, i1);};
+
+  auto addEdge = [&makeEdge, &edgeTriangleMap](int triangleId, int i0, int i1) {
+    // fprintf(stderr, "triangleId=%d, adding edge {%d, %d}\n", triangleId, i0, i1);
+    edgeTriangleMap[ makeEdge(i0, i1) ] = triangleId;
+  };
+
+  for (int i=0; i<nTriangles; i++) {
+    const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    addEdge(i, i0, i1);
+    addEdge(i, i1, i2);
+    addEdge(i, i2, i0);
+  }
+
+  neighbors = (int*)realloc(neighbors, nTriangles*3*sizeof(int));
+
+  for (int i=0; i<nTriangles; i++) {
+    const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    const edgeType edges[3] = {makeEdge(i0, i2), makeEdge(i2, i1), makeEdge(i1, i0)};
+
+    for (int j=0; j<3; j++) {
+      const edgeType& e = edges[j];
+      if (edgeTriangleMap.find(e) != edgeTriangleMap.end()) neighbors[i*3+j] = edgeTriangleMap[e];
+      else neighbors[i*3+j] = -1;
+    }
+
+    // fprintf(stderr, "triangleId=%d, neighbors={%d, %d, %d}\n", i, 
+    //     neighbors[i*3], neighbors[i*3+1], neighbors[i*3+2]);
+  }
+}
+
 void XGCMesh::buildNodeGraph()
 {
   nodeGraph.clear();
   nodeGraph.resize(nNodes);
   for (int i=0; i<nTriangles; i++) {
     int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+
     nodeGraph[i0].insert(i1);
     nodeGraph[i0].insert(i2);
     nodeGraph[i1].insert(i0);
@@ -82,10 +120,24 @@ void XGCMesh::buildNodeGraph()
   }
 }
 
-void XGCMesh::marchingTriangles(double *scalar)
+void XGCMesh::marchingTriangles(double *scalar, double isoval)
 {
-  for (int i=0; i<nTriangles; i++) {
+  auto checkZero = [scalar, isoval](int i0, int i1, double &alpha) {
+    double f0 = scalar[i0], f1 = scalar[i1];
+    alpha = (isoval - f0) / (f1 - f0);
+    return alpha >= 0 && alpha < 1;
+  };
 
+  struct IntersectedTriangle {
+    double alpha0, alpha1, alpha2;
+  };
+
+  std::set<IntersectedTriangle> interstectedTriangles;
+
+  double alpha; 
+  for (int i=0; i<nTriangles; i++) {
+    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
+    checkZero(i0, i1, alpha); 
   }
 }
 

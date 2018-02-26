@@ -13,6 +13,7 @@
 struct XGCMesh {
   int nNodes, nTriangles, nPhi;
   int *conn = NULL, *nextNode = NULL;
+  int *neighbors = NULL;
   double *coords = NULL;
   double *psi = NULL;
   float *psif = NULL;
@@ -24,12 +25,14 @@ struct XGCMesh {
 
   void readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm);
 
-  void buildNodeGraph();
   void deriveSinglePrecisionPsi();
   void deriveInversedDeterminants();
   void deriveDisplacements();
 
-  void marchingTriangles(double*);
+  void buildNeighbors();
+  void buildNodeGraph();
+
+  void marchingTriangles(double*, double isoval);
 
   ~XGCMesh();
 };

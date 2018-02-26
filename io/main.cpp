@@ -15,6 +15,11 @@ int main(int argc, char **argv)
   XGCData d;
   d.readDpotFromADIOS(m, varFP);
 
+  m.buildNeighbors();
+  m.buildNodeGraph();
+  // m.marchingTriangles(m.psi, 0.2);
+
+#if 0
   vtkDataSet *grid = d.convert2DSliceToVTK(m);
 
   // vtkContourGrid *contourGrid = vtkContourGrid::New();
@@ -34,6 +39,7 @@ int main(int argc, char **argv)
   // wrt->SetInputData(contourGrid->GetOutput());
   wrt->Write();
   wrt->Delete();
+#endif
 
   return 0;
 }
