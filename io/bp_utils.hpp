@@ -1,6 +1,8 @@
 #ifndef _BP_UTILS_HPP
 #define _BP_UTILS_HPP
 
+#include <cassert>
+
 extern "C"
 {
 extern void adios_read_bp_reset_dimension_order (const ADIOS_FILE *fp, int is_fortran);

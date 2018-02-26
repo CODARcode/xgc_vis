@@ -12,6 +12,11 @@ struct XGCData {
   void deriveGradient(const XGCMesh& m);
 
   ~XGCData();
+  void readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp);
+
+#if WITH_VTK
+  struct vtkDataSet* convert2DSliceToVTK(XGCMesh& m);
+#endif
 };
 
 #endif

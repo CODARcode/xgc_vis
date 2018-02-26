@@ -24,10 +24,6 @@ struct XGCMesh {
   void deriveInversedDeterminants();
   void deriveDisplacements();
 
-#if WITH_VTK
-  struct vtkDataSet* convert2DSliceToVTK(double *scalar);
-#endif
-
   ~XGCMesh();
 };
 

@@ -8,21 +8,6 @@
 #include "io/xgcMesh.h"
 #include "io/bp_utils.hpp"
 
-#if WITH_VTK
-#include <vtkDataSet.h>
-#include <vtkUnstructuredGrid.h>
-#include <vtkDataArray.h>
-#include <vtkFloatArray.h>
-#include <vtkDoubleArray.h>
-#include <vtkIntArray.h>
-#include <vtkUnsignedIntArray.h>
-#include <vtkUnsignedLongArray.h>
-#include <vtkLongArray.h>
-#include <vtkGenericCell.h>
-#include <vtkDataSetWriter.h>
-#include <vtkPointData.h>
-#endif
-
 void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm)
 {
   adios_read_init_method(readMethod, comm, "");
@@ -35,8 +20,6 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
     } else break;
   }
   adios_read_bp_reset_dimension_order(fp, 0);
-
-  fprintf(stderr, "reading mesh...\n");
   
   readValueInt(fp, "n_n", &nNodes);
   readValueInt(fp, "n_t", &nTriangles);
@@ -60,7 +43,7 @@ void XGCMesh::deriveSinglePrecisionPsi() {
     psi_min = std::min(psi_min, psif[i]);
     psi_max = std::max(psi_max, psif[i]);
   }
-  fprintf(stderr, "psi_min=%f, psi_max=%f\n", psi_min, psi_max);
+  // fprintf(stderr, "psi_min=%f, psi_max=%f\n", psi_min, psi_max);
 }
 
 void XGCMesh::deriveInversedDeterminants() {
@@ -92,32 +75,3 @@ XGCMesh::~XGCMesh() {
   free(dispf);
   free(invdetf);
 }
-
-#if WITH_VTK
-vtkDataSet* XGCMesh::convert2DSliceToVTK(double *scalar)
-{
-  vtkUnstructuredGrid *grid = vtkUnstructuredGrid::New();
-
-  vtkPoints *pts = vtkPoints::New();
-  pts->SetNumberOfPoints(nNodes);
-
-  for (int i=0; i<nNodes; i++)
-    pts->SetPoint(i, coords[i*2], coords[i*2+1], 0);
-
-  for (int i=0; i<nTriangles; i++) {
-    vtkIdType ids[3] = {conn[i*3], conn[i*3+1], conn[i*3+2]};
-    grid->InsertNextCell(VTK_TRIANGLE, 3, ids);
-  }
-
-  grid->SetPoints(pts);
-  pts->Delete();
-
-  vtkDataArray *var = vtkDoubleArray::New();
-  var->SetNumberOfComponents(1);
-  var->SetNumberOfTuples(nNodes);
-  memcpy(var->GetVoidPointer(0), scalar, sizeof(double)*nNodes);
-  grid->GetPointData()->SetScalars(var);
-
-  return grid;
-}
-#endif
