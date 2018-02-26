@@ -6,6 +6,8 @@
 #include <adios.h>
 #include <adios_read.h>
 #include <string>
+#include <set>
+#include <vector>
 #include <cfloat>
 
 struct XGCMesh {
@@ -18,11 +20,16 @@ struct XGCMesh {
   float *invdetf = NULL; // inversed determinant of triangles
   float psi_min = FLT_MAX, psi_max = -FLT_MAX;
 
+  std::vector<std::set<size_t> > nodeGraph; // node->{neighbor nodes}
+
   void readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm);
 
+  void buildNodeGraph();
   void deriveSinglePrecisionPsi();
   void deriveInversedDeterminants();
   void deriveDisplacements();
+
+  void marchingTriangles(double*);
 
   ~XGCMesh();
 };

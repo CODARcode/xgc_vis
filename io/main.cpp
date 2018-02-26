@@ -3,6 +3,8 @@
 
 #include <vtkDataSet.h>
 #include <vtkDataSetWriter.h>
+#include <vtkContourFilter.h>
+#include <vtkContourGrid.h>
 
 int main(int argc, char **argv)
 {
@@ -13,12 +15,23 @@ int main(int argc, char **argv)
   XGCData d;
   d.readDpotFromADIOS(m, varFP);
 
-  vtkDataSet* grid = d.convert2DSliceToVTK(m);
+  vtkDataSet *grid = d.convert2DSliceToVTK(m);
+
+  // vtkContourGrid *contourGrid = vtkContourGrid::New();
+  // contourGrid->SetInputData(grid);
+  // contourGrid->GenerateValues(1, 0.2, 0.2);
+  // contourGrid->Update();
   
+  vtkContourFilter *contourFilter = vtkContourFilter::New();
+  contourFilter->SetInputData(grid);
+  contourFilter->GenerateValues(4, 0.2, 0.4); 
+
   vtkDataSetWriter *wrt = vtkDataSetWriter::New();
   wrt->SetFileTypeToBinary();
   wrt->SetFileName("myxgc.vtk");
-  wrt->SetInputData(grid);
+  // wrt->SetInputData(grid);
+  wrt->SetInputData(contourFilter->GetOutput());
+  // wrt->SetInputData(contourGrid->GetOutput());
   wrt->Write();
   wrt->Delete();
 

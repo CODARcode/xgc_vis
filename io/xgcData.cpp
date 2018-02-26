@@ -89,21 +89,23 @@ vtkDataSet* XGCData::convert2DSliceToVTK(XGCMesh &m)
   }
 
   grid->SetPoints(pts);
-  pts->Delete();
+  // pts->Delete();
 
+#if 0
   vtkDataArray *dpotArray = vtkDoubleArray::New();
   dpotArray->SetName("dpot");
   dpotArray->SetNumberOfComponents(1);
   dpotArray->SetNumberOfTuples(m.nNodes);
   memcpy(dpotArray->GetVoidPointer(0), dpot, sizeof(double)*m.nNodes);
-  
+#endif
+
   vtkDataArray *psiArray = vtkDoubleArray::New();
   psiArray->SetName("psi");
   psiArray->SetNumberOfComponents(1);
   psiArray->SetNumberOfTuples(m.nNodes);
   memcpy(psiArray->GetVoidPointer(0), m.psi, sizeof(double)*m.nNodes);
 
-  grid->GetPointData()->AddArray(dpotArray);
+  // grid->GetPointData()->AddArray(dpotArray);
   grid->GetPointData()->AddArray(psiArray);
 
   return grid;
