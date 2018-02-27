@@ -149,19 +149,20 @@ void XGCMesh::marchingTriangles(double *scalar, double isoval)
     findIntersection(i, conn+i*3);
 
   // traversal
-  auto traceContourTrianglesOnSingleDirection = [this, &candidateTriangles](std::list<int>& contourTriangles, int seed, bool forward) {
+  auto traceContourTrianglesOnSingleDirection = [this, &candidateTriangles](std::list<double>& contour, int seed, bool forward) {
+    // fprintf(stderr, "seed=%d, direction=%d\n", seed, forward);
     int current = seed;
     while (candidateTriangles.find(current) != candidateTriangles.end()) {
       std::tuple<double, double, double> intersections = candidateTriangles[current];
       
       candidateTriangles.erase(current);
       
-      // fprintf(stderr, "adding %d, neighbors={%d, %d, %d}, intersections={%f, %f, %f}\n", current, 
+      // fprintf(stderr, "seed=%d, adding %d, neighbors={%d, %d, %d}, intersections={%f, %f, %f}\n", seed, current, 
       //     neighbors[current*3], neighbors[current*3+1], neighbors[current*3+2], 
       //     std::get<0>(intersections), std::get<1>(intersections), std::get<2>(intersections));
    
-      if (forward) contourTriangles.push_front(current);
-      else contourTriangles.push_back(current);
+      // if (forward) contourTriangles.push_front(current);
+      // else contourTriangles.push_back(current);
   
       int edge;
       double alpha;
@@ -179,7 +180,9 @@ void XGCMesh::marchingTriangles(double *scalar, double isoval)
       int n0 = conn[current*3+edge], n1 = conn[(current*3+edge+1)%3];
       double X = (1-alpha) * coords[n0*2] + alpha * coords[n1*2], 
              Y = (1-alpha) * coords[n0*2+1] + alpha * coords[n1*2+1];
-      fprintf(stderr, "{%f, %f}\n", X, Y); //
+      if (forward) {contour.push_back(X); contour.push_back(Y);}
+      else {contour.push_front(Y); contour.push_front(X);}
+      fprintf(stderr, "{%f, %f}\n", X, Y); //  TODO
 
       current = neighbors[current*3+edge];
     }
@@ -187,39 +190,10 @@ void XGCMesh::marchingTriangles(double *scalar, double isoval)
  
   while (!candidateTriangles.empty()) {
     int seed = candidateTriangles.begin()->first;
-    // fprintf(stderr, "seed=%d\n", seed);
-    std::list<int> contourTriangles;
-    traceContourTrianglesOnSingleDirection(contourTriangles, seed, true);
-    traceContourTrianglesOnSingleDirection(contourTriangles, seed, false);
+    std::list<double> contour;
+    traceContourTrianglesOnSingleDirection(contour, seed, true);
+    traceContourTrianglesOnSingleDirection(contour, seed, false);
   }
-
-
-
-#if 0
-  auto traceContour = [this, &visited, &candidateTriangles](int seed) {
-    std::tuple<double, double, double> intersections = candidateTriangles[seed];
-    int contour_neighbors[3] = {
-      std::isnan(std::get<0>(intersections)) ? -1 : neighbors[seed*3], 
-      std::isnan(std::get<1>(intersections)) ? -1 : neighbors[seed*3+1], 
-      std::isnan(std::get<2>(intersections)) ? -1 : neighbors[seed*3+2]
-    };
-  
-    std::vector<int> directions; 
-    for (int i=0; i<3; i++) {
-      if (contour_neighbors[i] != -1) directions.push_back(contour_neighbors[i]);
-    }
-
-    int left, right;
-    if (directions.size() == 1) left = directions[0]; 
-    else {
-      left = directions[0]; 
-      right = directions[1];
-    }
-
-    traceContourOnSingleDirection(left, true);
-    traceContourOnSingleDirection(right, false);
-  }
-#endif
 }
 
 XGCMesh::~XGCMesh() {
