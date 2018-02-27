@@ -110,7 +110,7 @@ inline int QuadNodeD_locatePoint(QuadNodeD *nodes, float x, float y, float3 &lam
 }
 
 __device__ __host__
-inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda, float *invdet)
+inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x, float y, float3 &lambda, float *invdet, int *neighbors)
 {
   // check if last_nid is valid
   if (last_nid<0) return QuadNodeD_locatePoint(bvh, x, y, lambda, invdet);
@@ -119,13 +119,12 @@ inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x,
   if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda, invdet)) return last_nid;
 
   // TODO: check if neighbor triangles have the point
-#if 0
   for (int i=0; i<3; i++) {
     int triangleId = bvh[last_nid].triangleId;
-    int neighborId = neighbors[triangleId*3];
-    if (neighborId<0) continue; 
+    int neighborQuadId = neighbors[triangleId*3];
+    if (neighborQuadId<0) continue;
+    else if (QuadNodeD_insideTriangle(bvh[neighborQuadId], x, y, lambda, invdet)) return neighborQuadId;
   }
-#endif
 
   // traverse from parents
   // int nid = QuadNodeD_locatePoint(bvh, x, y, lambda, invdet, bvh[bvh[last_nid].parentId].parentId);
@@ -167,13 +166,13 @@ template <int PSI, int SHADING>
 __device__ __host__
 inline int interpolateXGC(float &value, float3 &g, int &last_nid, QuadNodeD *bvh,
     float3 p, float r2, float r, float phi, float z, float &alpha,
-    float2 psi_range, float2 angle_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, float *psi)
+    float2 psi_range, float2 angle_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, int *neighbors, float *psi)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
   
   float3 lambda;
-  int nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda, invdet);
+  int nid = QuadNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda, invdet, neighbors);
   if (nid == -1) return nid;
   last_nid = nid;
  
@@ -219,7 +218,7 @@ inline int interpolateXGC(float &value, float3 &g, int &last_nid, QuadNodeD *bvh
 }
 
 __device__ __host__
-inline int interpolateXGC2(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float *disp, float *invdet)
+inline int interpolateXGC2(float &value, float3 &g, QuadNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float *disp, float *invdet, int *neighbors)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -245,8 +244,8 @@ inline int interpolateXGC2(float &value, float3 &g, QuadNodeD *bvh, float3 p, in
   float dy = lambda.x * disp[q.i0*2+1] + lambda.y * disp[q.i1*2+1] + lambda.z * disp[q.i2*2+1];
  
   float3 lambda0, lambda1;
-  int nid0 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*(1-alpha), z+dy*(1-alpha), lambda0, invdet);
-  int nid1 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*alpha, z+dy*alpha, lambda1, invdet);
+  int nid0 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*(1-alpha), z+dy*(1-alpha), lambda0, invdet, neighbors);
+  int nid1 = QuadNodeD_locatePoint_coherent(bvh, nid, r+dx*alpha, z+dy*alpha, lambda1, invdet, neighbors);
   if (nid0 == -1 || nid1 == -1) {
     // fprintf(stderr, "nid=%d, nid0=%d, nid1=%d, dx=%f, dy=%f\n", nid, nid0, nid1, dx, dy);
     return -1;
@@ -304,6 +303,7 @@ __device__ __host__ static inline void rc(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
+        int *neighbors,
         float *psi,
         float2 psi_range,
         float2 angle_range,
@@ -344,7 +344,7 @@ __device__ __host__ static inline void rc(
 
     float alpha;
     // const int nid = interpolateXGC2(value, bvh, p, nPhi, nNodes, nTriangles, data, disp, invdet);
-    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, psi);
+    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
  
     if (nid >= 0) {
       src = value2color(value, tf, trans);
@@ -398,6 +398,7 @@ __device__ __host__ static inline void raycasting(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
+        int *neighbors,
         float *psi,
         float2 psi_range,
         float2 angle_range,
@@ -417,10 +418,10 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -480,6 +481,7 @@ __global__ static void raycasting_kernel(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
+        int *neighbors,
         float *psi,
         float2 psi_range,
         float2 angle_range,
@@ -496,7 +498,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize);
+  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize);
   
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -529,6 +531,7 @@ static void raycasting_cpu(
         QuadNodeD *bvh,
         float *disp,
         float *invdet,
+        int *neighbors,
         float *psi,
         float2 psi_range,
         float2 angle_range,
@@ -545,7 +548,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize);
+      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -595,6 +598,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_bvh,
           ctx->d_disp,
           ctx->d_invdet,
+          ctx->d_neighbors, 
           ctx->d_psi,
           make_float2(ctx->psi_range_min, ctx->psi_range_max),
           make_float2(ctx->angle_range_min, ctx->angle_range_max),
@@ -624,6 +628,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->h_bvh,
           ctx->h_disp,
           ctx->h_invdet,
+          ctx->h_neighbors,
           ctx->h_psi,
           make_float2(ctx->psi_range_min, ctx->psi_range_max),
           make_float2(ctx->angle_range_min, ctx->angle_range_max),
