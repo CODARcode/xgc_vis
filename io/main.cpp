@@ -17,9 +17,9 @@ int main(int argc, char **argv)
 
   m.buildNeighbors();
   m.buildNodeGraph();
-  // m.marchingTriangles(m.psi, 0.2);
+  m.marchingTriangles(m.psi, 0.2);
 
-#if 0
+#if 1
   vtkDataSet *grid = d.convert2DSliceToVTK(m);
 
   // vtkContourGrid *contourGrid = vtkContourGrid::New();
