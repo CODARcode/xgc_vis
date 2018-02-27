@@ -118,13 +118,15 @@ inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x,
   // check if in the same triangle
   if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda, invdet)) return last_nid;
 
-  // TODO: check if neighbor triangles have the point
+  // check if neighbor triangles have the point
+#if 0
   for (int i=0; i<3; i++) {
     int triangleId = bvh[last_nid].triangleId;
     int neighborQuadId = neighbors[triangleId*3];
     if (neighborQuadId<0) continue;
     else if (QuadNodeD_insideTriangle(bvh[neighborQuadId], x, y, lambda, invdet)) return neighborQuadId;
   }
+#endif
 
   // traverse from parents
   // int nid = QuadNodeD_locatePoint(bvh, x, y, lambda, invdet, bvh[bvh[last_nid].parentId].parentId);
