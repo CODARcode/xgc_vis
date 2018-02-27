@@ -16,6 +16,7 @@ struct ctx_rc {
   int viewport[4];
   float invmvp[16]; // inverse(proj*modelview)
 
+  int *d_neighbors, *h_neighbors;
   QuadNodeD *d_bvh, *h_bvh;
   int *d_viewport;
   float *d_invmvp;
@@ -59,6 +60,7 @@ void rc_bind_invdet(ctx_rc *ctx, int nTriangles, float *invdet); // determinant 
 void rc_bind_psi(ctx_rc *ctx, int nNodes, float *psi, float psi_min, float psi_max);
 void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp); // displacements of nodes
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh);
+void rc_bind_neighbors(ctx_rc *ctx, int nTriangles, int *neighbors);
 void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data, float *grad);
 
 void rc_set_default_tf(ctx_rc *ctx);

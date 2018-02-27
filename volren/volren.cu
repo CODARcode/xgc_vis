@@ -636,6 +636,18 @@ void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 #endif
 }
 
+void rc_bind_neighbors(ctx_rc *ctx, int nTriangles, int *neighbors)
+{
+  ctx->h_neighbors = neighbors;
+#if WITH_CUDA
+  if (ctx->d_neighbors != NULL)
+    cudaFree(ctx->d_neighbors);
+
+  cudaMalloc((void**)&ctx->d_neighbors, sizeof(int)*nTriangles*3);
+  cudaMemcpy(ctx->d_neighbors, neighbors, sizeof(int)*nTriangles*3, cudaMemcpyHostToDevice);
+#endif
+}
+
 void rc_set_default_tf(ctx_rc *ctx)
 {
   float r[3] = {0.7215686274509804, 0.1803921568627451, 0.1803921568627451}, 
@@ -794,6 +806,7 @@ void rc_destroy_ctx(ctx_rc **ctx)
   cudaFree((*ctx)->d_disp);
   cudaFree((*ctx)->d_invdet);
   cudaFree((*ctx)->d_psi);
+  cudaFree((*ctx)->d_neighbors);
 #endif
   free((*ctx)->h_output);
   free((*ctx)->h_tf);

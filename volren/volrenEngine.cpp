@@ -99,6 +99,7 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
   // rc_test_point_locator(rc, 2.3f, -0.4f);
  
   // mesh 
+  rc_bind_neighbors(rc, m.nTriangles, m.neighbors);
   rc_bind_psi(rc, m.nNodes, m.psif, m.psi_min, m.psi_max);
   rc_bind_disp(rc, m.nNodes, m.dispf);
   rc_bind_invdet(rc, m.nTriangles, m.invdetf);
