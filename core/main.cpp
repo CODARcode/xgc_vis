@@ -30,7 +30,7 @@ server wss;
 // using ConcurrentQueue = moodycamel::ConcurrentQueue;
 using json = nlohmann::json;
 
-XGCMesh mesh;
+XGCMesh xgcMesh;
 XGCData xgcData;
 
 VolrenEngine volrenEngine;
@@ -348,9 +348,9 @@ int main(int argc, char **argv)
   }
 
   /// read mesh
-  mesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
+  xgcMesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
 
-  ex = new XGCBlobExtractor(mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn);
+  ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
   
   // starting server
   if (vm.count("server")) {
@@ -400,8 +400,8 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
 
-    mesh.nPhi = 1;
-    readValueInt(varFP, "nphi", &mesh.nPhi);
+    xgcMesh.nPhi = 1;
+    readValueInt(varFP, "nphi", &xgcMesh.nPhi);
     // readScalars<double>(varFP, "dpot", &dpot);
 
     ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
@@ -412,21 +412,21 @@ int main(int argc, char **argv)
     adios_inq_var_meshinfo(varFP, avi);
 
     // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), static_cast<uint64_t>(nPhi), 1, 1};
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(mesh.nPhi), static_cast<uint64_t>(mesh.nNodes), 1, 1};
+    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(xgcMesh.nPhi), static_cast<uint64_t>(xgcMesh.nNodes), 1, 1};
     ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
     // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
 
     assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
     if (xgcData.dpot == NULL)
-      xgcData.dpot = (double*)malloc(sizeof(double)*mesh.nPhi*mesh.nNodes);
+      xgcData.dpot = (double*)malloc(sizeof(double)*xgcMesh.nPhi*xgcMesh.nNodes);
 
     adios_schedule_read_byid(varFP, sel, avi->varid, 0, 1, xgcData.dpot);
     adios_perform_reads(varFP, 1);
     adios_selection_delete(sel);
 
-    xgcData.deriveSinglePrecisionDpot(mesh);
-    xgcData.deriveGradient(mesh);
+    xgcData.deriveSinglePrecisionDpot(xgcMesh);
+    xgcData.deriveGradient(xgcMesh);
 
 
     if (skipped_timesteps.find(current_time_index) != skipped_timesteps.end()) {
@@ -439,11 +439,11 @@ int main(int argc, char **argv)
    
     // FIXME
    
-    volrenEngine.start(mesh, xgcData); 
+    volrenEngine.start(xgcMesh, xgcData); 
     volrenEngine.enqueueAndWait("");
 
     mutex_ex.lock();
-    ex->setData(current_time_index, mesh.nPhi, xgcData.dpot);
+    ex->setData(current_time_index, xgcMesh.nPhi, xgcData.dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
@@ -466,7 +466,7 @@ int main(int argc, char **argv)
         ex->dumpLabels(filename_output);
       else 
         writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
-            mesh.nNodes, mesh.nTriangles, mesh.coords, mesh.conn, xgcData.dpot, mesh.psi, labels);
+            xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn, xgcData.dpot, xgcMesh.psi, labels);
     }
    
     // write branches
