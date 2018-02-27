@@ -16,7 +16,7 @@ struct ctx_rc {
   int viewport[4];
   float invmvp[16]; // inverse(proj*modelview)
 
-  int *d_neighbors, *h_neighbors;
+  int *d_neighbors, *h_neighbors; // neighbor indices are for quadnodes.
   QuadNodeD *d_bvh, *h_bvh;
   int *d_viewport;
   float *d_invmvp;
@@ -37,7 +37,7 @@ struct ctx_rc {
   float slice_highlight_ratio;
 
   float *d_data, *h_data;
-  int nNodes, nPhi, nTriangles;
+  int nNodes, nPhi, nTriangles, nQuadNodes;
 
   // float *d_output;
   unsigned char *d_output_rgba8;

@@ -118,6 +118,15 @@ inline int QuadNodeD_locatePoint_coherent(QuadNodeD *bvh, int last_nid, float x,
   // check if in the same triangle
   if (QuadNodeD_insideTriangle(bvh[last_nid], x, y, lambda, invdet)) return last_nid;
 
+  // TODO: check if neighbor triangles have the point
+#if 0
+  for (int i=0; i<3; i++) {
+    int triangleId = bvh[last_nid].triangleId;
+    int neighborId = neighbors[triangleId*3];
+    if (neighborId<0) continue; 
+  }
+#endif
+
   // traverse from parents
   // int nid = QuadNodeD_locatePoint(bvh, x, y, lambda, invdet, bvh[bvh[last_nid].parentId].parentId);
   // int nid = QuadNodeD_locatePoint(bvh, x, y, lambda, invdet, bvh[last_nid].parentId);
@@ -626,6 +635,7 @@ void rc_render_cpu(ctx_rc *ctx)
 
 void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 {
+  ctx->nQuadNodes = nQuadNodes;
   ctx->h_bvh = bvh;
 #if WITH_CUDA
   if (ctx->d_bvh != NULL)
@@ -638,13 +648,28 @@ void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh)
 
 void rc_bind_neighbors(ctx_rc *ctx, int nTriangles, int *neighbors)
 {
-  ctx->h_neighbors = neighbors;
+  int *triangleQuadNodeMap = (int*)malloc(sizeof(int)*nTriangles);
+  for (int i=0; i<ctx->nQuadNodes; i++) {
+    if (ctx->h_bvh[i].triangleId != -1) 
+      triangleQuadNodeMap[ctx->h_bvh[i].triangleId] = i;
+  }
+
+  ctx->h_neighbors = (int*)realloc(ctx->h_neighbors, sizeof(int)*nTriangles*3);
+  for (int i=0; i<nTriangles; i++) {
+    for (int j=0; j<3; j++) {
+      if (neighbors[i*3+j] < 0) ctx->h_neighbors[i*3+j] = -1;
+      else ctx->h_neighbors[i*3+j] = triangleQuadNodeMap[neighbors[i*3+j]];
+    }
+  }
+
+  free(triangleQuadNodeMap);
+
 #if WITH_CUDA
   if (ctx->d_neighbors != NULL)
     cudaFree(ctx->d_neighbors);
 
   cudaMalloc((void**)&ctx->d_neighbors, sizeof(int)*nTriangles*3);
-  cudaMemcpy(ctx->d_neighbors, neighbors, sizeof(int)*nTriangles*3, cudaMemcpyHostToDevice);
+  cudaMemcpy(ctx->d_neighbors, ctx->h_neighbors, sizeof(int)*nTriangles*3, cudaMemcpyHostToDevice);
 #endif
 }
 
@@ -808,6 +833,7 @@ void rc_destroy_ctx(ctx_rc **ctx)
   cudaFree((*ctx)->d_psi);
   cudaFree((*ctx)->d_neighbors);
 #endif
+  free((*ctx)->h_neighbors);
   free((*ctx)->h_output);
   free((*ctx)->h_tf);
   free(*ctx); 
