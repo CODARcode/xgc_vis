@@ -164,8 +164,8 @@ var View2D = (function() {
 
     /* value color legend */
     var formatToOne = d3.format(".1e");
-    d3.select('#min-value-text').text(formatToOne(range.min));
-    d3.select('#max-value-text').text(formatToOne(range.max));
+    d3.select('.min-value-text').text(formatToOne(range.min));
+    d3.select('.max-value-text').text(formatToOne(range.max));
 
     /* label color scale */
     var labelRange = {};
@@ -214,14 +214,14 @@ var View2D = (function() {
     View2D.labelObject.geometry.colorsNeedUpdate = true;
     View2D.labelObject.material.needsUpdate = true;
     $('#loading').hide();
-    $('#legend-div').show();
+    $('.legend-div-2d').show();
 
     if (data.timestep != undefined) {
-      $('#timestep-div').show();
-      $('#timestep-value')[0].innerHTML = data.timestep;
+      $('.timestep-div-2d').show();
+      $('.timestep-value')[0].innerHTML = data.timestep;
     }
     else {
-      $('#timestep-div').hide();
+      $('.timestep-div-2d').hide();
     }
     doneRendering = true;
   }
@@ -230,15 +230,15 @@ var View2D = (function() {
     if (method === 'label') {
       View2D.scene.remove(View2D.valueObject);
       View2D.scene.add(View2D.labelObject);
-      $('#value-legend').hide();
-      $('#label-legend').show();
+      $('.value-legend').hide();
+      $('.label-legend').show();
       View2D.targetList = [View2D.labelObject];
     }
     else if (method === 'value'){
       View2D.scene.remove(View2D.labelObject);
       View2D.scene.add(View2D.valueObject);
-      $('#value-legend').show();
-      $('#label-legend').hide();
+      $('.value-legend').show();
+      $('.label-legend').hide();
       View2D.targetList = [View2D.valueObject];
     }
   }

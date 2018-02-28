@@ -10,10 +10,6 @@ var menuText = function() {
   this.autoRefreshing = false;
   this.refreshInterval = 20;
 
-  this.saveImage = function() {
-    window.open( renderer.domElement.toDataURL( 'image/png' ), 'screenshot' );
-  };
-
   this.reconnect = function () {
     connectionDialog.reconnect();
   };
@@ -22,23 +18,23 @@ var menuText = function() {
     requestData();
   };
 
-  this.resetCamera = function() {
-    controls.reset();
-  };
-
   this.transferFunction = function() {
     ViewTF.toggle();
-  }
+  };
 };
 
 function initializeControlPanel(domElem) {
   var text = new menuText();
   var gui = new dat.GUI({autoPlace: false, width: 400});
 
-  // var f1 = gui.addFolder("Simulation");
-  // f1.add(text, 'dataName');
-  // f1.add(text, 'timestep'); 
-  // f1.open();
+  var f1 = gui.addFolder("2D Rendering");
+  f1.add(text, 'renderMethod', ['value', 'label']).onChange(function() {
+    View2D.updateRenderMethod(text.renderMethod);
+  });
+  f1.add(text, 'renderWireframe').onChange(function() {
+    View2D.updateRenderWireframe(text.renderWireframe);
+  });
+  f1.open();
 
   var f2 = gui.addFolder("3D Rendering");
   // f2.add(text, "displayStats").onChange(function(val) {
@@ -46,12 +42,6 @@ function initializeControlPanel(domElem) {
   //   else $("#stats").css({visibility: "hidden"});
   // });
   // f2.add(text, "saveImage");
-  f2.add(text, 'renderMethod', ['value', 'label']).onChange(function() {
-    View2D.updateRenderMethod(text.renderMethod);
-  });
-  f2.add(text, 'renderWireframe').onChange(function() {
-    View2D.updateRenderWireframe(text.renderWireframe);
-  });
   f2.add(text, 'transferFunction');
   f2.open();
 
@@ -205,6 +195,15 @@ var layout = (function initialLayout() {
   myLayout.registerComponent('2D View', function(container, componentState){
     layout.View2D = container.getElement()[0];
     View2D.initial();
+    
+    var legendElem = $('.legend-div').detach();
+    legendElem.addClass('legend-div-2d');
+    $(layout.View2D).append(legendElem);
+    
+    var timestepElem = $('.timestep-div').detach();
+    timestepElem.addClass('timestep-div-2d');
+    $(layout.View2D).append(timestepElem);
+    
     new ResizeSensor($(layout.View2D), function(){ 
       View2D.resize();
     });
@@ -213,6 +212,17 @@ var layout = (function initialLayout() {
   myLayout.registerComponent('3D View', function(container, componentState){
     layout.View3D = container.getElement()[0];
     View3D.initial();
+    
+    var legendElem = $('.legend-div').clone();
+    legendElem.removeClass('legend-div-2d');
+    legendElem.addClass('legend-div-3d');
+    $(layout.View3D).append(legendElem);
+
+    var timestepElem = $('.timestep-div').clone();
+    timestepElem.removeClass('timestep-div-2d');
+    timestepElem.addClass('timestep-div-3d');
+    $(layout.View3D).append(timestepElem);
+    
     new ResizeSensor($(layout.View3D), function(){ 
       View3D.resize();
     });
@@ -235,13 +245,8 @@ var layout = (function initialLayout() {
     window.guiDomElem = guiDomElem;
     $(guiDomElem).find('.close-button').remove();
     ViewTF.initial();
-    // var elem = container.getElement()[0];
-    // var legendElem = $('#legend-div').detach();
-    // $(elem).append(legendElem);
     var tfElem = $('#tf-holder').detach();
-    // $(elem).append(tfElem);
     $(guiDomElem).find('li.folder').first().append(tfElem);
-    // layout.ViewTF = elem;
   });
 
   myLayout.on('stackCreated', function(stack) {
@@ -272,7 +277,13 @@ var layout = (function initialLayout() {
         globalStatus.cameraActionTarget = target;
         switch (action) {
           case'save-image': 
-            window.open(target.getRenderer().domElement.toDataURL('image/png'), 'screenshot');
+            if (!data.mockLink) {
+              data.mockLink = document.createElement("a");
+            }
+            data.mockLink.href = target.getRenderer().domElement.toDataURL('image/jpg');
+            data.mockLink.download = 'screenshot.jpg';
+            data.mockLink.click();
+            // window.open(target.getRenderer().domElement.toDataURL('image/png'), 'screenshot');
             break;
           case 'save-camera':
             var cameraState = JSON.stringify(target.getCameraMatrix());
@@ -289,7 +300,8 @@ var layout = (function initialLayout() {
             }
             break;
           case 'load-camera':
-            document.getElementById('load-camera-file').click();
+            // document.getElementById('load-camera-file').click();
+            $('.load-camera-file').click();
             break;
           case 'reset-camera':
             target.resetCamera();
@@ -316,9 +328,9 @@ var layout = (function initialLayout() {
     };
     reader.readAsText(file);
   }
-  // document.getElementsByClassName('.load-camera-file')[0]
-  $('.load-camera-file').bind('input', readSingleFile);
-    // .addEventListener('input', readSingleFile, false);
+  // $('.load-camera-file').on('change', readSingleFile);
+  document.getElementsByClassName('load-camera-file')[0]
+    .addEventListener('input', readSingleFile, false);
 
   myLayout.init();
   return layout;

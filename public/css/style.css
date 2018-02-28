@@ -76,7 +76,7 @@ body {margin: 0;}
   display: none;
 }
 
-#legend-div {
+.legend-div {
   z-index: 100000;
   width: 270px;
   height: 60px;
@@ -84,22 +84,26 @@ body {margin: 0;}
   padding-top: 10px;
   display: none;
   position: absolute;
+  right: 0;
+  bottom: 0;
 }
 
-#timestep-div {
+.timestep-div {
   position: absolute;
-  z-index: 100000;
-  left: 0;
+  right: 0;
   top: 0;
+  padding-right: 10px;
+  padding-top: 10px;
+  display: none;
 }
 
-#value-legend,
-#label-legend {
+.value-legend,
+.label-legend {
   width: 270px;
   height: 50px;
 }
 
-#label-legend{
+.label-legend{
   display: none;
 }
 
@@ -134,11 +138,6 @@ body {margin: 0;}
 
 .label-legend-rect.outer {
   stroke: black;
-}
-
-#timestep-div {
-  padding-left: 10px;
-  display: none;
 }
 
 .info-tooltip {

@@ -1,7 +1,7 @@
 const DEBUG_MODE = true;
 const VIEW2D_OFF = false;
 const VIEW3D_OFF = false;
-const IMAGE_OFF = true;
+const IMAGE_OFF = false;
 const VOLREN_TIME = .3; // second
 const PresetColor = {
   red: '#b82e2e',
@@ -9,6 +9,7 @@ const PresetColor = {
   blue: '#3366cc',
   white: '#ffffff',
   black: '#000000',
+  gray: '#333333',
   redHex: 0xb82e2e,
   greenHex: 0x109618,
   blueHex: 0x3366cc,

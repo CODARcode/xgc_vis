@@ -64,8 +64,10 @@ var View3D = (function() {
     View3D.targetList = [];
     var width = $(elem).width();
     var height = $(elem).height();
+    // View3D.camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 100);
     View3D.camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 100);
-    View3D.camera.position.z = 3;
+    // View3D.camera.position.z = 3;
+    View3D.camera.position.set(0, 0, 6);
     View3D.renderer = new THREE.WebGLRenderer({preserveDrawingBuffer: true});
     View3D.renderer.setPixelRatio(window.devicePixelRatio);
     View3D.renderer.setSize(width, height);
@@ -82,31 +84,32 @@ var View3D = (function() {
     View3D.directionalLight = new THREE.DirectionalLight(0xffffff);
     View3D.scene.add(View3D.directionalLight);
 
-    View3D.controls = new THREE.OrbitControls(View3D.camera, View3D.renderer.domElement);
-    View3D.controls.mouseButtons = {
-      ZOOM: THREE.MOUSE.MIDDLE,
-      PAN: THREE.MOUSE.RIGHT,
-      ORBIT: THREE.MOUSE.LEFT
-    }
-    View3D.controls.minAzimuthAngle = - Infinity;
-    View3D.controls.maxAzimuthAngle = Infinity;
-    View3D.controls.maxPolarAngle = Infinity;
-    View3D.controls.minPolarAngle = -Infinity;
+    // View3D.controls = new THREE.OrbitControls(View3D.camera, View3D.renderer.domElement);
+    // View3D.controls.mouseButtons = {
+    //   ZOOM: THREE.MOUSE.MIDDLE,
+    //   PAN: THREE.MOUSE.RIGHT,
+    //   ORBIT: THREE.MOUSE.LEFT
+    // }
+    // View3D.controls.minAzimuthAngle = - Infinity;
+    // View3D.controls.maxAzimuthAngle = Infinity;
+    // View3D.controls.maxPolarAngle = Infinity;
+    // View3D.controls.minPolarAngle = -Infinity;
 
-    // View3D.controls = new THREE.TrackballControls(View3D.camera);
-    // View3D.controls.rotateSpeed = 1.0;
-    // View3D.controls.zoomSpeed = 1.2;
-    // View3D.controls.panSpeed = 0.8;
-    // View3D.controls.noZoom = false;
-    // View3D.controls.noPan = false;
-    // View3D.controls.staticMoving = true;
-    // View3D.controls.dynamicDampingFactor = 0.3;
-    // View3D.controls.keys = [65, 83, 68];
-    // View3D.controls.addEventListener('change', View3D.render);
+    View3D.controls = new THREE.TrackballControls(View3D.camera, View3D.getView());
+    View3D.controls.rotateSpeed = 1.1;
+    View3D.controls.zoomSpeed = .1;
+    View3D.controls.panSpeed = 0.8;
+    View3D.controls.noZoom = false;
+    View3D.controls.noPan = false;
+    View3D.controls.staticMoving = true;
+    View3D.controls.dynamicDampingFactor = 0.3;
+    View3D.controls.keys = [65, 83, 68];
+    View3D.controls.addEventListener('change', View3D.render);
 
     View3D.raycaster = new THREE.Raycaster();
 
     View3D.render();
+    View3D.animate();
 
     var imgNode = $('.volren-image').detach();
     var parentNode = View3D.getView();
@@ -116,9 +119,13 @@ var View3D = (function() {
       requestImage();
     });
 
-    $(parentNode).bind('mousewheel', function(e){
-      View3D.hideVolrenImage();
-      requestImageWait();
+    $(window).bind('mousewheel', function(e){
+      var elem = View3D.getView();
+      if (e.clientX > elem.offsetLeft && e.clientX < elem.offsetLeft + elem.offsetWidth
+        && e.clientY > elem.offsetTop && e.clientY < elem.offsetTop + elem.offsetHeight) {
+        View3D.hideVolrenImage();
+        requestImageWait();
+      }
     });
 
     $(parentNode).bind('touchmove', function(e) {
@@ -197,12 +204,16 @@ var View3D = (function() {
   };
 
   View3D.render = function() {
-    // scene
     var delta = View3D.clock.getDelta();
-    requestAnimationFrame(View3D.render);
     View3D.directionalLight.position.copy(View3D.camera.position);
     View3D.renderer.render(View3D.scene, View3D.camera);
-  }
+  };
+
+  View3D.animate = function() {
+    requestAnimationFrame(View3D.animate);
+    View3D.controls.update();
+    View3D.render();
+  };
 
   View3D.resize = function() {
     if (!View3D.initialized) return;
@@ -212,6 +223,8 @@ var View3D = (function() {
     View3D.camera.aspect = width / height;
     View3D.camera.updateProjectionMatrix();
     View3D.renderer.setSize(width, height);
+    View3D.controls.handleResize();
+    ViewTree.render();
     View3D.hideVolrenImage();
     if (ViewTF.initialized) {
       requestImageWait();

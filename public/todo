@@ -26,12 +26,16 @@
     - timestep, color legend
     - change hover color
   - expand header for individual menus
-    - save camera
-    - reset camera
+    - save camera (done)
+    - reset camera (done)
     - load camera
-    - save image
+    - save image (3d)
+  - save sessions
+    - network address
+    - thumbnails
+    - other para
   - mouse down -> pointer cursor
-  - loading img
-  - 3d customer color transparent
   - tree
     - interaction -> node hover
+  - loading img
+  - 3d customer color transparent

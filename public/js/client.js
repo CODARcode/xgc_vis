@@ -31,14 +31,15 @@ function requestTree() {
     t1 = new Date();
     data.treeNodeCount = 0;
     data.treeDepth = 0;
+    var sizeScale = 500;
     while (stack.length > 0) {
       var curNode = stack.pop();
       data.treeNodeCount ++;
       if (data.treeDepth < curNode.depth) data.treeDepth = curNode.depth;
       var x = curNode.x;
       var y = curNode.y;
-      curNode.x = y * Math.cos(x);
-      curNode.y = y * Math.sin(x);
+      curNode.x = y * Math.cos(x) * sizeScale;
+      curNode.y = y * Math.sin(x) * sizeScale;
       data.treeData[curNode.id] = curNode;
 
       if (curNode.data.extremum_val > extremumMax) extremumMax = curNode.data.extremum_val;
@@ -63,7 +64,7 @@ function requestTree() {
     var maxExtremumAbs = Math.max(Math.abs(data.treeMinMax.extremumMin), data.treeMinMax.extremumMax);
     var maxSaddleAbs = Math.max(Math.abs(data.treeMinMax.saddleMin), data.treeMinMax.saddleMax);
     var maxAbs = Math.max(maxExtremumAbs, maxSaddleAbs);
-    var maxNodeHeight = 1;
+    var maxNodeHeight = 1 * sizeScale;
     var heightScale = d3.scaleLinear().domain([0, maxAbs])
         .range([0, maxNodeHeight]);
     for (var id in data.treeData) {
@@ -197,6 +198,7 @@ function onOpen(evt)
 {
   console.log("connected to server.");
   requestMesh();
+  requestImage();
 }
 
 function onClose(evt)
