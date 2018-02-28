@@ -8,6 +8,7 @@
 #include <list>
 #include <iostream>
 #include <map>
+#include "common/base64.h"
 #include "io/xgcMesh.h"
 #include "io/bp_utils.hpp"
 
@@ -262,8 +263,10 @@ json XGCMesh::jsonfyMeshInfo() const {
 json XGCMesh::jsonfyMesh() const { 
   json j = jsonfyMeshInfo();
 
-  j["coords"] = std::vector<double>(coords, coords+nNodes*2);
-  j["conn"] = std::vector<int>(conn, conn+nNodes*3);
+  j["coords"] = base64_encode((unsigned char*)coords, sizeof(double)*nNodes*2);
+  // j["coords"] = std::vector<double>(coords, coords+nNodes*2);
+  j["conn"] = base64_encode((unsigned char*)conn, sizeof(int)*nNodes*3);
+  // j["conn"] = std::vector<int>(conn, conn+nNodes*3);
  
   return j;
 }

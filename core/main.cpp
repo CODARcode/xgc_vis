@@ -64,8 +64,11 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   std::string query = con->get_resource();
   // fprintf(stderr, "query=%s\n", query.c_str());
 
-  if (query == "/requestMesh") { 
-    con->set_body(ex->jsonfyMesh().dump());
+  if (query == "/requestMeshInfo") {
+    con->set_body(xgcMesh.jsonfyMeshInfo().dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestMesh") { 
+    con->set_body(xgcMesh.jsonfyMesh().dump());
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/exitServer") {
     con->close(0, "exit");
