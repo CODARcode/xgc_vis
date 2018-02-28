@@ -35,6 +35,62 @@ int multiunits_gid2lid(const mu_t& mu, int unit, int gid) // return lid
 int2 multiunits_lid2pixel(int unit, int lid);
 
 
+void createPreIntegrationTable(float *lut_preint, float *lut, int resolution)
+{
+  static const int MAX_RESOLUTION_LUT = 1024; 
+
+	float r=0.f, g=0.f, b=0.f, a=0.f;
+	float rcol,  gcol,  bcol,  acol;
+	float rInt[MAX_RESOLUTION_LUT],
+		    gInt[MAX_RESOLUTION_LUT],
+		    bInt[MAX_RESOLUTION_LUT],
+		    aInt[MAX_RESOLUTION_LUT];
+	int smin, smax;
+	float factor, tauc;
+	int lookupIndex = 0;
+	
+	rInt[0] = 0.f; gInt[0] = 0.f, bInt[0] = 0.f, aInt[0] = 0.f;
+
+	// compute integral functions
+	for (int i=1; i<resolution; i++) {
+		tauc = (lut[(i-1)*4+3] + lut[i*4+3]) / 2.f;
+		r   += (lut[(i-1)*4+0] + lut[i*4+0]) / 2.f;// * tauc;// / resolution;
+		g   += (lut[(i-1)*4+1] + lut[i*4+1]) / 2.f;// * tauc;// / resolution;
+		b   += (lut[(i-1)*4+2] + lut[i*4+2]) / 2.f;// * tauc;// / resolution;
+		a   += tauc;
+
+		rInt[i] = r; gInt[i] = g; bInt[i] = b; aInt[i] = a;
+	}
+
+	// compute look-up table from integral functions
+	for (int sb=0; sb<resolution; sb++) {
+		for (int sf=0; sf<resolution; sf++) {
+			if (sb < sf) {smin=sb; smax = sf;}
+			else {smin=sf; smax=sb;}
+
+			if (smax != smin) {
+				factor = 1.f / (float)(smax - smin);
+				rcol   = (rInt[smax] - rInt[smin]) * factor;
+				gcol   = (gInt[smax] - gInt[smin]) * factor;
+				bcol   = (bInt[smax] - bInt[smin]) * factor;
+				acol   = 1.f - exp(-(aInt[smax] - aInt[smin]) * factor);
+			} else {
+				factor = 1.f;
+				rcol   = lut[smin*4+0] * lut[smin*4+3] * factor;
+				gcol   = lut[smin*4+1] * lut[smin*4+3] * factor;
+				bcol   = lut[smin+4+2] * lut[smin*4+3] * factor;
+				acol   = (1.f - exp(-lut[smin*4+3]) * factor );
+			}
+
+			lut_preint[lookupIndex++] = clamp(rcol, 0.f, 1.f);
+			lut_preint[lookupIndex++] = clamp(gcol, 0.f, 1.f);
+			lut_preint[lookupIndex++] = clamp(bcol, 0.f, 1.f);
+			lut_preint[lookupIndex++] = clamp(acol, 0.f, 1.f);
+		}
+  }
+}
+
+
 __device__ __host__
 inline bool QuadNodeD_insideQuad(const QuadNodeD &q, float x, float y)
 {
