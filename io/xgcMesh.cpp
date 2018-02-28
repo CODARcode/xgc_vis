@@ -34,22 +34,15 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
   adios_read_finalize_method (ADIOS_READ_METHOD_BP);
   adios_read_close(fp);
   
-  deriveSinglePrecisionPsi();
-  deriveDisplacements();
-  deriveInversedDeterminants();
-}
-
-void XGCMesh::deriveSinglePrecisionPsi() {
+  // psi
   psif = (float*)realloc(psif, sizeof(float)*nNodes);
   for (int i=0; i<nNodes; i++) {
     psif[i] = psi[i];
     psi_min = std::min(psi_min, psif[i]);
     psi_max = std::max(psi_max, psif[i]);
   }
-  // fprintf(stderr, "psi_min=%f, psi_max=%f\n", psi_min, psi_max);
-}
-
-void XGCMesh::deriveInversedDeterminants() {
+  
+  // inverse of determinants
   invdetf = (float*)realloc(invdetf, sizeof(float)*nTriangles);
   for (int i=0; i<nTriangles; i++) {
     const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
@@ -58,9 +51,8 @@ void XGCMesh::deriveInversedDeterminants() {
     float det = (y1-y2)*(x0-x2) + (x2-x1)*(y0-y2);
     invdetf[i] = 1.f / det;
   }
-}
-
-void XGCMesh::deriveDisplacements() {
+  
+  // displacements
   dispf = (float*)realloc(dispf, sizeof(float)*nNodes*2);
   for (int i=0; i<nNodes; i++) {
     int j = nextNode[i];
@@ -68,6 +60,27 @@ void XGCMesh::deriveDisplacements() {
     dispf[i*2+1] = coords[j*2+1] - coords[i*2+1];
     // fprintf(stderr, "%d, %d, %f, %f\n", i, j, dispf[i*2], dispf[i*2+1]);
   }
+
+  // bounding box and centroid
+  coords_min_x = coords_min_y = DBL_MAX;
+  coords_max_x = coords_max_y = -DBL_MAX;
+  coords_centroid_x = coords_centroid_y = 0;
+
+  for (int i=0; i<nNodes; i++) {
+    double x = coords[i*2], y = coords[i*2+1];
+    coords_min_x = std::min(coords_min_x, x);
+    coords_min_y = std::min(coords_min_y, y);
+    coords_max_x = std::max(coords_max_x, x);
+    coords_max_y = std::max(coords_max_y, y);
+    coords_centroid_x += x; 
+    coords_centroid_y += y;  
+  }
+  coords_centroid_x /= nNodes;
+  coords_centroid_y /= nNodes;
+
+  // others
+  buildNeighbors();
+  buildNodeGraph();
 }
 
 void XGCMesh::buildNeighbors()
@@ -229,16 +242,25 @@ using json = nlohmann::json;
 
 json XGCMesh::jsonfyMeshInfo() const {
   json j;
+  
+  j["nPhi"] = nPhi;
+  j["nNodes"] = nNodes;
+  j["nTriangles"] = nTriangles;
+  
+  j["psi_min"] = psi_min;
+  j["psi_max"] = psi_max;
+  j["coords_min_x"] = coords_min_x;
+  j["coords_min_y"] = coords_min_y;
+  j["coords_max_x"] = coords_max_x;
+  j["coords_max_y"] = coords_max_y;
+  j["coords_centroid_x"] = coords_centroid_x;
+  j["coords_centroid_y"] = coords_centroid_y;
+
   return j;
 }
 
 json XGCMesh::jsonfyMesh() const { 
-  // std::ofstream ofs(filename, std::ofstream::out);
-  json j;
-
-  j["nPhi"] = nPhi;
-  j["nNodes"] = nNodes;
-  j["nTriangles"] = nTriangles;
+  json j = jsonfyMeshInfo();
 
   j["coords"] = std::vector<double>(coords, coords+nNodes*2);
   j["conn"] = std::vector<int>(conn, conn+nNodes*3);

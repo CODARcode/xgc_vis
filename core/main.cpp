@@ -349,7 +349,6 @@ int main(int argc, char **argv)
 
   /// read mesh
   xgcMesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-  xgcMesh.buildNeighbors();
 
   ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
   

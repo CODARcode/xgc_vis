@@ -22,6 +22,7 @@ struct XGCMesh {
   float *dispf = NULL; // displacement derived from nextNode
   float *invdetf = NULL; // inversed determinant of triangles
   float psi_min = FLT_MAX, psi_max = -FLT_MAX;
+  double coords_min_x, coords_min_y, coords_max_x, coords_max_y, coords_centroid_x, coords_centroid_y;
 
   std::vector<std::set<size_t> > nodeGraph; // node->{neighbor nodes}
 
@@ -31,18 +32,16 @@ struct XGCMesh {
   json jsonfyMesh() const;
   json jsonfyMeshInfo() const;
 
-  void deriveSinglePrecisionPsi();
-  void deriveInversedDeterminants();
-  void deriveDisplacements();
-
-  void buildNeighbors();
-  void buildNodeGraph();
 
   std::list<std::list<double> > marchingTriangles(double*, double isoval);
 
   std::vector<double> sampleScalarsAlongPsiContour(double *scalar, int nSamples, double isoval);
 
   ~XGCMesh();
+  
+private:
+  void buildNeighbors();
+  void buildNodeGraph();
 };
 
 #endif
