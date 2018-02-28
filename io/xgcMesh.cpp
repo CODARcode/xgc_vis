@@ -122,7 +122,7 @@ void XGCMesh::buildNodeGraph()
   }
 }
 
-void XGCMesh::marchingTriangles(double *scalar, double isoval)
+std::list<std::list<double> > XGCMesh::marchingTriangles(double *scalar, double isoval)
 {
   auto findZero = [scalar, isoval](int i0, int i1, double &alpha) {
     double f0 = scalar[i0], f1 = scalar[i1];
@@ -180,20 +180,39 @@ void XGCMesh::marchingTriangles(double *scalar, double isoval)
       int n0 = conn[current*3+edge], n1 = conn[(current*3+edge+1)%3];
       double X = (1-alpha) * coords[n0*2] + alpha * coords[n1*2], 
              Y = (1-alpha) * coords[n0*2+1] + alpha * coords[n1*2+1];
+      // double X = alpha * coords[n0*2] + (1-alpha) * coords[n1*2], 
+      //        Y = alpha * coords[n0*2+1] + (1-alpha) * coords[n1*2+1];
       if (forward) {contour.push_back(X); contour.push_back(Y);}
       else {contour.push_front(Y); contour.push_front(X);}
-      fprintf(stderr, "{%f, %f}\n", X, Y); //  TODO
+      // fprintf(stderr, "{%f, %f}\n", X, Y); //  TODO
 
       current = neighbors[current*3+edge];
     }
   };
- 
+
+  std::list<std::list<double> > contours;
   while (!candidateTriangles.empty()) {
     int seed = candidateTriangles.begin()->first;
     std::list<double> contour;
     traceContourTrianglesOnSingleDirection(contour, seed, true);
     traceContourTrianglesOnSingleDirection(contour, seed, false);
+    contours.emplace_back(contour);
   }
+
+  return contours;
+}
+
+std::vector<double> XGCMesh::sampleScalarsAlongPsiContour(double *scalar, int nSamples, double isoval)
+{
+  std::vector<double> results;
+  std::list<double> contour_ = marchingTriangles(psi, isoval).front();
+  std::vector<double> contour(std::begin(contour_), std::end(contour_));
+
+  // for (int i=0; i<contour.size()/2; i++) {
+  //   fprintf(stderr, "%f, %f\n", contour[i*2], contour[i*2+1]);
+  // }
+
+  return contour;
 }
 
 XGCMesh::~XGCMesh() {

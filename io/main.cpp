@@ -1,10 +1,12 @@
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
 
+#if WITH_VTK
 #include <vtkDataSet.h>
 #include <vtkDataSetWriter.h>
 #include <vtkContourFilter.h>
 #include <vtkContourGrid.h>
+#endif
 
 int main(int argc, char **argv)
 {
@@ -15,12 +17,15 @@ int main(int argc, char **argv)
   XGCData d;
   d.readDpotFromADIOS(m, varFP);
 
+#if 0
   m.buildNeighbors();
   m.buildNodeGraph();
-  m.marchingTriangles(m.psi, 0.2);
+  // m.marchingTriangles(m.psi, 0.2);
   // m.marchingTriangles(d.dpot, 50);
+  m.sampleScalarsAlongPsiContour(d.dpot, 360, 0.2);
+#endif
 
-#if 1
+#if WITH_VTK
   vtkDataSet *grid = d.convert2DSliceToVTK(m);
 
   // vtkContourGrid *contourGrid = vtkContourGrid::New();
@@ -31,12 +36,13 @@ int main(int argc, char **argv)
   vtkContourFilter *contourFilter = vtkContourFilter::New();
   contourFilter->SetInputData(grid);
   contourFilter->GenerateValues(1, 0.2, 0.2); 
+  contourFilter->Update();
 
   vtkDataSetWriter *wrt = vtkDataSetWriter::New();
-  wrt->SetFileTypeToBinary();
+  // wrt->SetFileTypeToBinary();
   wrt->SetFileName("myxgc.vtk");
-  wrt->SetInputData(grid);
-  // wrt->SetInputData(contourFilter->GetOutput());
+  // wrt->SetInputData(grid);
+  wrt->SetInputData(contourFilter->GetOutput());
   // wrt->SetInputData(contourGrid->GetOutput());
   wrt->Write();
   wrt->Delete();

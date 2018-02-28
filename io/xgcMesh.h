@@ -6,6 +6,7 @@
 #include <adios.h>
 #include <adios_read.h>
 #include <string>
+#include <list>
 #include <set>
 #include <vector>
 #include <cfloat>
@@ -32,7 +33,9 @@ struct XGCMesh {
   void buildNeighbors();
   void buildNodeGraph();
 
-  void marchingTriangles(double*, double isoval);
+  std::list<std::list<double> > marchingTriangles(double*, double isoval);
+
+  std::vector<double> sampleScalarsAlongPsiContour(double *scalar, int nSamples, double isoval);
 
   ~XGCMesh();
 };

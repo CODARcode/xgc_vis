@@ -7,10 +7,12 @@
 #include <queue>
 #include <json.hpp>
 #include "widget.h"
+#include "io/xgcMesh.h"
+#include "io/xgcData.h"
 
 #ifdef __APPLE__
 #include <OpenGL/glu.h>
-// #include <GLUT/glut.h>
+#include <GLUT/glut.h>
 #else
 #include <GL/glu.h>
 // #include <GL/glut.h>
@@ -33,20 +35,38 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-CGLWidget::CGLWidget(const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
-  : QGLWidget(fmt, parent, sharedWidget), 
+CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
+  : m(m_), d(d_), 
+    QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
     toggle_mesh(false), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
     current_slice(0)
 {
-  thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
+  // thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
+
+  contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
+
+#if 0
+  XGCMesh m;
+  m.readMeshFromADIOS(argv[1], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
+
+  ADIOS_FILE *varFP = adios_read_open_file(argv[2], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
+  XGCData d;
+  d.readDpotFromADIOS(m, varFP);
+
+  m.buildNeighbors();
+  m.buildNodeGraph();
+  // m.marchingTriangles(m.psi, 0.2);
+#endif
 }
 
 CGLWidget::~CGLWidget()
 {
-  thread_ws->join();
-  delete thread_ws;
+  if (thread_ws != NULL) {
+    thread_ws->join();
+    delete thread_ws;
+  }
 }
 
 void CGLWidget::onMessage(client *c, websocketpp::connection_hdl, message_ptr msg)
@@ -270,7 +290,7 @@ void CGLWidget::initializeGL()
     glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, shiness); 
   }
 
-  CHECK_GLERROR(); 
+  CHECK_GLERROR();
 }
 
 void CGLWidget::resizeGL(int w, int h)
@@ -286,7 +306,7 @@ void CGLWidget::paintGL()
   glClearColor(1, 1, 1, 0); 
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 
-#if 0
+#if 1
   _projmatrix.setToIdentity(); 
   _projmatrix.perspective(_fovy, (float)width()/height(), _znear, _zfar); 
   _mvmatrix.setToIdentity();
@@ -301,8 +321,17 @@ void CGLWidget::paintGL()
   glLoadIdentity(); 
   glLoadMatrixd(_mvmatrix.data()); 
 
-  renderSinglePlane();
+  // glutWireTeapot(1.0);
+
+  // renderSinglePlane();
   // renderMultiplePlanes();
+  glTranslatef(-1, 1, 0);
+  glColor3f(0, 0, 0);
+  glBegin(GL_LINE_STRIP);
+  for (int i=0; i<contour.size()/2; i++) 
+    glVertex2f(contour[i*2], contour[i*2+1]);
+  glEnd();
+
 
   CHECK_GLERROR();
 #endif

@@ -16,6 +16,7 @@
 #include <vtkGenericCell.h>
 #include <vtkDataSetWriter.h>
 #include <vtkPointData.h>
+#include <vtkPoints2D.h>
 #endif
 
 
@@ -78,10 +79,11 @@ vtkDataSet* XGCData::convert2DSliceToVTK(XGCMesh &m)
   vtkUnstructuredGrid *grid = vtkUnstructuredGrid::New();
 
   vtkPoints *pts = vtkPoints::New();
+  // vtkPoints2D *pts = vtkPoints2D::New();
   pts->SetNumberOfPoints(m.nNodes);
 
   for (int i=0; i<m.nNodes; i++)
-    pts->SetPoint(i, m.coords[i*2], m.coords[i*2+1], 0);
+    pts->SetPoint(i, m.coords[i*2], m.coords[i*2+1], 0); 
 
   for (int i=0; i<m.nTriangles; i++) {
     vtkIdType ids[3] = {m.conn[i*3], m.conn[i*3+1], m.conn[i*3+2]};
@@ -91,20 +93,22 @@ vtkDataSet* XGCData::convert2DSliceToVTK(XGCMesh &m)
   grid->SetPoints(pts);
   // pts->Delete();
 
+#if 0
   vtkDataArray *dpotArray = vtkDoubleArray::New();
   dpotArray->SetName("dpot");
   dpotArray->SetNumberOfComponents(1);
   dpotArray->SetNumberOfTuples(m.nNodes);
   memcpy(dpotArray->GetVoidPointer(0), dpot, sizeof(double)*m.nNodes);
-
+#endif
   vtkDataArray *psiArray = vtkDoubleArray::New();
   psiArray->SetName("psi");
   psiArray->SetNumberOfComponents(1);
   psiArray->SetNumberOfTuples(m.nNodes);
   memcpy(psiArray->GetVoidPointer(0), m.psi, sizeof(double)*m.nNodes);
 
-  grid->GetPointData()->AddArray(dpotArray);
+  // grid->GetPointData()->AddArray(dpotArray);
   grid->GetPointData()->AddArray(psiArray);
+  grid->GetPointData()->SetActiveScalars("psi");
 
   return grid;
 }
