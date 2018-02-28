@@ -27,9 +27,13 @@ XGCData::~XGCData() {
 }
 
 void XGCData::deriveSinglePrecisionDpot(const XGCMesh& m) {
+  dpotf_min = FLT_MAX; dpotf_max = -FLT_MAX;
   dpotf = (float*)realloc(dpotf, sizeof(float)*m.nNodes*m.nPhi);
-  for (int i=0; i<m.nNodes*m.nPhi; i++) 
+  for (int i=0; i<m.nNodes*m.nPhi; i++) {
     dpotf[i] = dpot[i];
+    dpotf_min = std::min(dpotf_min, dpotf[i]);
+    dpotf_max = std::max(dpotf_max, dpotf[i]);
+  }
 }
 
 void XGCData::deriveGradient(const XGCMesh& m) {

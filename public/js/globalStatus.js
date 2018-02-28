@@ -1,4 +1,4 @@
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 const VIEW2D_OFF = false;
 const VIEW3D_OFF = false;
 const IMAGE_OFF = false;

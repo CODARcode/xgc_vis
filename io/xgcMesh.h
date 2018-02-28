@@ -10,6 +10,7 @@
 #include <set>
 #include <vector>
 #include <cfloat>
+#include <json.hpp>
 
 struct XGCMesh {
   int nNodes, nTriangles, nPhi;
@@ -25,6 +26,10 @@ struct XGCMesh {
   std::vector<std::set<size_t> > nodeGraph; // node->{neighbor nodes}
 
   void readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm);
+
+  using json = nlohmann::json;
+  json jsonfyMesh() const;
+  json jsonfyMeshInfo() const;
 
   void deriveSinglePrecisionPsi();
   void deriveInversedDeterminants();

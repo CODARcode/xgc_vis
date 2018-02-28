@@ -224,3 +224,24 @@ XGCMesh::~XGCMesh() {
   free(invdetf);
   free(neighbors);
 }
+
+using json = nlohmann::json;
+
+json XGCMesh::jsonfyMeshInfo() const {
+  json j;
+  return j;
+}
+
+json XGCMesh::jsonfyMesh() const { 
+  // std::ofstream ofs(filename, std::ofstream::out);
+  json j;
+
+  j["nPhi"] = nPhi;
+  j["nNodes"] = nNodes;
+  j["nTriangles"] = nTriangles;
+
+  j["coords"] = std::vector<double>(coords, coords+nNodes*2);
+  j["conn"] = std::vector<int>(conn, conn+nNodes*3);
+ 
+  return j;
+}

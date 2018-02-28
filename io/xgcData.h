@@ -10,6 +10,7 @@
 struct XGCData {
   double *dpot = NULL;
   float *dpotf = NULL, *graddpotf = NULL;
+  float dpotf_min = FLT_MAX, dpotf_max = -FLT_MAX;
   
   void deriveSinglePrecisionDpot(const XGCMesh& m);
   void deriveGradient(const XGCMesh& m);
