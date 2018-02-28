@@ -22,6 +22,8 @@ struct XGCMesh {
   float *dispf = NULL; // displacement derived from nextNode
   float *invdetf = NULL; // inversed determinant of triangles
   float psi_min = FLT_MAX, psi_max = -FLT_MAX;
+  int psi_min_node; 
+  float psi_min_x, psi_min_y;
   double coords_min_x, coords_min_y, coords_max_x, coords_max_y, coords_centroid_x, coords_centroid_y;
 
   std::vector<std::set<size_t> > nodeGraph; // node->{neighbor nodes}

@@ -17,6 +17,8 @@ int main(int argc, char **argv)
   XGCData d;
   d.readDpotFromADIOS(m, varFP);
 
+  // fprintf(stderr, "psi_min_node=%d, coords={%f, %f}\n", m.psi_min_node, m.psi_min_x, m.psi_min_y);
+
 #if 0
   m.buildNeighbors();
   m.buildNodeGraph();
@@ -38,6 +40,18 @@ int main(int argc, char **argv)
   contourFilter->GenerateValues(1, 0.2, 0.2); 
   contourFilter->Update();
 
+  auto *contours = contourFilter->GetOutput(); // vtkPolyData
+
+  for (int i=0; i<contours->GetNumberOfCells(); i++) {
+    auto *line = contours->GetCell(i);
+    int id0 = line->GetPointId(0), 
+        id1 = line->GetPointId(1);
+
+    std::cout << *line;
+  }
+#endif
+
+#if 0
   vtkDataSetWriter *wrt = vtkDataSetWriter::New();
   // wrt->SetFileTypeToBinary();
   wrt->SetFileName("myxgc.vtk");

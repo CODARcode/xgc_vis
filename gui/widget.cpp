@@ -140,42 +140,6 @@ void CGLWidget::loadBranchesFromJsonFile(const std::string& filename)
   fprintf(stderr, "Branch decompositions loaded: %lu\n", branches.size());
 }
 
-void CGLWidget::loadMeshFromJsonFile(const std::string& filename)
-{
-  json jmesh;
-
-  std::ifstream ifs(filename, std::ifstream::in);
-  ifs >> jmesh;
-  ifs.close();
-
-  nNodes = jmesh["nNodes"];
-  nTriangles = jmesh["nTriangles"];
-  nPhi = jmesh["nPhi"];
-
-  json jcoords = jmesh["coords"];
-  coords.clear();
-  for (json::iterator it = jcoords.begin();  it != jcoords.end();  it ++)
-    coords.push_back(*it);
-  
-  json jconn = jmesh["conn"];
-  conn.clear();
-  for (json::iterator it = jconn.begin();  it != jconn.end();  it ++)
-    conn.push_back(*it);
-  
-  f_vertices.clear();
-  for (int i=0; i<nTriangles; i++) {
-    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
-    f_vertices.push_back(coords[i0*2]);
-    f_vertices.push_back(coords[i0*2+1]);
-    f_vertices.push_back(coords[i1*2]);
-    f_vertices.push_back(coords[i1*2+1]);
-    f_vertices.push_back(coords[i2*2]);
-    f_vertices.push_back(coords[i2*2+1]);
-  }
-
-  fprintf(stderr, "Mesh loaded: nNodes=%d, nTriangles=%d, nPhi=%d\n", nNodes, nTriangles, nPhi);
-}
-
 void CGLWidget::mousePressEvent(QMouseEvent* e)
 {
   _trackball.mouse_rotate(e->x(), e->y()); 
@@ -212,12 +176,12 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
     break;
 
   case Qt::Key_Right:
-    current_slice = (current_slice + 1) % nPhi;
+    current_slice = (current_slice + 1) % m.nPhi;
     updateGL();
     break;
 
   case Qt::Key_Left:
-    current_slice = (current_slice - 1 + nPhi) % nPhi;
+    current_slice = (current_slice - 1 + m.nPhi) % m.nPhi;
     updateGL();
     break;
 
@@ -327,7 +291,8 @@ void CGLWidget::paintGL()
   // renderMultiplePlanes();
   glTranslatef(-1, 1, 0);
   glColor3f(0, 0, 0);
-  glBegin(GL_LINE_STRIP);
+  // glBegin(GL_LINE_STRIP);
+  glBegin(GL_POINTS);
   for (int i=0; i<contour.size()/2; i++) 
     glVertex2f(contour[i*2], contour[i*2+1]);
   glEnd();
@@ -335,44 +300,6 @@ void CGLWidget::paintGL()
 
   CHECK_GLERROR();
 #endif
-}
-
-void CGLWidget::renderExtremum() 
-{
-  glPointSize(4.f);
-  
-  glColor3f(1, 0, 0);
-  glBegin(GL_POINTS);
-  for (int i=0; i<maximum[0].size(); i++) {
-    int k = maximum[0][i];
-    glVertex2f(coords[k*2], coords[k*2+1]);
-  }
-  glEnd();
-  
-  glColor3f(0, 1, 0);
-  glBegin(GL_POINTS);
-  for (int i=0; i<minimum[0].size(); i++) {
-    int k = minimum[0][i];
-    glVertex2f(coords[k*2], coords[k*2+1]);
-  }
-  glEnd();
-}
-
-void CGLWidget::renderLabels()
-{
-  glPointSize(4.f);
-
-  const std::vector<size_t> &labels = all_labels[current_slice];
-
-  glColor3f(0, 0, 0);
-  glBegin(GL_POINTS);
-  for (int i=0; i<nNodes; i++) {
-    int label = labels[i];
-    QColor c = label_colors[label];
-    glColor3ub(c.red(), c.green(), c.blue());
-    glVertex2f(coords[i*2], coords[i*2+1]);
-  }
-  glEnd();
 }
 
 void CGLWidget::renderMultiplePlanes()
@@ -392,9 +319,9 @@ void CGLWidget::renderMultiplePlanes()
   // glDisable(GL_DEPTH_TEST);
   // glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-  for (int i=0; i<nPhi; i++) {
+  for (int i=0; i<m.nPhi; i++) {
     glPushMatrix();
-    glRotatef(360.f/nPhi*i, 0, 1, 0);
+    glRotatef(360.f/m.nPhi*i, 0, 1, 0);
 
 #if 0
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -414,7 +341,7 @@ void CGLWidget::renderMultiplePlanes()
     glBegin(GL_POINTS);
     for (int j=0; j<maximum[i].size(); j++) {
       int k = maximum[i][j];
-      glVertex2f(coords[k*2], coords[k*2+1]);
+      glVertex2f(m.coords[k*2], m.coords[k*2+1]);
     }
     glEnd();
     
@@ -422,7 +349,7 @@ void CGLWidget::renderMultiplePlanes()
     glBegin(GL_POINTS);
     for (int j=0; j<minimum[i].size(); j++) {
       int k = minimum[i][j];
-      glVertex2f(coords[k*2], coords[k*2+1]);
+      glVertex2f(m.coords[k*2], m.coords[k*2+1]);
     }
     glEnd();
 
@@ -450,54 +377,30 @@ void CGLWidget::renderSinglePlane()
     glEnableClientState(GL_COLOR_ARRAY);
 
     glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
-    glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*nTriangles*3*3] );
+    glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*m.nTriangles*3*3] );
     glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
 
     glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
   }
 
-  if (toggle_labels)
-    renderLabels();
-
-  if (toggle_extrema)
-    renderExtremum();
-
   CHECK_GLERROR();
 }
  
-#if 0
-void CGLWidget::setTriangularMesh(int nNodes_, int nTriangles_, int nPhi_, double *coords_, int *conn_)
+void CGLWidget::updateMesh()
 {
-  nNodes = nNodes_; 
-  nTriangles = nTriangles_;
-  nPhi = nPhi_;
-  coords = coords_;
-  conn = conn_;
-
   f_vertices.clear();
 
-  for (int i=0; i<nTriangles; i++) {
-    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
-    f_vertices.push_back(coords[i0*2]);
-    f_vertices.push_back(coords[i0*2+1]);
-    f_vertices.push_back(coords[i1*2]);
-    f_vertices.push_back(coords[i1*2+1]);
-    f_vertices.push_back(coords[i2*2]);
-    f_vertices.push_back(coords[i2*2+1]);
-  }
-
-  // init nodeGraph
-  nodeGraph.clear();
-  nodeGraph.resize(nNodes);
-  for (int i=0; i<nTriangles; i++) {
-    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
-    nodeGraph[i0].insert(i1);
-    nodeGraph[i1].insert(i2);
-    nodeGraph[i2].insert(i0);
+  for (int i=0; i<m.nTriangles; i++) {
+    int i0 = m.conn[i*3], i1 = m.conn[i*3+1], i2 = m.conn[i*3+2];
+    f_vertices.push_back(m.coords[i0*2]);
+    f_vertices.push_back(m.coords[i0*2+1]);
+    f_vertices.push_back(m.coords[i1*2]);
+    f_vertices.push_back(m.coords[i1*2+1]);
+    f_vertices.push_back(m.coords[i2*2]);
+    f_vertices.push_back(m.coords[i2*2+1]);
   }
 }
-#endif
 
 template <typename T>
 static T clamp(T min, T max, T val)
@@ -509,16 +412,4 @@ template <typename T>
 static T clamp_normalize(T min, T max, T val)
 {
   return (clamp(min, max, val) - min) / (max - min);
-}
-
-void CGLWidget::loadLabels(const std::string& filename)
-{
-  FILE *fp = fopen(filename.c_str(), "rb");
-  for (int i=0; i<nPhi; i++) {
-    std::vector<size_t> labels;
-    labels.resize(nNodes);
-    fread((void*)labels.data(), sizeof(size_t), nNodes, fp);
-    all_labels[i] = labels;
-  }
-  fclose(fp);
 }

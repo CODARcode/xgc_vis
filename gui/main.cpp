@@ -9,10 +9,6 @@ int main(int argc, char **argv)
   ADIOS_FILE *varFP = adios_read_open_file(argv[2], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
   XGCData d;
   d.readDpotFromADIOS(m, varFP);
-
-  m.buildNeighbors();
-  m.buildNodeGraph();
-  
   
   QApplication app(argc, argv);
   QGLFormat fmt = QGLFormat::defaultFormat();

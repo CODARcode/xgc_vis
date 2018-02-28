@@ -37,6 +37,8 @@ public:
   CGLWidget(XGCMesh &m, XGCData &d, const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
   ~CGLWidget(); 
 
+  void updateMesh();
+
   void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
   void loadMeshFromJsonFile(const std::string& filename);
   void loadBranchesFromJsonFile(const std::string& filename);
@@ -99,10 +101,6 @@ private: // camera
   int current_slice;
 
 private: // mesh
-  std::vector<double> coords; 
-  std::vector<int> conn;
-  int nNodes, nTriangles, nPhi;
-
   std::vector<float> f_vertices;
   std::vector<float> f_colors;
 

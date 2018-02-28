@@ -41,9 +41,15 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
   psif = (float*)realloc(psif, sizeof(float)*nNodes);
   for (int i=0; i<nNodes; i++) {
     psif[i] = psi[i];
-    psi_min = std::min(psi_min, psif[i]);
+    if (psi_min > psif[i]) {
+      psi_min = psif[i]; 
+      psi_min_node = i;
+    }
+    // psi_min = std::min(psi_min, psif[i]);
     psi_max = std::max(psi_max, psif[i]);
   }
+  psi_min_x = coords[psi_min_node*2];
+  psi_min_y = coords[psi_min_node*2+1];
   
   // inverse of determinants
   invdetf = (float*)realloc(invdetf, sizeof(float)*nTriangles);
