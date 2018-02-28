@@ -1,5 +1,6 @@
 #include "xgcData.h"
 #include "io/bp_utils.hpp"
+#include "common/base64.h"
 #include <iostream>
 #include <string>
 
@@ -19,6 +20,7 @@
 #include <vtkPoints2D.h>
 #endif
 
+using json = nlohmann::json;
 
 XGCData::~XGCData() {
   free(dpot);
@@ -75,6 +77,23 @@ void XGCData::readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp)
   adios_schedule_read_byid(fp, sel, avi->varid, 0, 1, dpot);
   adios_perform_reads(fp, 1);
   adios_selection_delete(sel);
+}
+
+json XGCData::jsonfyDataInfo(const XGCMesh&) const 
+{
+  json j;
+  j["dpot_min"] = dpotf_min; 
+  j["dpot_max"] = dpotf_max;
+
+  return j;
+}
+
+json XGCData::jsonfyData(const XGCMesh& m) const 
+{
+  json j = jsonfyDataInfo(m);
+  j["dpot"] = base64_encode((unsigned char*)dpotf, sizeof(float)*m.nNodes*m.nPhi);
+
+  return j;
 }
 
 #if WITH_VTK

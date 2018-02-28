@@ -70,6 +70,12 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   } else if (query == "/requestMesh") { 
     con->set_body(xgcMesh.jsonfyMesh().dump());
     con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestDataInfo") {
+    con->set_body(xgcData.jsonfyDataInfo(xgcMesh).dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestData") {
+    con->set_body(xgcData.jsonfyData(xgcMesh).dump());
+    con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/exitServer") {
     con->close(0, "exit");
     wss.stop_listening();

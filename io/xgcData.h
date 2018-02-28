@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <json.hpp>
 #include "io/xgcMesh.h"
 
 struct XGCData {
@@ -17,6 +18,10 @@ struct XGCData {
 
   ~XGCData();
   void readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp);
+
+  using json = nlohmann::json;
+  json jsonfyData(const XGCMesh&) const; 
+  json jsonfyDataInfo(const XGCMesh&) const;
 
 #if WITH_VTK
   struct vtkDataSet* convert2DSliceToVTK(XGCMesh& m);

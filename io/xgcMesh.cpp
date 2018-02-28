@@ -12,6 +12,8 @@
 #include "io/xgcMesh.h"
 #include "io/bp_utils.hpp"
 
+using json = nlohmann::json;
+
 void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm)
 {
   adios_read_init_method(readMethod, comm, "");
@@ -238,8 +240,6 @@ XGCMesh::~XGCMesh() {
   free(invdetf);
   free(neighbors);
 }
-
-using json = nlohmann::json;
 
 json XGCMesh::jsonfyMeshInfo() const {
   json j;
