@@ -1,5 +1,5 @@
-add_executable (xgcvis_core main.cpp xgcBlobExtractor.cpp)
-target_link_libraries (xgcvis_core tourtre common volren ${ADIOS_LIBRARIES} ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${PNG_LIBRARIES})
+add_executable (xgcvis_core main.cpp xgcBlobExtractor.cpp xgcMultiscaleAnalysis.cpp)
+target_link_libraries (xgcvis_core tourtre common xgcvis_volren ${Boost_LIBRARIES} ${ZLIB_LIBRARIES})
 
 #add_executable (test1 test.cpp xgcBlobExtractor.cpp)
 #target_link_libraries (test1 tourtre common ${ADIOS_LIBRARIES} ${Boost_LIBRARIES} ${ZLIB_LIBRARIES})

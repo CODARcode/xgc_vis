@@ -1,4 +1,5 @@
 #include "def.h"
+#include <cassert>
 
 #if WITH_PNG
 #include <png.h>
