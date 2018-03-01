@@ -136,3 +136,63 @@ vtkDataSet* XGCData::convert2DSliceToVTK(XGCMesh &m)
   return grid;
 }
 #endif
+
+std::vector<double> XGCData::sampleAlongPsiContour(const XGCMesh &m, double isoval)
+{
+  struct float3 {
+    double x, y, z;
+    double& operator[](int i) {if (i==0) return x; else if (i==1) return y; else return z;}
+  };
+
+  std::map<int, float3> candidateTriangles;
+
+  auto findZero = [&m, isoval](int i0, int i1, double &alpha) {
+    double f0 = m.psi[i0], f1 = m.psi[i1];
+    alpha = (isoval - f0) / (f1 - f0);
+    bool b = alpha >= 0 && alpha < 1;
+    if (!b) alpha = std::nan("");
+    return b;
+  };
+
+  auto findIntersection = [&findZero, &candidateTriangles, &m, isoval](int triangleId, int i[3]) {
+    float3 a;
+    bool b[3] = {findZero(i[0], i[1], a[0]), findZero(i[1], i[2], a[1]), findZero(i[2], i[0], a[2])};
+    if (b[0] || b[1] || b[2])
+      candidateTriangles[triangleId] = a;
+  };
+
+  for (int i=0; i<m.nTriangles; i++)
+    findIntersection(i, m.conn+i*3);
+
+  // traversal
+  auto traceContourTrianglesOnSingleDirection = [this, &m, &candidateTriangles](std::list<double>& contour, int seed, bool forward) {
+    int current = seed;
+    while (candidateTriangles.find(current) != candidateTriangles.end()) {
+      float3 intersections = candidateTriangles[current];
+      candidateTriangles.erase(current);
+  
+      int edge;
+      double alpha;
+      for (int j=0; j<3; j++) {
+        if ((!std::isnan(intersections[j])) && candidateTriangles.find(m.neighbors[current*3+j]) != candidateTriangles.end()) {
+          edge = j; 
+          alpha = intersections[j];
+          break;
+        }
+      }
+      
+      int n0 = m.conn[current*3+edge], n1 = m.conn[current*3+(edge+1)%3];
+      double X = (1-alpha) * m.coords[n0*2] + alpha * m.coords[n1*2], 
+             Y = (1-alpha) * m.coords[n0*2+1] + alpha * m.coords[n1*2+1];
+      if (forward) {contour.push_back(X); contour.push_back(Y);}
+      else {contour.push_front(Y); contour.push_front(X);}
+
+      current = m.neighbors[current*3+edge];
+    }
+  };
+    
+  int seed = candidateTriangles.begin()->first;
+  std::list<double> contour;
+  traceContourTrianglesOnSingleDirection(contour, seed, true);
+  return std::vector<double>(std::begin(contour), std::end(contour));
+}

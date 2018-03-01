@@ -46,7 +46,9 @@ CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *pa
   updateMesh();
   // thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
 
-  contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
+  contour = d.sampleAlongPsiContour(m, 0.2); 
+  // m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
+  // contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
   // contour = m.testMarchingTriangles(m.psi, 0.2);
 }
 

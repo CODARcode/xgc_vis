@@ -144,6 +144,8 @@ void XGCMesh::buildNodeGraph()
   }
 }
 
+
+#if 0
 std::vector<double> XGCMesh::testMarchingTriangles(double *scalar, double isoval)
 {
   auto findZero = [scalar, isoval](int i0, int i1, double &alpha) {
@@ -272,6 +274,8 @@ std::vector<double> XGCMesh::sampleScalarsAlongPsiContour(double *scalar, int nS
 
   return contour;
 }
+#endif
+
 
 XGCMesh::~XGCMesh() {
   free(conn);
