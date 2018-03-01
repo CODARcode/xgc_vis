@@ -36,10 +36,6 @@
   - 2d color using tf color
     - enabling same tf editor
     
-  - save sessions
-    - network address
-    - thumbnails
-    - other para
   - more parameters
     - angle
       - enable angle
@@ -48,6 +44,12 @@
       - enable shading
       - shading values
     - light directions 3 float
+  - refresh 2D color 
+  - save sessions
+    - network address
+    - thumbnails
+    - layout
+    - other para
   - mouse down -> pointer cursor
   - tree
     - interaction -> node hover

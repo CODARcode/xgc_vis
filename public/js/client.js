@@ -1,4 +1,5 @@
 var ws;
+var Client = {};
 
 function requestMesh() {
   console.log("requesting mesh...");
@@ -267,7 +268,6 @@ function isDialogShown() {
   return $('#connectDialog').hasClass('show');
 }
 
-globalStatus = {};
 (function repeatRequestingData() {
   function repeatRequest() {
     if (isDialogShown()) return;

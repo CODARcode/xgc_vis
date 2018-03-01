@@ -74,6 +74,10 @@ var View3D = (function() {
     }
   };
 
+  View3D.updateStartAngle = function(startAngle) {
+
+  };
+
   View3D.initial = function() {
     View3D.initialized = true;
     var elem = View3D.getView();

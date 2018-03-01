@@ -14,6 +14,9 @@ var menuText = function() {
   this.showTimestep3d = false;
   this.showLegend3d = false;
   this.useSameTFEditor = false;
+  this.enableAngle = false;
+  this.startAngle = 0;
+  this.endAngle = Math.PI * 2;
 
   this.reconnect = function () {
     connectionDialog.reconnect();
@@ -25,6 +28,7 @@ var menuText = function() {
 
   this.transferFunction = function() {
     ViewTF.toggle();
+    $('.dg.main').parent().css('overflow-y', 'scroll');
   };
 };
 
@@ -63,6 +67,17 @@ function initializeControlPanel(domElem) {
   f2.add(text, 'showLegend3d').onChange(function() {
     View3D.updateLegendDisplay(text.showLegend3d);
   });
+  f2.add(text, 'enableAngle').onChange(function() {
+    View3D.updateEnableAngle();
+  });
+  f2.add(text, 'startAngle', 0, Math.PI * 2).onChange(function() {
+    data.startAngle = text.startAngle;
+    // TODO 
+  });
+  f2.add(text, 'endAngle', 0, Math.PI * 2).onChange(function() {
+    data.endAngle = text.endAngle;
+    // TODO
+  });
   f2.open();
 
   var f3 = gui.addFolder("Connection");
@@ -82,7 +97,6 @@ function initializeControlPanel(domElem) {
   });
   f3.add(text, 'reconnect');
   f3.open();
-
   domElem.appendChild(gui.domElement);
   return gui.domElement;
 };
@@ -327,7 +341,6 @@ var layout = (function initialLayout() {
             }
             break;
           case 'load-camera':
-            // document.getElementById('load-camera-file').click();
             $('.load-camera-file').click();
             break;
           case 'reset-camera':
@@ -341,6 +354,7 @@ var layout = (function initialLayout() {
     dropdown.find('li').click(function(){
         cameraAction($(this).attr('action'), $(this).attr('viewid'))
     });
+
   });
 
   function readSingleFile(e) {
