@@ -26,6 +26,8 @@ struct XGCData {
 #if WITH_VTK
   struct vtkDataSet* convert2DSliceToVTK(XGCMesh& m);
 #endif
+  
+  std::vector<double> sampleAlongPsiContour(const XGCMesh &m, double isoval);
 };
 
 #endif
