@@ -38,6 +38,7 @@ struct XGCMesh {
   std::list<std::list<double> > marchingTriangles(double*, double isoval);
 
   std::vector<double> sampleScalarsAlongPsiContour(double *scalar, int nSamples, double isoval);
+  std::vector<double> testMarchingTriangles(double *scalar, double isoval);
 
   ~XGCMesh();
   

@@ -43,21 +43,12 @@ CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *pa
     toggle_mesh(false), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
     current_slice(0)
 {
+  updateMesh();
   // thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
 
-  contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
-
-#if 0
-  XGCMesh m;
-  m.readMeshFromADIOS(argv[1], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-
-  ADIOS_FILE *varFP = adios_read_open_file(argv[2], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-  XGCData d;
-  d.readDpotFromADIOS(m, varFP);
-
-  m.buildNeighbors();
-  m.buildNodeGraph();
-  // m.marchingTriangles(m.psi, 0.2);
+  // contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
+#if 1
+  contour = m.testMarchingTriangles(m.psi, 0.2);
 #endif
 }
 
@@ -289,7 +280,9 @@ void CGLWidget::paintGL()
 
   // renderSinglePlane();
   // renderMultiplePlanes();
-  glTranslatef(-1, 1, 0);
+
+
+  glTranslatef(-m.coords_centroid_x, -m.coords_centroid_y, 0.f);
   glColor3f(0, 0, 0);
   // glBegin(GL_LINE_STRIP);
   glBegin(GL_POINTS);

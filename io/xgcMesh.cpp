@@ -144,6 +144,39 @@ void XGCMesh::buildNodeGraph()
   }
 }
 
+std::vector<double> XGCMesh::testMarchingTriangles(double *scalar, double isoval)
+{
+  auto findZero = [scalar, isoval](int i0, int i1, double &alpha) {
+    double f0 = scalar[i0], f1 = scalar[i1];
+    alpha = (isoval - f0) / (f1 - f0);
+    bool b = alpha >= 0 && alpha < 1;
+    if (!b) alpha = std::nan("");
+    return b;
+  };
+
+  std::vector<double> zeroPoints;
+
+  auto findIntersection = [this, &findZero, &zeroPoints, scalar, isoval](int triangleId, int i[3]) {
+    double a[3];
+    bool b[3] = {findZero(i[0], i[1], a[0]), findZero(i[1], i[2], a[1]), findZero(i[2], i[0], a[2])};
+    for (int j=0; j<3; j++) {
+      if (b[j]) {
+        int n0 = i[j], n1 = i[(j+1)%3];
+        double alpha = a[j];
+        double X = (1-alpha) * coords[n0*2] + alpha * coords[n1*2], 
+               Y = (1-alpha) * coords[n0*2+1] + alpha * coords[n1*2+1];
+        zeroPoints.push_back(X);
+        zeroPoints.push_back(Y);
+      }
+    }
+  };
+  
+  for (int i=0; i<nTriangles; i++)
+    findIntersection(i, conn+i*3);
+
+  return zeroPoints;
+}
+
 std::list<std::list<double> > XGCMesh::marchingTriangles(double *scalar, double isoval)
 {
   auto findZero = [scalar, isoval](int i0, int i1, double &alpha) {
