@@ -1,5 +1,6 @@
 #include "xgcData.h"
 #include "io/bp_utils.hpp"
+#include "common/base64.h"
 #include <iostream>
 #include <string>
 
@@ -16,8 +17,10 @@
 #include <vtkGenericCell.h>
 #include <vtkDataSetWriter.h>
 #include <vtkPointData.h>
+#include <vtkPoints2D.h>
 #endif
 
+using json = nlohmann::json;
 
 XGCData::~XGCData() {
   free(dpot);
@@ -26,9 +29,13 @@ XGCData::~XGCData() {
 }
 
 void XGCData::deriveSinglePrecisionDpot(const XGCMesh& m) {
+  dpotf_min = FLT_MAX; dpotf_max = -FLT_MAX;
   dpotf = (float*)realloc(dpotf, sizeof(float)*m.nNodes*m.nPhi);
-  for (int i=0; i<m.nNodes*m.nPhi; i++) 
+  for (int i=0; i<m.nNodes*m.nPhi; i++) {
     dpotf[i] = dpot[i];
+    dpotf_min = std::min(dpotf_min, dpotf[i]);
+    dpotf_max = std::max(dpotf_max, dpotf[i]);
+  }
 }
 
 void XGCData::deriveGradient(const XGCMesh& m) {
@@ -72,16 +79,34 @@ void XGCData::readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp)
   adios_selection_delete(sel);
 }
 
+json XGCData::jsonfyDataInfo(const XGCMesh&) const 
+{
+  json j;
+  j["dpot_min"] = dpotf_min; 
+  j["dpot_max"] = dpotf_max;
+
+  return j;
+}
+
+json XGCData::jsonfyData(const XGCMesh& m) const 
+{
+  json j = jsonfyDataInfo(m);
+  j["dpot"] = base64_encode((unsigned char*)dpotf, sizeof(float)*m.nNodes*m.nPhi);
+
+  return j;
+}
+
 #if WITH_VTK
 vtkDataSet* XGCData::convert2DSliceToVTK(XGCMesh &m) 
 {
   vtkUnstructuredGrid *grid = vtkUnstructuredGrid::New();
 
   vtkPoints *pts = vtkPoints::New();
+  // vtkPoints2D *pts = vtkPoints2D::New();
   pts->SetNumberOfPoints(m.nNodes);
 
   for (int i=0; i<m.nNodes; i++)
-    pts->SetPoint(i, m.coords[i*2], m.coords[i*2+1], 0);
+    pts->SetPoint(i, m.coords[i*2], m.coords[i*2+1], 0); 
 
   for (int i=0; i<m.nTriangles; i++) {
     vtkIdType ids[3] = {m.conn[i*3], m.conn[i*3+1], m.conn[i*3+2]};
@@ -91,20 +116,22 @@ vtkDataSet* XGCData::convert2DSliceToVTK(XGCMesh &m)
   grid->SetPoints(pts);
   // pts->Delete();
 
+#if 0
   vtkDataArray *dpotArray = vtkDoubleArray::New();
   dpotArray->SetName("dpot");
   dpotArray->SetNumberOfComponents(1);
   dpotArray->SetNumberOfTuples(m.nNodes);
   memcpy(dpotArray->GetVoidPointer(0), dpot, sizeof(double)*m.nNodes);
-
+#endif
   vtkDataArray *psiArray = vtkDoubleArray::New();
   psiArray->SetName("psi");
   psiArray->SetNumberOfComponents(1);
   psiArray->SetNumberOfTuples(m.nNodes);
   memcpy(psiArray->GetVoidPointer(0), m.psi, sizeof(double)*m.nNodes);
 
-  grid->GetPointData()->AddArray(dpotArray);
+  // grid->GetPointData()->AddArray(dpotArray);
   grid->GetPointData()->AddArray(psiArray);
+  grid->GetPointData()->SetActiveScalars("psi");
 
   return grid;
 }

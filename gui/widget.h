@@ -1,6 +1,9 @@
 #ifndef _WIDGET_H
 #define _WIDGET_H
 
+#include "io/xgcMesh.h"
+#include "io/xgcData.h"
+
 // #include <GL/glew.h>
 #include <QGLWidget>
 #include <QList>
@@ -31,8 +34,10 @@ class CGLWidget : public QGLWidget
   Q_OBJECT
 
 public:
-  CGLWidget(const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
+  CGLWidget(XGCMesh &m, XGCData &d, const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
   ~CGLWidget(); 
+
+  void updateMesh();
 
   void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
   void loadMeshFromJsonFile(const std::string& filename);
@@ -78,6 +83,12 @@ public: // client
   client c;
   void onMessage(client* c, websocketpp::connection_hdl hdl, message_ptr msg);
 
+private: 
+  XGCMesh &m; 
+  XGCData &d;
+
+  std::vector<double> contour;
+
 private:
   CGLTrackball _trackball;
   QMatrix4x4 _projmatrix, _mvmatrix; 
@@ -90,10 +101,6 @@ private: // camera
   int current_slice;
 
 private: // mesh
-  std::vector<double> coords; 
-  std::vector<int> conn;
-  int nNodes, nTriangles, nPhi;
-
   std::vector<float> f_vertices;
   std::vector<float> f_colors;
 

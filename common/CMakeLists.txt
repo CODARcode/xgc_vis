@@ -4,6 +4,7 @@ set (common_sources
   RandomColor.cpp
   GraphColor.cpp
   ZColor.cpp
+  base64.cpp
 )
 
-add_library (common ${common_sources})
+add_library (xgcvis_common ${common_sources})

@@ -64,8 +64,17 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   std::string query = con->get_resource();
   // fprintf(stderr, "query=%s\n", query.c_str());
 
-  if (query == "/requestMesh") { 
-    con->set_body(ex->jsonfyMesh().dump());
+  if (query == "/requestMeshInfo") {
+    con->set_body(xgcMesh.jsonfyMeshInfo().dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestMesh") { 
+    con->set_body(xgcMesh.jsonfyMesh().dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestDataInfo") {
+    con->set_body(xgcData.jsonfyDataInfo(xgcMesh).dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestData") {
+    con->set_body(xgcData.jsonfyData(xgcMesh).dump());
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/exitServer") {
     con->close(0, "exit");
@@ -349,7 +358,6 @@ int main(int argc, char **argv)
 
   /// read mesh
   xgcMesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-  xgcMesh.buildNeighbors();
 
   ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
   
