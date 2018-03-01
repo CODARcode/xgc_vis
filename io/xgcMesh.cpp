@@ -169,6 +169,9 @@ std::vector<double> XGCMesh::testMarchingTriangles(double *scalar, double isoval
         zeroPoints.push_back(Y);
       }
     }
+    if (b[0] || b[1] || b[2])
+      fprintf(stderr, "triangleId=%d, alpha={%f, %f, %f}, neighbors={%d, %d, %d}\n", 
+          triangleId, a[0], a[1], a[2], neighbors[triangleId*3], neighbors[triangleId*3+1], neighbors[triangleId*3+2]);
   };
   
   for (int i=0; i<nTriangles; i++)
@@ -232,7 +235,7 @@ std::list<std::list<double> > XGCMesh::marchingTriangles(double *scalar, double 
         alpha = std::get<2>(intersections);
       } else break;
       
-      int n0 = conn[current*3+edge], n1 = conn[(current*3+edge+1)%3];
+      int n0 = conn[current*3+edge], n1 = conn[current*3+(edge+1)%3];
       double X = (1-alpha) * coords[n0*2] + alpha * coords[n1*2], 
              Y = (1-alpha) * coords[n0*2+1] + alpha * coords[n1*2+1];
       // double X = alpha * coords[n0*2] + (1-alpha) * coords[n1*2], 

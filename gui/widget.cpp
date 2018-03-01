@@ -46,10 +46,8 @@ CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *pa
   updateMesh();
   // thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
 
-  // contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
-#if 1
-  contour = m.testMarchingTriangles(m.psi, 0.2);
-#endif
+  contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
+  // contour = m.testMarchingTriangles(m.psi, 0.2);
 }
 
 CGLWidget::~CGLWidget()
@@ -284,8 +282,8 @@ void CGLWidget::paintGL()
 
   glTranslatef(-m.coords_centroid_x, -m.coords_centroid_y, 0.f);
   glColor3f(0, 0, 0);
-  // glBegin(GL_LINE_STRIP);
-  glBegin(GL_POINTS);
+  glBegin(GL_LINE_LOOP);
+  // glBegin(GL_POINTS);
   for (int i=0; i<contour.size()/2; i++) 
     glVertex2f(contour[i*2], contour[i*2+1]);
   glEnd();
