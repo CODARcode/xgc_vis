@@ -73,8 +73,15 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   } else if (query == "/requestDataInfo") {
     con->set_body(xgcData.jsonfyDataInfo(xgcMesh).dump());
     con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestSingleSliceData") {
+    con->set_body(xgcData.jsonfySingleSliceData(xgcMesh).dump());
+    con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/requestData") {
     con->set_body(xgcData.jsonfyData(xgcMesh).dump());
+    con->set_status(websocketpp::http::status_code::ok);
+  } else if (query == "/requestSampleAlongPsiContourPolar") {
+    json j = xgcData.sampleAlongPsiContourPolar(xgcMesh, 0.2);
+    con->set_body(j.dump());
     con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/exitServer") {
     con->close(0, "exit");
