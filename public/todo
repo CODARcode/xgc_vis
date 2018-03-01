@@ -21,19 +21,33 @@
   - layout
     - hide tf widget
     - console width 
-
   - 2d
-    - timestep, color legend
-    - change hover color
+    - timestep (done)
+    - color legend (done)
+    // - change hover color
+  - 3d 
+    - timestep (done)
+    - color legend (done)
   - expand header for individual menus
     - save camera (done)
     - reset camera (done)
-    - load camera
-    - save image (3d)
+    - load camera (done)
+    - save image (3d done)
+  - 2d color using tf color
+    - enabling same tf editor
+    
   - save sessions
     - network address
     - thumbnails
     - other para
+  - more parameters
+    - angle
+      - enable angle
+      - angle range
+    - shading
+      - enable shading
+      - shading values
+    - light directions 3 float
   - mouse down -> pointer cursor
   - tree
     - interaction -> node hover

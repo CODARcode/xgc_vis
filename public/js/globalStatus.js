@@ -23,13 +23,17 @@ var data = {
   treeNodeCount: undefined,
   treeMinMax: {},
   treeDepth: 0,
-  tfArray: undefined
+  tfArray: undefined,
+  range: undefined, // 2d 
+  labelRange: undefined // 2d
 };
 
 var doneRendering = true;
 var volrenTimer = undefined;
 var globalStatus = {
   tfArray: undefined,
+  tfControlPoints: undefined,
   doneRendering: true,
-  volrenTimer: undefined
+  volrenTimer: undefined,
+  updateEnableSameTFEditor: false
 };

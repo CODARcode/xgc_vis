@@ -9,6 +9,11 @@ var menuText = function() {
   this.renderWireframe = false;
   this.autoRefreshing = false;
   this.refreshInterval = 20;
+  this.showTimestep2d = false;
+  this.showLegend2d = false;
+  this.showTimestep3d = false;
+  this.showLegend3d = false;
+  this.useSameTFEditor = false;
 
   this.reconnect = function () {
     connectionDialog.reconnect();
@@ -34,6 +39,16 @@ function initializeControlPanel(domElem) {
   f1.add(text, 'renderWireframe').onChange(function() {
     View2D.updateRenderWireframe(text.renderWireframe);
   });
+  f1.add(text, 'showTimestep2d').onChange(function() {
+    View2D.updateTimestepDisplay(text.showTimestep2d);
+  });
+  f1.add(text, 'showLegend2d').onChange(function() {
+    View2D.updateLegendDisplay(text.showLegend2d);
+  });
+  f1.add(text, 'useSameTFEditor').onChange(function() {
+    View2D.updateEnableSameTFEditor(text.useSameTFEditor);
+  });
+  f1.add(text, 'transferFunction');
   f1.open();
 
   var f2 = gui.addFolder("3D Rendering");
@@ -42,7 +57,12 @@ function initializeControlPanel(domElem) {
   //   else $("#stats").css({visibility: "hidden"});
   // });
   // f2.add(text, "saveImage");
-  f2.add(text, 'transferFunction');
+  f2.add(text, 'showTimestep3d').onChange(function() {
+    View3D.updateTimestepDisplay(text.showTimestep3d);
+  });
+  f2.add(text, 'showLegend3d').onChange(function() {
+    View3D.updateLegendDisplay(text.showLegend3d);
+  });
   f2.open();
 
   var f3 = gui.addFolder("Connection");
@@ -196,11 +216,16 @@ var layout = (function initialLayout() {
     layout.View2D = container.getElement()[0];
     View2D.initial();
     
-    var legendElem = $('.legend-div').detach();
+    // var legendElem = $('.legend-div').detach();
+    var legendElem = $('.legend-div').clone();
+    legendElem.removeClass('template');
     legendElem.addClass('legend-div-2d');
+    legendElem.find('linearGradient').attr('id', 'mainGradient2');
     $(layout.View2D).append(legendElem);
     
-    var timestepElem = $('.timestep-div').detach();
+    // var timestepElem = $('.timestep-div').detach();
+    var timestepElem = $('.timestep-div').clone();
+    timestepElem.removeClass('template');
     timestepElem.addClass('timestep-div-2d');
     $(layout.View2D).append(timestepElem);
     
@@ -214,12 +239,13 @@ var layout = (function initialLayout() {
     View3D.initial();
     
     var legendElem = $('.legend-div').clone();
-    legendElem.removeClass('legend-div-2d');
+    legendElem.removeClass('template');
     legendElem.addClass('legend-div-3d');
+    legendElem.find('linearGradient').attr('id', 'mainGradient3');
     $(layout.View3D).append(legendElem);
 
     var timestepElem = $('.timestep-div').clone();
-    timestepElem.removeClass('timestep-div-2d');
+    timestepElem.removeClass('template');
     timestepElem.addClass('timestep-div-3d');
     $(layout.View3D).append(timestepElem);
     
@@ -254,9 +280,6 @@ var layout = (function initialLayout() {
       return;
     }
 
-    console.log('create stack', stack);
-    console.log(stack.childElementContainer[0]);
-
     var dropdown = $($('template').html()),
       dropdownBtn = dropdown.find('.camera-menu-list');
     dropdownBtn.attr('viewId', stack.contentItems[0].config.componentState.viewId);
@@ -280,10 +303,14 @@ var layout = (function initialLayout() {
             if (!data.mockLink) {
               data.mockLink = document.createElement("a");
             }
-            data.mockLink.href = target.getRenderer().domElement.toDataURL('image/jpg');
-            data.mockLink.download = 'screenshot.jpg';
+            if (viewId != '3d') { 
+              data.mockLink.href = target.getRenderer().domElement.toDataURL('image/jpg');
+            }
+            else {
+              data.mockLink.href = $('img.volren-image').attr('src');
+            }
+            data.mockLink.download = 'screenshot.png';
             data.mockLink.click();
-            // window.open(target.getRenderer().domElement.toDataURL('image/png'), 'screenshot');
             break;
           case 'save-camera':
             var cameraState = JSON.stringify(target.getCameraMatrix());
@@ -328,9 +355,12 @@ var layout = (function initialLayout() {
     };
     reader.readAsText(file);
   }
-  // $('.load-camera-file').on('change', readSingleFile);
   document.getElementsByClassName('load-camera-file')[0]
-    .addEventListener('input', readSingleFile, false);
+    .addEventListener('click', function() {
+      this.value = null;
+    });
+  document.getElementsByClassName('load-camera-file')[0]
+    .addEventListener('change', readSingleFile, false);
 
   myLayout.init();
   return layout;
