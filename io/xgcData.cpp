@@ -183,9 +183,10 @@ std::vector<double> XGCData::sampleAlongPsiContour(const XGCMesh &m, double isov
       
       int n0 = m.conn[current*3+edge], n1 = m.conn[current*3+(edge+1)%3];
       double X = (1-alpha) * m.coords[n0*2] + alpha * m.coords[n1*2], 
-             Y = (1-alpha) * m.coords[n0*2+1] + alpha * m.coords[n1*2+1];
-      if (forward) {contour.push_back(X); contour.push_back(Y);}
-      else {contour.push_front(Y); contour.push_front(X);}
+             Y = (1-alpha) * m.coords[n0*2+1] + alpha * m.coords[n1*2+1], 
+             val = (1-alpha) * dpot[n0] + alpha * dpot[n1];
+      if (forward) {contour.push_back(X); contour.push_back(Y); contour.push_back(val);}
+      else {contour.push_back(val); contour.push_front(Y); contour.push_front(X);}
 
       current = m.neighbors[current*3+edge];
     }

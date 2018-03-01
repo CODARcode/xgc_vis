@@ -286,8 +286,8 @@ void CGLWidget::paintGL()
   glColor3f(0, 0, 0);
   glBegin(GL_LINE_LOOP);
   // glBegin(GL_POINTS);
-  for (int i=0; i<contour.size()/2; i++) 
-    glVertex2f(contour[i*2], contour[i*2+1]);
+  for (int i=0; i<contour.size()/3; i++) 
+    glVertex2f(contour[i*3], contour[i*3+1]);
   glEnd();
 
 
