@@ -30,12 +30,20 @@ var ViewTF = (function() {
     function callback(controlPoints, tfArray) {
       data.tfArray = tfArray;
       requestImageWait(tfArray);
+      ViewTF.updateTF(controlPoints);
     }
     tfWidget.hide();
   };
 
   ViewTF.getTF = function() {
     return data.tfArray;
+  };
+
+  ViewTF.updateTF = function(controlPoints) {
+    globalStatus.tfControlPoints = controlPoints;
+    $('linearGradient#mainGradient2').html($('linearGradient#grad')[0].innerHTML);
+    $('linearGradient#mainGradient3').html($('linearGradient#grad')[0].innerHTML);
+    View2D.updateTF(controlPoints);
   };
 
   return ViewTF;

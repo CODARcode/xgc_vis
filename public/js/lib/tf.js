@@ -938,7 +938,10 @@ jQuery._tfWidget = function(container, callback, settings) {
     document.querySelector('#load-tf-file').click();
   });
   document.getElementById('load-tf-file')
+      .addEventListener('click', function() {
+        this.value = null;
+      });
+  document.getElementById('load-tf-file')
       .addEventListener('change', readTFFile, false);
-
   if (callback) callback.call(tf, controlPoints, controlPointsToArray());
 }

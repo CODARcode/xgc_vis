@@ -1,4 +1,4 @@
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 const VIEW2D_OFF = false;
 const VIEW3D_OFF = false;
 const IMAGE_OFF = false;
@@ -23,13 +23,17 @@ var data = {
   treeNodeCount: undefined,
   treeMinMax: {},
   treeDepth: 0,
-  tfArray: undefined
+  tfArray: undefined,
+  range: undefined, // 2d 
+  labelRange: undefined // 2d
 };
 
 var doneRendering = true;
 var volrenTimer = undefined;
 var globalStatus = {
   tfArray: undefined,
+  tfControlPoints: undefined,
   doneRendering: true,
-  volrenTimer: undefined
+  volrenTimer: undefined,
+  updateEnableSameTFEditor: false
 };

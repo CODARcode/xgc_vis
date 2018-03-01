@@ -7,21 +7,39 @@ var View2D = (function() {
 
   View2D.getCameraMatrix = function() {
     return View2D.camera.matrix.toArray();
-  }
+  };
 
   View2D.setCameraMatrix = function(str) {
     var cameraState = JSON.parse(str);
     View2D.camera.matrix.fromArray(cameraState);
     View2D.camera.matrix.decompose(View2D.camera.position, View2D.camera.quaternion, View2D.camera.scale); 
-  }
+  };
 
   View2D.resetCamera = function() {
     View2D.controls.reset();
-  }
+  };
 
   View2D.getRenderer = function() {
     return View2D.renderer;
-  }
+  };
+
+  View2D.updateLegendDisplay = function(display) {
+    if (display) {
+      $('.legend-div-2d').show();
+    }
+    else {
+      $('.legend-div-2d').hide();
+    }
+  };
+
+  View2D.updateTimestepDisplay = function(display) {
+    if (display) {
+      $('.timestep-div-2d').show();
+    }
+    else {
+      $('.timestep-div-2d').hide();
+    }
+  };
   
   View2D.initial = function() {
     View2D.initialized = true;
@@ -137,66 +155,93 @@ var View2D = (function() {
     View2D.renderer.setSize(width, height);
   }
 
-  View2D.updateData = function() {
-    var red = '#b82e2e';
-    var green = '#109618';
-    var blue = '#3366cc';
-    var white = '#ffffff';
-    var black = '#000000';
-    var redHex = 0xb82e2e;
-    var greenHex = 0x109618;
-    var blueHex = 0x3366cc;
-    var whiteHex = 0xffffff;
-    var blackHex = 0x000000;
-    
-    /* value color scale */
-    var range = { max : 0, min : 0};
-    data.values.forEach(function(d) {
-      if (d > range.max) range.max = d;
-      if (d < range.min) range.min = d;
+  View2D.updateEnableSameTFEditor = function(enableSame) {
+    globalStatus.updateEnableSameTFEditor = enableSame;
+    if (enableSame) {
+      View2D.updateTF(globalStatus.tfControlPoints);
+    }
+    else {
+      View2D.drawData();
+    }
+  };
+
+  View2D.updateTF = function(controlPoints) {
+    if (!globalStatus.updateEnableSameTFEditor) {
+      return;
+    }
+    if (!View2D.initialized || !View2D.dataInitialized) {
+      return;
+    }
+    var domainList = [];
+    var rangeList = [];
+    controlPoints.forEach(function(d) {
+      var v = data.range.min + (data.range.max - data.range.min) * d.alpha;
+      v = Math.min(v, data.range.max);
+      domainList.push(v);
+      rangeList.push(d3.rgb(d.rgb));
     });
-    console.log(range);
-    var cs = d3.scaleLinear().domain([range.min, 0, range.max])
-        .range([d3.rgb(blue), d3.rgb(white), d3.rgb(red)]);
+    var cs = d3.scaleLinear().domain(domainList)
+        .range(rangeList);
+    var valueColorScale = function(v) {
+      return new THREE.Color(cs(v).toString());
+    };
+    View2D.drawDataColor(valueColorScale);
+  };
+
+  View2D.updateData = function() {
+    View2D.dataInitialized = true;
+    data.range = { max : -Infinity, min : Infinity};
+    data.labelRange = {};
+    data.values.forEach(function(d) {
+      if (d > data.range.max) data.range.max = d;
+      if (d < data.range.min) data.range.min = d;
+      if (d > data.labelRange.max) data.labelRange.max = d;
+      if (d < data.labelRange.min) data.labelRange.min = d;
+    });
+    View2D.drawData();
+  }
+
+  View2D.drawData = function() {
+    /* value color legend */
+    var formatToOne = d3.format(".1e");
+    $('.min-value-text').text(formatToOne(data.range.min));
+    $('.max-value-text').text(formatToOne(data.range.max));
+
+    /* value color scale */
+    var cs = d3.scaleLinear().domain([data.range.min, 0, data.range.max])
+        .range([d3.rgb(PresetColor.blue), d3.rgb(PresetColor.white), d3.rgb(PresetColor.red)]);
     var valueColorScale = function(v) {
       return new THREE.Color(cs(v).toString());
     };
 
-    /* value color legend */
-    var formatToOne = d3.format(".1e");
-    d3.select('.min-value-text').text(formatToOne(range.min));
-    d3.select('.max-value-text').text(formatToOne(range.max));
+    // /* label color scale */
+    // var cs2 = d3.scaleLinear().domain([labelRange.min, 0, labelRange.max])
+    //     .range([d3.rgb(PresetColor.green), d3.rgb(PresetColor.black), d3.rgb(PresetColor.red)]);
+    // var labelColorScale = function(l) {
+    //   return new THREE.Color(cs2(l).toString());
+    // };
+    View2D.drawDataColor(valueColorScale);
+  }
 
-    /* label color scale */
-    var labelRange = {};
-    data.values.forEach(function(d) {
-      if (d > labelRange.max) labelRange.max = d;
-      if (d < labelRange.min) labelRange.min = d;
-    });
-    // console.log(labelRange);
-    var cs2 = d3.scaleLinear().domain([labelRange.min, 0, labelRange.max])
-        .range([d3.rgb(green), d3.rgb(black), d3.rgb(red)]);
-    var labelColorScale = function(l) {
-      return new THREE.Color(cs2(l).toString());
-    };
-
+  View2D.drawDataColor = function(valueColorScale) {
     for (var i = 0; i < View2D.valueObject.geometry.faces.length; i ++) {
       var face = View2D.valueObject.geometry.faces[i];
+      
       // update label color
       var l1 = data.labels[face.a];
       var l2 = data.labels[face.b];
       var l3 = data.labels[face.c];
-      var labelColor = new THREE.Color(blackHex);
+      var labelColor = new THREE.Color(PresetColor.blackHex);
       if (l1 === l2 && l2 === l3) {
         // labelColor = labelColorScale(l1);
         if (l1 === 0) {
-          labelColor = new THREE.Color(blackHex);
+          labelColor = new THREE.Color(PresetColor.blackHex);
         }
         else if (l1 > 0) {
-          labelColor = new THREE.Color(redHex);
+          labelColor = new THREE.Color(PresetColor.redHex);
         }
         else {
-          labelColor = new THREE.Color(blueHex);
+          labelColor = new THREE.Color(PresetColor.blueHex);
         }
       }
       View2D.labelObject.geometry.faces[i].color.set(labelColor);
@@ -214,15 +259,7 @@ var View2D = (function() {
     View2D.labelObject.geometry.colorsNeedUpdate = true;
     View2D.labelObject.material.needsUpdate = true;
     $('#loading').hide();
-    $('.legend-div-2d').show();
-
-    if (data.timestep != undefined) {
-      $('.timestep-div-2d').show();
-      $('.timestep-value')[0].innerHTML = data.timestep;
-    }
-    else {
-      $('.timestep-div-2d').hide();
-    }
+    $('.timestep-value').html(data.timestep);
     doneRendering = true;
   }
 

@@ -40,21 +40,39 @@ var View3D = (function() {
 
   View3D.getCameraMatrix = function() {
     return View3D.camera.matrix.toArray();
-  }
+  };
 
   View3D.setCameraMatrix = function(str) {
     var cameraState = JSON.parse(str);
     View3D.camera.matrix.fromArray(cameraState);
     View3D.camera.matrix.decompose(View3D.camera.position, View3D.camera.quaternion, View3D.camera.scale); 
-  }
+  };
 
   View3D.resetCamera = function() {
     View3D.controls.reset();
-  }
+  };
 
   View3D.getRenderer = function() {
     return View3D.renderer;
-  }
+  };
+
+  View3D.updateLegendDisplay = function(display) {
+    if (display) {
+      $('.legend-div-3d').show();
+    }
+    else {
+      $('.legend-div-3d').hide();
+    }
+  };
+
+  View3D.updateTimestepDisplay = function(display) {
+    if (display) {
+      $('.timestep-div-3d').show();
+    }
+    else {
+      $('.timestep-div-3d').hide();
+    }
+  };
 
   View3D.initial = function() {
     View3D.initialized = true;
