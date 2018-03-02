@@ -221,3 +221,11 @@ body {margin: 0;}
   background-color: #eeeeee;
   color: #333333;
 };
+
+svg.angle-svg {
+  background-color: white;
+}
+
+.highcharts-credits {
+  display: none;
+}

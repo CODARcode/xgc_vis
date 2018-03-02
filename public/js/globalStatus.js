@@ -18,14 +18,29 @@ const PresetColor = {
 };
 
 var data = {
+  // tree view 
   treeData: {},
   d3treeRoot: undefined,
   treeNodeCount: undefined,
   treeMinMax: {},
   treeDepth: 0,
+  
+  // tf view
   tfArray: undefined,
+
+  // 2d view
   range: undefined, // 2d 
-  labelRange: undefined // 2d
+  labelRange: undefined, // 2d
+
+  // angle view
+  isoValue: .2,
+  angleData: undefined,
+  coords_centroid_y: undefined,
+  coords_centroid_x: undefined,
+  thetaMin: Infinity,
+  thetaMax: -Infinity,
+  angleValueMin: Infinity,
+  angleValueMax: -Infinity,
 };
 
 var doneRendering = true;

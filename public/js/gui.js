@@ -17,18 +17,24 @@ var menuText = function() {
   this.enableAngle = false;
   this.startAngle = 0;
   this.endAngle = Math.PI * 2;
+  this.enableShading = false;
+  this.Ks = 1;
+  this.Kd = 1;
+  this.Ka = 1;
+  this.lightingDirectionX = 0;
+  this.lightingDirectionY = 0;
+  this.lightingDirectionZ = 1;
 
   this.reconnect = function () {
     connectionDialog.reconnect();
   };
 
   this.refresh = function() {
-    requestData();
+    Client.requestData();
   };
 
   this.transferFunction = function() {
     ViewTF.toggle();
-    $('.dg.main').parent().css('overflow-y', 'scroll');
   };
 };
 
@@ -78,21 +84,42 @@ function initializeControlPanel(domElem) {
     data.endAngle = text.endAngle;
     // TODO
   });
+  f2.add(text, 'enableShading').onChange(function() {
+    // TODO 
+  });
+  f2.add(text, 'Ks', 0, 1).onChange(function() {
+    // TODO 
+  });
+  f2.add(text, 'Kd', 0, 1).onChange(function() {
+    // TODO 
+  });
+  f2.add(text, 'Ka', 0, 1).onChange(function() {
+    // TODO 
+  });
+  f2.add(text, 'lightingDirectionX', 0, 1).onChange(function() {
+    // TODO 
+  });
+  f2.add(text, 'lightingDirectionY', 0, 1).onChange(function() {
+    // TODO 
+  });
+  f2.add(text, 'lightingDirectionZ', 0, 1).onChange(function() {
+    // TODO 
+  });
   f2.open();
 
   var f3 = gui.addFolder("Connection");
   f3.add(text, 'refresh');
   f3.add(text, 'autoRefreshing').onChange(function() {
     if (text.autoRefreshing) {
-      updateRepeatRequestingSpeed(text.refreshInterval);
+      Client.updateRepeatRequestingSpeed(text.refreshInterval);
     }
     else {
-      cancelRepeatRequesting();
+      Client.cancelRepeatRequesting();
     }
   });
   f3.add(text, 'refreshInterval', 10, 300).onFinishChange(function() {
     if (text.autoRefreshing) {
-      updateRepeatRequestingSpeed(text.refreshInterval);
+      Client.updateRepeatRequestingSpeed(text.refreshInterval);
     }
   });
   f3.add(text, 'reconnect');
@@ -105,7 +132,7 @@ function initializeControlPanel(domElem) {
   var clickConnect = function() {
     var ip = $('#hostAdress').val();
     var port = $('#port').val();
-    connectToServer(ip, port);
+    Client.connectToServer(ip, port);
     $('#connectDialog').modal('hide');
     $('#loading').show();
   };
@@ -167,48 +194,71 @@ var layout = (function initialLayout() {
       },
       content: [{
           type: 'row',
-          content:[{
+          content:[
+            {
               type: 'column',
-              content:[{
-                  type: 'component',
-                  componentName: '2D View',
-                  isClosable: false,
-                  componentState: {
-                    cameraMenu: true,
-                    viewId: '2d'
-                  }
-              },{
-                  type: 'component',
-                  componentName: 'FFT View',
-                  isClosable: false,
-                  componentState: {
-                    // cameraMenu: true
-                  }
-              }],
-              width: left2Pct
-          },
-          {
-              type: 'column',
-              content:[{
-                  type: 'component',
-                  componentName: '3D View',
-                  isClosable: false,
-                  componentState: {
-                    cameraMenu: true,
-                    viewId: '3d'
-                  }
-              },{
-                  type: 'component',
-                  componentName: 'Tree View',
-                  isClosable: false,
-                  componentState: {
-                    cameraMenu: true,
-                    viewId: 'tree'
-                  }
-              }],
-              width: left2Pct
-          },
-          {
+              content: [
+                {
+                  type: 'row',
+                  content: [
+                    {
+                      type: 'component',
+                      componentName: '2D View',
+                      componentState: {
+                        cameraMenu: true,
+                        viewId: '2d'
+                      },
+                      isClosable: false
+                    },
+                    {
+                      type: 'component',
+                      componentName: '3D View',
+                      componentState: {
+                        cameraMenu: true,
+                        viewId: '3d'
+                      },
+                      isClosable: false
+                    }
+                  ]
+                },
+                {
+                  type: 'row',
+                  content: [
+                    {
+                      type: 'component',
+                      componentName: 'FFT View',
+                      componentState: {
+                        cameraMenu: false,
+                      },
+                      isClosable: false
+                    },
+                    {
+                      type: 'component',
+                      componentName: 'Tree View',
+                      componentState: {
+                        cameraMenu: true,
+                        viewId: 'tree'
+                      },
+                      isClosable: false
+                    }
+                  ]
+                },
+                {
+                  type: 'row',
+                  content: [
+                    {
+                      type: 'component',
+                      componentName: 'Angle View',
+                      componentState: {
+                        cameraMenu: false
+                      },
+                      isClosable: false
+                    }
+                  ]
+                }
+              ]
+            },
+            { // control 
               type: 'column',
               content:[
               {
@@ -220,7 +270,8 @@ var layout = (function initialLayout() {
                   isClosable: false
               }],
               width: rightPct
-          }]
+            }
+          ]
       }]
   };
   
@@ -271,13 +322,22 @@ var layout = (function initialLayout() {
   myLayout.registerComponent('Tree View', function(container, componentState){
     layout.ViewTree = container.getElement()[0];
     ViewTree.initial();
-    requestTree();
+    Client.requestTree();
     new ResizeSensor($(layout.ViewTree), function(){ 
       ViewTree.resize();
     });
   });
 
   myLayout.registerComponent('FFT View', function(container, componentState){
+  });
+
+  myLayout.registerComponent('Angle View', function(container, componentState){
+    layout.ViewAngle = container.getElement()[0];
+    var chart = $('#angle-chart-container').detach();
+    $(layout.ViewAngle).append(chart);
+    new ResizeSensor($(layout.ViewAngle), function(){ 
+      ViewAngle.resize();
+    });
   });
 
   myLayout.registerComponent('Console', function(container, componentState){
@@ -287,6 +347,10 @@ var layout = (function initialLayout() {
     ViewTF.initial();
     var tfElem = $('#tf-holder').detach();
     $(guiDomElem).find('li.folder').first().append(tfElem);
+  });
+
+  myLayout.on('initialised', function() {
+    $('.dg.main').parent().css('overflow-y', 'scroll');
   });
 
   myLayout.on('stackCreated', function(stack) {
@@ -354,7 +418,6 @@ var layout = (function initialLayout() {
     dropdown.find('li').click(function(){
         cameraAction($(this).attr('action'), $(this).attr('viewid'))
     });
-
   });
 
   function readSingleFile(e) {

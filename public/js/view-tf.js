@@ -29,7 +29,7 @@ var ViewTF = (function() {
     var tfWidget = $('#tf-holder').tfWidget(callback, settings);
     function callback(controlPoints, tfArray) {
       data.tfArray = tfArray;
-      requestImageWait(tfArray);
+      Client.requestImageWait(tfArray);
       ViewTF.updateTF(controlPoints);
     }
     tfWidget.hide();
