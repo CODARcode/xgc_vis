@@ -30,6 +30,8 @@ struct XGCMesh {
 
   void readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm);
 
+  int findPsiSaddle(); 
+
   using json = nlohmann::json;
   json jsonfyMesh() const;
   json jsonfyMeshInfo() const;

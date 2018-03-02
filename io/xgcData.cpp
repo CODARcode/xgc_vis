@@ -88,6 +88,14 @@ json XGCData::jsonfyDataInfo(const XGCMesh&) const
   return j;
 }
 
+json XGCData::jsonfySingleSliceData(const XGCMesh& m) const 
+{
+  json j = jsonfyDataInfo(m);
+  j["dpot"] = base64_encode((unsigned char*)dpotf, sizeof(float)*m.nNodes);
+
+  return j;
+}
+
 json XGCData::jsonfyData(const XGCMesh& m) const 
 {
   json j = jsonfyDataInfo(m);
@@ -136,6 +144,18 @@ vtkDataSet* XGCData::convert2DSliceToVTK(XGCMesh &m)
   return grid;
 }
 #endif
+
+std::vector<double> XGCData::sampleAlongPsiContourPolar(const XGCMesh &m, double isoval)
+{
+  std::vector<double> contour = sampleAlongPsiContour(m, isoval);
+  std::vector<double> output;
+  for (int i=0; i<contour.size()/3; i++) {
+    double X = contour[i*3] - m.coords_centroid_x, Y = contour[i*3+1] - m.coords_centroid_y, val = contour[i*3+2];
+    output.push_back(atan2(Y, X));
+    output.push_back(val);
+  }
+  return output;
+}
 
 std::vector<double> XGCData::sampleAlongPsiContour(const XGCMesh &m, double isoval)
 {

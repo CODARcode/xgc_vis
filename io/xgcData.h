@@ -21,6 +21,7 @@ struct XGCData {
 
   using json = nlohmann::json;
   json jsonfyData(const XGCMesh&) const; 
+  json jsonfySingleSliceData(const XGCMesh&) const; 
   json jsonfyDataInfo(const XGCMesh&) const;
 
 #if WITH_VTK
@@ -28,6 +29,7 @@ struct XGCData {
 #endif
   
   std::vector<double> sampleAlongPsiContour(const XGCMesh &m, double isoval);
+  std::vector<double> sampleAlongPsiContourPolar(const XGCMesh &m, double isoval);
 };
 
 #endif
