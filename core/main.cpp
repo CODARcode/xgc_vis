@@ -79,6 +79,14 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   } else if (query == "/requestData") {
     con->set_body(xgcData.jsonfyData(xgcMesh).dump());
     con->set_status(websocketpp::http::status_code::ok);
+  } else if (query.find("/requestSampleAlongPsiContour?") == 0) {
+    std::string str = query.substr(query.find("?")+1);
+    // fprintf(stderr, "Len=%d, Strval=%s\n", strval.size(), strval.c_str());
+    double isoval = std::stod(str);
+
+    json j = xgcData.sampleAlongPsiContour(xgcMesh, isoval);
+    con->set_body(j.dump());
+    con->set_status(websocketpp::http::status_code::ok);
   } else if (query == "/requestSampleAlongPsiContourPolar") {
     json j = xgcData.sampleAlongPsiContourPolar(xgcMesh, 0.2);
     con->set_body(j.dump());
