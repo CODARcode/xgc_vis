@@ -287,7 +287,8 @@ var View2D = (function() {
   }
 
   function onDocumentMouseMove(event) {
-    if (isDialogShown()) return;
+    var isDialogShown = $('#connectDialog').hasClass('show');
+    if (isDialogShown) return;
     if (data.values == undefined) return;
     var mouse = {};
     var parentBound = View2D.getView().getBoundingClientRect();

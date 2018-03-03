@@ -138,7 +138,7 @@ var View3D = (function() {
     $(parentNode).append(imgNode);
 
     $(parentNode).mouseup(function() {
-      requestImage();
+      Client.requestImage();
     });
 
     $(window).bind('mousewheel', function(e){
@@ -146,13 +146,13 @@ var View3D = (function() {
       if (e.clientX > elem.offsetLeft && e.clientX < elem.offsetLeft + elem.offsetWidth
         && e.clientY > elem.offsetTop && e.clientY < elem.offsetTop + elem.offsetHeight) {
         View3D.hideVolrenImage();
-        requestImageWait();
+        Client.requestImageWait();
       }
     });
 
     $(parentNode).bind('touchmove', function(e) {
       View3D.hideVolrenImage();
-      requestImageWait();
+      Client.requestImageWait();
     });
 
     $(parentNode).mousedown(function() {
@@ -249,7 +249,7 @@ var View3D = (function() {
     ViewTree.render();
     View3D.hideVolrenImage();
     if (ViewTF.initialized) {
-      requestImageWait();
+      Client.requestImageWait();
     }
   }
 

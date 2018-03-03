@@ -35,8 +35,11 @@
     - save image (3d done)
   - 2d color using tf color
     - enabling same tf editor
-    
+  - angle view
+    - interactions
+
   - more parameters
+    - isovalue
     - angle
       - enable angle
       - angle range
