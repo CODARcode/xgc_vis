@@ -47,6 +47,18 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
         task->tf[i] = jtf.at(i).get<float>() / 255.f;
     }
 
+    if (!j["enableAngle"].is_null()) task->enable_angle = j["enableAngle"].get<bool>();
+    if (!j["startAngle"].is_null()) task->start_angle = j["startAngle"].get<float>();
+    if (!j["endAngle"].is_null()) task->end_angle = j["endAngle"].get<float>();
+
+    if (!j["enableShading"].is_null()) task->enable_shading = j["enableShading"].get<bool>();
+    if (!j["Ka"].is_null()) task->Ka = j["Ka"].get<float>();
+    if (!j["Kd"].is_null()) task->Ka = j["Kd"].get<float>();
+    if (!j["Ks"].is_null()) task->Ka = j["Ks"].get<float>();
+    if (!j["lightDirectionX"].is_null()) task->light_direction[0] = j["lightDirectionX"].get<float>();
+    if (!j["lightDirectionY"].is_null()) task->light_direction[1] = j["lightDirectionY"].get<float>();
+    if (!j["lightDirectionZ"].is_null()) task->light_direction[2] = j["lightDirectionZ"].get<float>();
+
   } catch (...) {
     fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");
     memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);

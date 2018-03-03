@@ -34,6 +34,13 @@ struct VolrenTask {
   std::condition_variable cond;
   std::mutex mutex;
 
+  bool enable_angle = false;
+  float start_angle = 0, end_angle = M_PI;
+
+  bool enable_shading = true;
+  float Ks = 0.2f, Kd = 0.3f, Ka = 0.04f;
+  float light_direction[3] = {-1, 0, 0};
+
   ~VolrenTask();
 
   static VolrenTask* createVolrenTaskFromString(const std::string& s);
