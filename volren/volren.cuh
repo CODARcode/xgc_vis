@@ -76,7 +76,7 @@ void rc_set_invmvpd(ctx_rc *ctx, double *invmvp);
 void rc_set_range(ctx_rc *ctx, float dpot_min, float dpot_max);
 void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_min, float psi_max);
 void rc_set_angle_range(ctx_rc *ctx, bool on, float angle_min, float angle_max);
-void rc_set_shading(ctx_rc *ctx, bool on, float Ks, float Kd, float Ka, float lx, float ly, float lz);
+void rc_set_shading(ctx_rc *ctx, bool on, float Ka, float Kd, float Ks, float lx, float ly, float lz);
 void rc_set_slice_highlight_ratio(ctx_rc *ctx, bool on, float ratio);
 
 void rc_render(ctx_rc *ctx);
