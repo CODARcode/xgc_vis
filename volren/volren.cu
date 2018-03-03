@@ -366,6 +366,10 @@ __device__ __host__ static inline void rc(
         float2 psi_range,
         float2 angle_range,
         float slice_highlight_ratio,
+        float3 Ka, 
+        float3 Kd, 
+        float3 Ks,
+        float3 L,
         float4 *tf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -374,8 +378,8 @@ __device__ __host__ static inline void rc(
         float tnear, float tfar)
 {
   float4 src;
-  float3 N, L = make_float3(-1, 0, 0), V = rayD; 
-  const float3 Ka = make_float3(0.04), Kd = make_float3(0.3), Ks = make_float3(0.2); 
+  float3 N, /* L = make_float3(-1, 0, 0),*/  V = rayD; 
+  // const float3 Ka = make_float3(0.04), Kd = make_float3(0.3), Ks = make_float3(0.2); 
   float3 p, g; // position and gradient
   float value;
   float t = tnear;
@@ -461,6 +465,10 @@ __device__ __host__ static inline void raycasting(
         float2 psi_range,
         float2 angle_range,
         float slice_highlight_ratio,
+        float3 Ka, 
+        float3 Kd, 
+        float3 Ks,
+        float3 L,
         float4 *tf, 
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
@@ -476,10 +484,13 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+        slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+        slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+        slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -544,6 +555,10 @@ __global__ static void raycasting_kernel(
         float2 psi_range,
         float2 angle_range,
         float slice_highlight_ratio,
+        float3 Ka, 
+        float3 Kd, 
+        float3 Ks,
+        float3 L,
         float4 *tf,
         float2 trans, 
         float stepsize)
@@ -556,7 +571,8 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize);
+  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+      slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize);
   
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -594,6 +610,10 @@ static void raycasting_cpu(
         float2 psi_range,
         float2 angle_range,
         float slice_highlight_ratio,
+        float3 Ka, 
+        float3 Kd, 
+        float3 Ks,
+        float3 L,
         float4 *tf,
         float2 trans, 
         float stepsize)
@@ -606,7 +626,8 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, slice_highlight_ratio, tf, trans, rayO, rayD, stepsize);
+      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+          slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -661,6 +682,10 @@ void rc_render(ctx_rc *ctx)
           make_float2(ctx->psi_range_min, ctx->psi_range_max),
           make_float2(ctx->angle_range_min, ctx->angle_range_max),
           ctx->slice_highlight_ratio,
+          make_float3(ctx->Ka), 
+          make_float3(ctx->Kd),
+          make_float3(ctx->Ks),
+          make_float3(ctx->light_direction[0], ctx->light_direction[1], ctx->light_direction[2]),
           (float4*)ctx->d_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -691,6 +716,10 @@ void rc_render_cpu(ctx_rc *ctx)
           make_float2(ctx->psi_range_min, ctx->psi_range_max),
           make_float2(ctx->angle_range_min, ctx->angle_range_max),
           ctx->slice_highlight_ratio,
+          make_float3(ctx->Ka), 
+          make_float3(ctx->Kd),
+          make_float3(ctx->Ks),
+          make_float3(ctx->light_direction[0], ctx->light_direction[1], ctx->light_direction[2]),
           (float4*)ctx->h_tf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
@@ -795,6 +824,17 @@ void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_range_min, float psi_range
     ctx->psi_range_min = ctx->psi_min; 
     ctx->psi_range_max = ctx->psi_max;
   }
+}
+
+void rc_set_shading(ctx_rc *ctx, bool on, float Ka, float Kd, float Ks, float lx, float ly, float lz)
+{
+  ctx->toggle_shading = on;
+  ctx->Ka = Ka;
+  ctx->Kd = Kd;
+  ctx->Ks = Ks;
+  ctx->light_direction[0] = lx;
+  ctx->light_direction[1] = ly;
+  ctx->light_direction[2] = lz;
 }
 
 void rc_set_angle_range(ctx_rc *ctx, bool on, float angle_range_min, float angle_range_max)
