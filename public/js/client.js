@@ -191,7 +191,17 @@ var Client = (function() {
       width: wh.width,
       height: wh.height,
       near: View3D.getCameraNear(),
-      far: View3D.getCameraFar()
+      far: View3D.getCameraFar(),
+      enableAngle: data.enableAngle,
+      startAngle: data.startAngle,
+      endAngle: data.endAngle = Math.PI,
+      enableShading: data.enableShading,
+      Ks: data.Ks,
+      Kd: data.Kd,
+      Ka: data.Ka,
+      lightingDirectionX: data.lightingDirectionX,
+      lightingDirectionY: data.lightingDirectionY,
+      lightingDirectionZ: data.lightingDirectionZ
     };
     if (!tfArray) {
       tfArray = ViewTF.getTF();
@@ -209,6 +219,7 @@ var Client = (function() {
       }
     }
     console.log('POST! ', msg);
+    console.log(JSON.stringify(msg));
     if (DEBUG_MODE || VIEW3D_OFF) return;
 
     if (ws && ws.readyState == 1) {
