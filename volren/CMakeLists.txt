@@ -1,4 +1,4 @@
-set (volren_sources bvh.cpp kdbvh.cpp volrenEngine.cpp)
+set (volren_sources bvh.cpp kdbvh.cpp lpl.cpp volrenEngine.cpp)
 set (volren_cuda_sources volren.cu)
 set (volren_cuda_cxx_sources volren.cu.cpp)
 

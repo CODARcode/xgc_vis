@@ -5,6 +5,7 @@
 #include "volren/bvh.h"
 #include "volren/volren.cuh"
 #include "volren/kdbvh.h"
+#include "volren/lpl.h"
 
 int main(int argc, char **argv)
 {
@@ -16,6 +17,7 @@ int main(int argc, char **argv)
   d.readDpotFromADIOS(m, varFP);
 
   buildKDBVHGPU(m);
+  buildLatticePointLocator(m);
 
 #if 0
   float *framebuf = NULL; // FIXME
