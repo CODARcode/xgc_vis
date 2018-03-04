@@ -7,6 +7,7 @@ if (WITH_CUDA)
   cuda_add_executable (test_volren main.cpp)
 else ()
   add_library (xgcvis_volren STATIC ${volren_sources} ${volren_cuda_cxx_sources})
+  add_executable (test_volren main.cpp)
 endif ()
 
 target_link_libraries (xgcvis_volren xgcvis_io ${PNG_LIBRARIES})

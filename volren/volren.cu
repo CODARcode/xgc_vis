@@ -3,6 +3,8 @@
 #include "mu.cuh"
 #include "common.cuh"
 
+#define BVH_NUM_CHILDREN 4
+
 void createPreIntegrationTable(float *lut_preint, float *lut, int resolution)
 {
   static const int MAX_RESOLUTION_LUT = 1024; 
@@ -94,7 +96,7 @@ inline int BVHNodeD_locatePoint_recursive(const BVHNodeD *q, const BVHNodeD *nod
     bool succ = BVHNodeD_insideTriangle(*q, x, y, lambda, invdet);
     if (succ) return q->triangleId;
   } else if (BVHNodeD_insideQuad(*q, x, y)) {
-    for (int j=0; j<2; j++) {
+    for (int j=0; j<BVH_NUM_CHILDREN; j++) {
       if (q->childrenIds[j] > 0) {
         int result = BVHNodeD_locatePoint_recursive(&nodes[q->childrenIds[j]], nodes, x, y, lambda, invdet);
         if (result >= 0) return result;
@@ -124,7 +126,7 @@ inline int BVHNodeD_locatePoint(BVHNodeD *nodes, float x, float y, float3 &lambd
       bool succ = BVHNodeD_insideTriangle(q, x, y, lambda, invdet);
       if (succ) return i; // q.triangleId;
     } else if (BVHNodeD_insideQuad(q, x, y)) { // non-leaf node
-      for (int j=0; j<2; j++) {
+      for (int j=0; j<BVH_NUM_CHILDREN; j++) {
         if (q.childrenIds[j] > 0)
           stack[stackPos++] = q.childrenIds[j];
       }
