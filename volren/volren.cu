@@ -94,7 +94,7 @@ inline int BVHNodeD_locatePoint_recursive(const BVHNodeD *q, const BVHNodeD *nod
     bool succ = BVHNodeD_insideTriangle(*q, x, y, lambda, invdet);
     if (succ) return q->triangleId;
   } else if (BVHNodeD_insideQuad(*q, x, y)) {
-    for (int j=0; j<4; j++) {
+    for (int j=0; j<2; j++) {
       if (q->childrenIds[j] > 0) {
         int result = BVHNodeD_locatePoint_recursive(&nodes[q->childrenIds[j]], nodes, x, y, lambda, invdet);
         if (result >= 0) return result;
@@ -124,7 +124,7 @@ inline int BVHNodeD_locatePoint(BVHNodeD *nodes, float x, float y, float3 &lambd
       bool succ = BVHNodeD_insideTriangle(q, x, y, lambda, invdet);
       if (succ) return i; // q.triangleId;
     } else if (BVHNodeD_insideQuad(q, x, y)) { // non-leaf node
-      for (int j=0; j<4; j++) {
+      for (int j=0; j<2; j++) {
         if (q.childrenIds[j] > 0)
           stack[stackPos++] = q.childrenIds[j];
       }
@@ -708,21 +708,21 @@ void rc_bind_bvh(ctx_rc *ctx, int nBVHNodes, BVHNodeD *bvh)
 
 void rc_bind_neighbors(ctx_rc *ctx, int nTriangles, int *neighbors)
 {
-  int *triangleQuadNodeMap = (int*)malloc(sizeof(int)*nTriangles);
+  int *triangleBVHNodeMap = (int*)malloc(sizeof(int)*nTriangles);
   for (int i=0; i<ctx->nBVHNodes; i++) {
     if (ctx->h_bvh[i].triangleId != -1) 
-      triangleQuadNodeMap[ctx->h_bvh[i].triangleId] = i;
+      triangleBVHNodeMap[ctx->h_bvh[i].triangleId] = i;
   }
 
   ctx->h_neighbors = (int*)realloc(ctx->h_neighbors, sizeof(int)*nTriangles*3);
   for (int i=0; i<nTriangles; i++) {
     for (int j=0; j<3; j++) {
       if (neighbors[i*3+j] < 0) ctx->h_neighbors[i*3+j] = -1;
-      else ctx->h_neighbors[i*3+j] = triangleQuadNodeMap[neighbors[i*3+j]];
+      else ctx->h_neighbors[i*3+j] = triangleBVHNodeMap[neighbors[i*3+j]];
     }
   }
 
-  free(triangleQuadNodeMap);
+  free(triangleBVHNodeMap);
 
 #if WITH_CUDA
   if (ctx->d_neighbors != NULL)

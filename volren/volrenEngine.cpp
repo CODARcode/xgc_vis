@@ -1,4 +1,5 @@
 #include "volren/volrenEngine.h"
+#include "volren/kdbvh.h"
 #include <json.hpp>
 
 using json = nlohmann::json;
@@ -97,7 +98,8 @@ void VolrenEngine::start(XGCMesh& m, XGCData& d)
 void VolrenEngine::start_(XGCMesh& m, XGCData& d)
 {
   fprintf(stderr, "[volren] building BVH...\n");
-  std::vector<BVHNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
+  // std::vector<BVHNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
+  std::vector<BVHNodeD> bvh = buildKDBVHGPU(m);
 
   fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
