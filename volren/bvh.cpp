@@ -152,7 +152,7 @@ int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangle
   return -1;
 }
 
-std::vector<QuadNodeD> convertBVH(QuadNode* r, const int *conn, const double *coords) {
+std::vector<BVHNodeD> convertBVH(QuadNode* r, const int *conn, const double *coords) {
   std::map<QuadNode*, int> nodeMap;
   std::map<int, QuadNode*> nodeReverseMap;
   std::stack<QuadNode*> S;
@@ -175,11 +175,11 @@ std::vector<QuadNodeD> convertBVH(QuadNode* r, const int *conn, const double *co
         S.push(q->children[j]);
   }
 
-  std::vector<QuadNodeD> rd(quadNodeCount);
+  std::vector<BVHNodeD> rd(quadNodeCount);
 
   for (int i=0; i<quadNodeCount; i++) {
     QuadNode q = *nodeReverseMap[i];
-    QuadNodeD &d = rd[i];
+    BVHNodeD &d = rd[i];
 
     // parent
     if (q.parent == NULL) d.parentId = -1; // root
@@ -227,7 +227,7 @@ void deleteBVH(QuadNode *q) {
   delete q;
 }
 
-std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coords, const int *conn)
+std::vector<BVHNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coords, const int *conn)
 {
   QuadNode *root = new QuadNode;
 
@@ -262,7 +262,7 @@ std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coo
   subdivideQuadNode(root);
   // traverseQuadNode(root);
 
-  std::vector<QuadNodeD> rd = convertBVH(root, conn, coords);
+  std::vector<BVHNodeD> rd = convertBVH(root, conn, coords);
 
 #if 1
   fprintf(stderr, "BVH built.\n");
@@ -278,9 +278,9 @@ std::vector<QuadNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coo
   auto t3 = clock::now();
 #if 0 
   float alpha, beta, gamma;
-  int r3 = QuadNodeD_locatePoint(rd, X[0], X[1], alpha, beta, gamma);
+  int r3 = BVHNodeD_locatePoint(rd, X[0], X[1], alpha, beta, gamma);
   auto t4 = clock::now();
-  int r4 = QuadNodeD_locatePoint_recursive(rd, rd, X[0], X[1], alpha, beta, gamma);
+  int r4 = BVHNodeD_locatePoint_recursive(rd, rd, X[0], X[1], alpha, beta, gamma);
   auto t5 = clock::now();
   fprintf(stderr, "r0=%d, r1=%d, r2=%d, r3=%d, r4=%d\n", r0, r1, r2, r3, r4);
 #endif

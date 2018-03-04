@@ -1,7 +1,7 @@
 #ifndef _BVH_CUH
 #define _BVH_CUH
 
-struct QuadNodeD {
+struct BVHNodeD {
   // tree
   int parentId;
   int childrenIds[4];

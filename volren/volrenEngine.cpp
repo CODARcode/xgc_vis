@@ -97,7 +97,7 @@ void VolrenEngine::start(XGCMesh& m, XGCData& d)
 void VolrenEngine::start_(XGCMesh& m, XGCData& d)
 {
   fprintf(stderr, "[volren] building BVH...\n");
-  std::vector<QuadNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
+  std::vector<BVHNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
 
   fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
@@ -107,7 +107,7 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
   rc_set_default_tf(rc);
   // rc_set_stepsize(rc, 0.001);
   rc_set_stepsize(rc, 0.005);
-  rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
+  rc_bind_bvh(rc, bvh.size(), (BVHNodeD*)bvh.data());
   // rc_test_point_locator(rc, 2.3f, -0.4f);
  
   // mesh 
