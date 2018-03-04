@@ -18,6 +18,7 @@ struct XGCMesh {
   int *neighbors = NULL;
   double *coords = NULL;
   double *psi = NULL;
+  float *centroidsf = NULL;
   float *psif = NULL;
   float *dispf = NULL; // displacement derived from nextNode
   float *invdetf = NULL; // inversed determinant of triangles
