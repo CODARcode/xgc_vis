@@ -8,6 +8,8 @@
 
 int main(int argc, char **argv)
 {
+  MPI_Init(&argc, &argv);
+
   XGCMesh m;
   m.readMeshFromADIOS(argv[1], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
 
@@ -29,5 +31,7 @@ int main(int argc, char **argv)
   rc_render(rc);
   // rc_dump_output(rc, framebuf);
 #endif
+  
+  MPI_Finalize();
   return 0;
 }

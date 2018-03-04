@@ -52,8 +52,8 @@ void deleteKDBVHNodeRecursively(KDBVHNode *n)
 
 std::vector<BVHNodeD> buildKDBVHGPU(const XGCMesh &m)
 {
-  std::vector<int> tids(m.nNodes);
-  for (int i=0; i<m.nNodes; i++) tids[i] = i;
+  std::vector<int> tids(m.nTriangles);
+  for (int i=0; i<m.nTriangles; i++) tids[i] = i;
 
   KDBVHNode *r = new KDBVHNode;
   buildKDBVHRecursively(m, r, tids);
@@ -117,7 +117,7 @@ std::vector<BVHNodeD> buildKDBVHGPU(const XGCMesh &m)
       d.triangleId = -1;
   }
 
-  fprintf(stderr, "nNodes=%d, kdNodeCount=%d, maxStackSize=%d\n", m.nNodes, kdNodeCount, maxStackSize);
+  fprintf(stderr, "kdNodeCount=%d, maxStackSize=%d\n", kdNodeCount, maxStackSize);
   deleteKDBVHNodeRecursively(r);
 
   return rd;

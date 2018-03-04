@@ -52,7 +52,7 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
   psi_min_y = coords[psi_min_node*2+1];
   
   // centroids and inverse of determinants
-  centroidsf = (float*)realloc(centroidsf, sizeof(float)*nNodes*2);
+  centroidsf = (float*)realloc(centroidsf, sizeof(float)*nTriangles*2);
   invdetf = (float*)realloc(invdetf, sizeof(float)*nTriangles);
   for (int i=0; i<nTriangles; i++) {
     const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
