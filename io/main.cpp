@@ -11,6 +11,8 @@
 
 int main(int argc, char **argv)
 {
+  XGCEq eq;
+  eq.parseFromFile(argv[1]);
 
 #if 0
   XGCMesh m;

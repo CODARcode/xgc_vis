@@ -4,8 +4,9 @@
 #include <string>
 #include <vector>
 
-struct XGCEqData {
+struct XGCEq {
   void parseFromFile(const std::string& filename);
+  void printInfo() const;
 
   int mr, mz, mpsi;
   double min_r, max_r, min_z, max_z; 
