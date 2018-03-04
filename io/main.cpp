@@ -1,5 +1,6 @@
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
+#include "io/xgcEq.h"
 
 #if WITH_VTK
 #include <vtkDataSet.h>
@@ -10,14 +11,17 @@
 
 int main(int argc, char **argv)
 {
+
+#if 0
   XGCMesh m;
   m.readMeshFromADIOS(argv[1], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
 
   ADIOS_FILE *varFP = adios_read_open_file(argv[2], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
   XGCData d;
   d.readDpotFromADIOS(m, varFP);
-
+#endif
   // fprintf(stderr, "psi_min_node=%d, coords={%f, %f}\n", m.psi_min_node, m.psi_min_x, m.psi_min_y);
+
 
 #if 0
   m.buildNeighbors();

@@ -1,4 +1,4 @@
-add_library (xgcvis_io xgcMesh.cpp xgcData.cpp)
+add_library (xgcvis_io xgcMesh.cpp xgcData.cpp xgcEq.cpp)
 target_link_libraries (xgcvis_io xgcvis_common ${ADIOS_LIBRARIES} ${ZLIB_LIBRARY})
   
 add_executable (testio main.cpp)
