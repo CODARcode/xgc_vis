@@ -15,7 +15,7 @@ int main(int argc, char **argv)
   XGCData d;
   d.readDpotFromADIOS(m, varFP);
 
-  buildKDBVH(m);
+  buildKDBVHGPU(m);
 
 #if 0
   float *framebuf = NULL; // FIXME
