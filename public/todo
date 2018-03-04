@@ -37,7 +37,6 @@
     - enabling same tf editor
   - angle view
     - interactions
-
   - more parameters
     - isovalue
     - angle
@@ -47,12 +46,13 @@
       - enable shading
       - shading values
     - light directions 3 float
+
   - refresh 2D color 
   - save sessions
     - network address
     - thumbnails
     - layout
-    - other para
+    - other paras
   - mouse down -> pointer cursor
   - tree
     - interaction -> node hover

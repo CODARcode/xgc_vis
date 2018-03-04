@@ -14,16 +14,16 @@ var menuText = function() {
   this.showTimestep3d = false;
   this.showLegend3d = false;
   this.useSameTFEditor = false;
-  this.enableAngle = false;
-  this.startAngle = 0;
-  this.endAngle = Math.PI * 2;
-  this.enableShading = false;
-  this.Ks = 1;
-  this.Kd = 1;
-  this.Ka = 1;
-  this.lightingDirectionX = 0;
-  this.lightingDirectionY = 0;
-  this.lightingDirectionZ = 1;
+  this.enableAngle = data.enableAngle;
+  this.startAngle = data.startAngle;
+  this.endAngle = data.endAngle;
+  this.enableShading = data.enableShading;
+  this.Ks = data.Ks;
+  this.Kd = data.Kd;
+  this.Ka = data.Ka;
+  this.lightingDirectionX = data.lightingDirectionX;
+  this.lightingDirectionY = data.lightingDirectionY;
+  this.lightingDirectionZ = data.lightingDirectionZ;
 
   this.reconnect = function () {
     connectionDialog.reconnect();
@@ -78,32 +78,39 @@ function initializeControlPanel(domElem) {
   });
   f2.add(text, 'startAngle', 0, Math.PI * 2).onChange(function() {
     data.startAngle = text.startAngle;
-    // TODO 
+    Client.requestImageWait();
   });
   f2.add(text, 'endAngle', 0, Math.PI * 2).onChange(function() {
     data.endAngle = text.endAngle;
-    // TODO
+    Client.requestImageWait();
   });
   f2.add(text, 'enableShading').onChange(function() {
-    // TODO 
+    data.enableShading = text.enableShading;
+    Client.requestImageWait();
   });
   f2.add(text, 'Ks', 0, 1).onChange(function() {
-    // TODO 
+    data.Ks = text.Ks;
+    Client.requestImageWait();
   });
   f2.add(text, 'Kd', 0, 1).onChange(function() {
-    // TODO 
+    data.Kd = text.Kd;
+    Client.requestImageWait();
   });
   f2.add(text, 'Ka', 0, 1).onChange(function() {
-    // TODO 
+    data.Ka = text.Ka;
+    Client.requestImageWait();
   });
   f2.add(text, 'lightingDirectionX', 0, 1).onChange(function() {
-    // TODO 
+    data.lightingDirectionX = text.lightingDirectionX;
+    Client.requestImageWait();
   });
   f2.add(text, 'lightingDirectionY', 0, 1).onChange(function() {
-    // TODO 
+    data.lightingDirectionY = text.lightingDirectionY;
+    Client.requestImageWait();
   });
   f2.add(text, 'lightingDirectionZ', 0, 1).onChange(function() {
-    // TODO 
+    data.lightingDirectionZ = text.lightingDirectionZ;
+    Client.requestImageWait();
   });
   f2.open();
 

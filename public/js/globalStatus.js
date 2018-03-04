@@ -41,6 +41,18 @@ var data = {
   thetaMax: -Infinity,
   angleValueMin: Infinity,
   angleValueMax: -Infinity,
+
+  // volren image
+  enableAngle: false,
+  startAngle: 0,
+  endAngle: Math.PI * 2,
+  enableShading: true,
+  Ks: .2,
+  Kd: .3,
+  Ka: .04,
+  lightingDirectionX: -1,
+  lightingDirectionY: 0,
+  lightingDirectionZ: 0
 };
 
 var doneRendering = true;
