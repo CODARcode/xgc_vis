@@ -5,9 +5,9 @@
 
 #define BVH_NUM_CHILDREN 4
 
-void createPreIntegrationTable(float *lut_preint, float *lut, int resolution)
+static void createPreIntegrationTable(float *lut_preint, float *lut, int resolution)
 {
-  static const int MAX_RESOLUTION_LUT = 1024; 
+  static const int MAX_RESOLUTION_LUT = 256; // 1024 
 
 	float r=0.f, g=0.f, b=0.f, a=0.f;
 	float rcol,  gcol,  bcol,  acol;
@@ -294,6 +294,12 @@ inline int interpolateXGC2(float &value, float3 &g, int &last_nid, BVHNodeD *bvh
   return nid;
 }
 
+__device__ __host__
+static inline float4 value2color_preint(float value, float value1, float *ptf, float2 trans) 
+{
+
+}
+
 __device__ __host__ 
 static inline float4 value2color(float value, float4 *tf, float2 trans)
 {
@@ -357,9 +363,9 @@ __device__ __host__ static inline void rc(
   float3 N, /* L = make_float3(-1, 0, 0),*/  V = rayD; 
   // const float3 Ka = make_float3(0.04), Kd = make_float3(0.3), Ks = make_float3(0.2); 
   float3 p, g; // position and gradient
-  float value;
+  float value, value1;
   float t = tnear;
-  int nid, last_nid = -1;
+  int nid = -2, nid1, last_nid = -1;
 
   while (t < tfar) {
     p = rayO + rayD*t;
@@ -381,8 +387,19 @@ __device__ __host__ static inline void rc(
     }
 
     float alpha;
+#if 0 // preintegration
+    if (nid == -2) { // first time
+      nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+    } else {
+      value = value1;
+      nid = nid1;
+      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+    }
+#else
     nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
     // nid = interpolateXGC2<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi, disp);
+#endif
  
     if (nid >= 0) {
       src = value2color(value, tf, trans);
@@ -761,9 +778,12 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
 {
   if (tf != ctx->h_tf)
     memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
+  
+  createPreIntegrationTable(ctx->h_ptf, ctx->h_tf, size_tf);
 
 #if WITH_CUDA
   cudaMemcpy(ctx->d_tf, tf, sizeof(float)*size_tf*4, cudaMemcpyHostToDevice);
+  cudaMemcpy(ctx->d_ptf, ctx->h_tf, sizeof(float)*size_tf*size_tf*4, cudaMemcpyHostToDevice);
   checkLastCudaError("[rc_set_tf]");
 #endif
 }
@@ -875,6 +895,7 @@ void rc_create_ctx(ctx_rc **ctx)
   memset(*ctx, 0, sizeof(ctx_rc));
 
   (*ctx)->h_tf = (float*)malloc(sizeof(float)*size_tf*4);
+  (*ctx)->h_ptf = (float*)malloc(sizeof(float)*size_tf*size_tf*4);
 
   const size_t max_npx = 4096*4096;
   (*ctx)->h_output = malloc(4*max_npx);
@@ -885,10 +906,8 @@ void rc_create_ctx(ctx_rc **ctx)
   cudaSetDevice(0);
   cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
   
-  // cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
-  // cudaMallocArray( &(*ctx)->d_tfArray, &channelDesc, size_tf*4, 1 ); 
-
   cudaMalloc((void**)&((*ctx)->d_tf), sizeof(float)*size_tf*4);
+  cudaMalloc((void**)&((*ctx)->d_ptf), sizeof(float)*size_tf*size_tf*4);
   cudaMalloc((void**)&((*ctx)->d_viewport), sizeof(int)*4);
   cudaMalloc((void**)&((*ctx)->d_invmvp), sizeof(float)*16);
   
@@ -901,6 +920,8 @@ void rc_destroy_ctx(ctx_rc **ctx)
   // TODO: free any resources
 #if WITH_CUDA
   cudaFree((*ctx)->d_output_rgba8);
+  cudaFree((*ctx)->d_tf);
+  cudaFree((*ctx)->d_ptf);
   cudaFree((*ctx)->d_disp);
   cudaFree((*ctx)->d_invdet);
   cudaFree((*ctx)->d_psi);
@@ -909,6 +930,7 @@ void rc_destroy_ctx(ctx_rc **ctx)
   free((*ctx)->h_neighbors);
   free((*ctx)->h_output);
   free((*ctx)->h_tf);
+  free((*ctx)->h_ptf);
   free(*ctx); 
   *ctx = NULL; 
 }

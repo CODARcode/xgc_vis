@@ -48,7 +48,7 @@ struct ctx_rc {
   void *h_output;
 
   float *h_tf, *d_tf; // fixed length 1024
-  cudaArray *d_tfArray;
+  float *h_ptf, *d_ptf; // preintegrated tf
   
   float stepsize;
   float trans[2];

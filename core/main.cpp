@@ -460,11 +460,11 @@ int main(int argc, char **argv)
     }
 
     fprintf(stderr, "starting analysis..\n");
-   
-    // FIXME
-   
-    volrenEngine.start(xgcMesh, xgcData); 
-    volrenEngine.enqueueAndWait("");
+  
+    if (volren) {
+      volrenEngine.start(xgcMesh, xgcData); 
+      volrenEngine.enqueueAndWait("");
+    }
 
     mutex_ex.lock();
     ex->setData(current_time_index, xgcMesh.nPhi, xgcData.dpot);
