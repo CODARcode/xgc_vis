@@ -144,7 +144,7 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
-      rc_set_psi_range(rc, true, 0, 0.2); // TODO: argument
+      rc_set_psi_range(rc, false, 0, 0.2); // TODO: argument
       rc_set_angle_range(rc, task->enable_angle, task->start_angle, task->end_angle);
       rc_set_shading(rc, task->enable_shading, task->Ka, task->Kd, task->Ks, 
           task->light_direction[0], task->light_direction[1], task->light_direction[2]);
