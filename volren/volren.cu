@@ -282,8 +282,15 @@ inline int interpolateXGC2(float &value, float3 &g, int &last_nid, BVHNodeD *bvh
   float v1 = BVHNodeD_sample(bvh, nid1, lambda1, data + nNodes*p1); //  + nNodes*p1);
 
   // if (alpha<0 || alpha>=1) fprintf(stderr, "%f\n", alpha);
-  
-  value = (1-alpha)*v0 + alpha*v1;
+
+  if (SHADING) {
+    // gradient interpolation
+    float2 cgrad0 = grad[nTriangles*p0 + q.triangleId];
+    float2 cgrad1 = grad[nTriangles*p1 + q.triangleId];
+    float2 cgrad = (1-alpha)*cgrad0 + alpha*cgrad1;
+    g = make_float3(p.x/r*cgrad.x - p.y/r2, p.y/r*cgrad.x - p.x/r2, cgrad.y);
+  }
+
   return nid;
 }
 
