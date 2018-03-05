@@ -60,6 +60,12 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
     if (!j["lightingDirectionY"].is_null()) task->light_direction[1] = j["lightingDirectionY"].get<float>();
     if (!j["lightingDirectionZ"].is_null()) task->light_direction[2] = j["lightingDirectionZ"].get<float>();
 
+    if (j["psiStart"].is_null()) task->psi_start = 0.f; 
+    else task->psi_start = j["psiStart"].get<float>();
+    
+    if (j["psiEnd"].is_null()) task->psi_end = 0.f; 
+    else task->psi_end = j["psiEnd"].get<float>();
+
   } catch (...) {
     fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");
     memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
@@ -144,7 +150,8 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
-      rc_set_psi_range(rc, false, 0, 0.2); // TODO: argument
+      // rc_set_psi_range(rc, false, 0, 0.2); // TODO: argument
+      rc_set_psi_range(rc, true, task->psi_start, task->psi_end); // TODO: argument
       rc_set_angle_range(rc, task->enable_angle, task->start_angle, task->end_angle);
       rc_set_shading(rc, task->enable_shading, task->Ka, task->Kd, task->Ks, 
           task->light_direction[0], task->light_direction[1], task->light_direction[2]);

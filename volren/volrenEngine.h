@@ -37,6 +37,8 @@ struct VolrenTask {
   bool enable_angle = false;
   float start_angle = 0, end_angle = M_PI;
 
+  float psi_start=0, psi_end=0.2;
+
   bool enable_shading = true;
   float Ks = 0.2f, Kd = 0.3f, Ka = 0.04f;
   float light_direction[3] = {-1, 0, 0};

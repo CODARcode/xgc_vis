@@ -799,6 +799,8 @@ void rc_set_shading(ctx_rc *ctx, bool on, float Ka, float Kd, float Ks, float lx
   // fprintf(stderr, "shading: Ka=%f, Kd=%f, Ks=%f, L={%f, %f, %f}\n", 
   //     Ka, Kd, Ks, lx, ly, lz);
 
+  if (!on) {Ka = Kd = Ks = 0;}
+
   ctx->toggle_shading = on;
   ctx->Ka = Ka;
   ctx->Kd = Kd;
