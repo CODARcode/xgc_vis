@@ -24,6 +24,8 @@ var menuText = function() {
   this.lightingDirectionX = data.lightingDirectionX;
   this.lightingDirectionY = data.lightingDirectionY;
   this.lightingDirectionZ = data.lightingDirectionZ;
+  this.psiStart = data.psi_min;
+  this.psiEnd = data.psi_max;
 
   this.reconnect = function () {
     connectionDialog.reconnect();
@@ -40,7 +42,11 @@ var menuText = function() {
 
 function initializeControlPanel(domElem) {
   var text = new menuText();
-  var gui = new dat.GUI({autoPlace: false, width: 400});
+  var gui = new dat.GUI({
+    load: JSON,
+    autoPlace: false, 
+    width: 400
+  });
 
   var f1 = gui.addFolder("2D Rendering");
   f1.add(text, 'renderMethod', ['value', 'label']).onChange(function() {
@@ -62,11 +68,6 @@ function initializeControlPanel(domElem) {
   f1.open();
 
   var f2 = gui.addFolder("3D Rendering");
-  // f2.add(text, "displayStats").onChange(function(val) {
-  //   if (val) $("#stats").css({visibility: "visible"});
-  //   else $("#stats").css({visibility: "hidden"});
-  // });
-  // f2.add(text, "saveImage");
   f2.add(text, 'showTimestep3d').onChange(function() {
     View3D.updateTimestepDisplay(text.showTimestep3d);
   });
@@ -74,13 +75,14 @@ function initializeControlPanel(domElem) {
     View3D.updateLegendDisplay(text.showLegend3d);
   });
   f2.add(text, 'enableAngle').onChange(function() {
-    View3D.updateEnableAngle();
+    data.enableAngle = text.enableAngle;
+    Client.requestImageWait();
   });
-  f2.add(text, 'startAngle', 0, Math.PI * 2).onChange(function() {
+  f2.add(text, 'startAngle', 0, Math.PI * 2, 0.001).onChange(function() {
     data.startAngle = text.startAngle;
     Client.requestImageWait();
   });
-  f2.add(text, 'endAngle', 0, Math.PI * 2).onChange(function() {
+  f2.add(text, 'endAngle', 0, Math.PI * 2, 0.001).onChange(function() {
     data.endAngle = text.endAngle;
     Client.requestImageWait();
   });
@@ -88,28 +90,36 @@ function initializeControlPanel(domElem) {
     data.enableShading = text.enableShading;
     Client.requestImageWait();
   });
-  f2.add(text, 'Ks', 0, 1).onChange(function() {
+  f2.add(text, 'Ks', 0, 1, 0.001).onChange(function() {
     data.Ks = text.Ks;
     Client.requestImageWait();
   });
-  f2.add(text, 'Kd', 0, 1).onChange(function() {
+  f2.add(text, 'Kd', 0, 1, 0.001).onChange(function() {
     data.Kd = text.Kd;
     Client.requestImageWait();
   });
-  f2.add(text, 'Ka', 0, 1).onChange(function() {
+  f2.add(text, 'Ka', 0, 1, 0.001).onChange(function() {
     data.Ka = text.Ka;
     Client.requestImageWait();
   });
-  f2.add(text, 'lightingDirectionX', 0, 1).onChange(function() {
+  f2.add(text, 'lightingDirectionX', -1.0, 1.0, 0.001).onChange(function() {
     data.lightingDirectionX = text.lightingDirectionX;
     Client.requestImageWait();
   });
-  f2.add(text, 'lightingDirectionY', 0, 1).onChange(function() {
+  f2.add(text, 'lightingDirectionY', -1.0, 1.0, 0.001).onChange(function() {
     data.lightingDirectionY = text.lightingDirectionY;
     Client.requestImageWait();
   });
-  f2.add(text, 'lightingDirectionZ', 0, 1).onChange(function() {
+  f2.add(text, 'lightingDirectionZ', -1.0, 1.0, 0.001).onChange(function() {
     data.lightingDirectionZ = text.lightingDirectionZ;
+    Client.requestImageWait();
+  });
+  f2.add(text, 'psiStart', data.psi_min, data.psi_max, 0.001).onChange(function() {
+    data.psiStart = text.psiStart;
+    Client.requestImageWait();
+  });
+  f2.add(text, 'psiEnd', data.psi_min, data.psi_max, 0.001).onChange(function() {
+    data.psiEnd = text.psiEnd;
     Client.requestImageWait();
   });
   f2.open();
@@ -132,6 +142,8 @@ function initializeControlPanel(domElem) {
   f3.add(text, 'reconnect');
   f3.open();
   domElem.appendChild(gui.domElement);
+
+  gui.remember(text);
   return gui.domElement;
 };
 
@@ -181,12 +193,6 @@ function initializeControlPanel(domElem) {
 
   if (!DEBUG_MODE) $('#connectDialog').modal('show');
 })();
-
-// var stats = new Stats();
-// stats.showPanel(0);
-// stats.dom.id="stats";
-// document.body.appendChild(stats.dom);
-// $("#stats").css({visibility: "hidden"});
 
 var layout = (function initialLayout() {
   var layout = {};
@@ -348,12 +354,7 @@ var layout = (function initialLayout() {
   });
 
   myLayout.registerComponent('Console', function(container, componentState){
-    var guiDomElem = initializeControlPanel(container.getElement()[0]);
-    window.guiDomElem = guiDomElem;
-    $(guiDomElem).find('.close-button').remove();
-    ViewTF.initial();
-    var tfElem = $('#tf-holder').detach();
-    $(guiDomElem).find('li.folder').first().append(tfElem);
+    layout.ViewControl = container.getElement()[0];
   });
 
   myLayout.on('initialised', function() {

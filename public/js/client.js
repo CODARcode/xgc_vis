@@ -85,14 +85,20 @@ var Client = (function() {
     });
   };
 
-  Client.requestMeshInfo = function() {
+  Client.requestMeshInfo = function(callback) {
     console.log("requesting mesh info...");
     if (ws && ws.readyState == 1) {
       var url = 'http://' + ws.url.substr(5);
       $.get(url + 'requestMeshInfo', function(info) {
         info = JSON.parse(info);
+        console.log('mesh info: ', info);
         for (var k in info) {
           data[k] = info[k];
+        }
+        data.psiStart = data.psi_min;
+        data.psiEnd = data.psi_max;
+        if (callback) {
+          callback();
         }
       });
     }
@@ -181,9 +187,17 @@ var Client = (function() {
     }, 1000 * VOLREN_TIME);
   }
 
+  function normalizeLightingDirection() {
+    var sqrSum = Math.pow(data.lightingDirectionX, 2) + Math.pow(data.lightingDirectionY, 2) + Math.pow(data.lightingDirectionZ, 2);
+    var sqrt = Math.sqrt(sqrSum);
+    data.lightingDirectionX = data.lightingDirectionX / sqrt;
+    data.lightingDirectionY = data.lightingDirectionY / sqrt;
+    data.lightingDirectionZ = data.lightingDirectionZ / sqrt;
+  }
+
   Client.requestImage = function(tfArray) {
-    if (IMAGE_OFF) return;
     var wh = View3D.getWH();
+    normalizeLightingDirection();
     var msg = {
       type: "requestVolren", 
       matrix: View3D.getMatrix(),
@@ -194,14 +208,16 @@ var Client = (function() {
       far: View3D.getCameraFar(),
       enableAngle: data.enableAngle,
       startAngle: data.startAngle,
-      endAngle: data.endAngle = Math.PI,
+      endAngle: data.endAngle,
       enableShading: data.enableShading,
       Ks: data.Ks,
       Kd: data.Kd,
       Ka: data.Ka,
       lightingDirectionX: data.lightingDirectionX,
       lightingDirectionY: data.lightingDirectionY,
-      lightingDirectionZ: data.lightingDirectionZ
+      lightingDirectionZ: data.lightingDirectionZ,
+      psiStart: data.psiStart,
+      psiEnd: data.psiEnd
     };
     if (!tfArray) {
       tfArray = ViewTF.getTF();
@@ -241,10 +257,14 @@ var Client = (function() {
 
   function onOpen(evt) {
     console.log("connected to server.");
-    Client.requestMeshInfo();
-    Client.requestMesh();
-    Client.requestImage();
-    Client.requestAngleData();
+
+    if (globalStatus.lastUrl != Client.ws.url) {
+      globalStatus.lastUrl = Client.ws.url;
+      Client.requestMeshInfo(ViewControl.initial);
+      Client.requestMesh();
+      Client.requestImage();
+      Client.requestAngleData();
+    }
   }
 
   function onClose(evt) {
@@ -310,6 +330,7 @@ var Client = (function() {
     // ws = new WebSocket("ws://red.mcs.anl.gov:8080");
     uri = 'ws://' + ip + ':' + port;
     ws = new WebSocket(uri);
+    Client.ws = ws;
 
     setTimeout(function () {
       if (ws.readyState != 0 && ws.readyState != 1) {

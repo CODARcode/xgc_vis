@@ -46,13 +46,18 @@
       - enable shading
       - shading values
     - light directions 3 float
+  - psi range
+  - do not initialize twice when reconnect to same server
 
+  - draw single line or multi line 
   - refresh 2D color 
+  - draw iso contour
   - save sessions
     - network address
     - thumbnails
     - layout
     - other paras
+
   - mouse down -> pointer cursor
   - tree
     - interaction -> node hover

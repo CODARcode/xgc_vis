@@ -1,7 +1,8 @@
 const DEBUG_MODE = false;
-const VIEW2D_OFF = false;
-const VIEW3D_OFF = false;
-const IMAGE_OFF = false;
+const VIEW_ALL_OFF = false;
+const VIEW2D_OFF = VIEW_ALL_OFF || false;
+const VIEW3D_OFF = VIEW_ALL_OFF || false;
+const IMAGE_OFF = VIEW_ALL_OFF || false;
 const VOLREN_TIME = .3; // second
 const PresetColor = {
   red: '#b82e2e',
@@ -50,9 +51,11 @@ var data = {
   Ks: .2,
   Kd: .3,
   Ka: .04,
-  lightingDirectionX: -1,
+  lightingDirectionX: -1.0,
   lightingDirectionY: 0,
-  lightingDirectionZ: 0
+  lightingDirectionZ: 0,
+  psiStart: undefined,
+  psiEnd: undefined
 };
 
 var doneRendering = true;
@@ -62,5 +65,6 @@ var globalStatus = {
   tfControlPoints: undefined,
   doneRendering: true,
   volrenTimer: undefined,
-  updateEnableSameTFEditor: false
+  updateEnableSameTFEditor: false,
+  lastUrl: undefined,
 };
