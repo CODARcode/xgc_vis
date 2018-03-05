@@ -29,7 +29,7 @@ void XGCEq::writeToNetCDF(const std::string& filename)
   NC_SAFE_CALL( nc_enddef(ncid) );
 
   size_t st[2] = {0, 0};
-  size_t sz_psi[1] = {mpsi}, sz_z[1] = {mz}, sz_r[1] = {mr}, sz_rz[2] = {mr, mz};
+  size_t sz_psi[1] = {mpsi}, sz_z[1] = {mz}, sz_r[1] = {mr}, sz_rz[2] = {mr, mz}; // mz changes faster
 
   // NC_SAFE_CALL( nc_put_vara_double(ncid, varid_psigrid, st, sz_psi, psigrid.data()) );
   // NC_SAFE_CALL( nc_put_vara_double(ncid, varid_rgrid, st, sz_r, rgrid.data()) );
@@ -61,9 +61,13 @@ void XGCEq::parseFromFile(const std::string& filename)
   for (int i=0; i<mpsi; i++) 
     ifs >> I[i];
 
-  psi_rz.resize(mr*mz);
+  psi_rz.resize(mr*mz); // column major order, the dim of mr changes faster
+  std::vector psi_rz_column_major(mr*mz);
   for (int i=0; i<mr*mz; i++) 
-    ifs >> psi_rz[i];
+    ifs >> psi_rz_column_major[i];
+  for (int i=0; i<mr; i++) // transpose
+    for (int j=0; j<mz; j++) 
+      psi_rz[i*mz+j] = psi_rz_column_major[j*mr+i]; 
 
   int end_flag;
   ifs >> end_flag;
