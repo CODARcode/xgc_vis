@@ -802,6 +802,7 @@ void rc_set_shading(ctx_rc *ctx, bool on, float Ka, float Kd, float Ks, float lx
 
 void rc_set_angle_range(ctx_rc *ctx, bool on, float angle_range_min, float angle_range_max)
 {
+  // fprintf(stderr, "angle_range: %d, %f, %f\n", on, angle_range_min, angle_range_max);
   ctx->toggle_angle_range = on;
   if (on) {
     ctx->angle_range_min = angle_range_min;
