@@ -5,9 +5,9 @@
 
 #define BVH_NUM_CHILDREN 4
 
-void createPreIntegrationTable(float *lut_preint, float *lut, int resolution)
+static void createPreIntegrationTable(float *lut_preint, float *lut, int resolution)
 {
-  static const int MAX_RESOLUTION_LUT = 1024; 
+  static const int MAX_RESOLUTION_LUT = 256; // 1024 
 
 	float r=0.f, g=0.f, b=0.f, a=0.f;
 	float rcol,  gcol,  bcol,  acol;
@@ -296,6 +296,36 @@ inline int interpolateXGC2(float &value, float3 &g, int &last_nid, BVHNodeD *bvh
   return nid;
 }
 
+__device__ __host__
+static inline float4 value2color_preint(float value, float value1, float4 *ptf, float2 trans) 
+{
+#ifdef __CUDA_ARCH__
+  const float x = __saturatef(value * trans.x + trans.y);
+  const float y = __saturatef(value1 * trans.x + trans.y);
+#else
+  const float x = clamp(value * trans.x + trans.y, 0.f, 1.f);
+  const float y = clamp(value1 * trans.x + trans.y, 0.f, 1.f);
+#endif
+  
+  static const int n = 256;
+  static const float delta = 1.f / (n-1);
+#ifdef __CUDA_ARCH__
+  const int i = min(__float2int_rd(x*(n-1)), n-2) , i1 = i + 1;
+  const int j = min(__float2int_rd(y*(n-1)), n-2) , j1 = j + 1;
+#else
+  const int i = min((int)(x*(n-1)), n-2) , i1 = i + 1;
+  const int j = min((int)(y*(n-1)), n-2) , j1 = j + 1;
+#endif
+  const float ibeta = x - i*delta, ialpha = 1 - ibeta;
+  const float jbeta = y - j*delta, jalpha = 1 - jbeta;
+
+  float4 c0 = jalpha * ptf[i*n+j] + jbeta * ptf[i*n+j1], 
+         c1 = jalpha * ptf[i1*n+j] + jbeta * ptf[i1*n+j1];
+
+  return ialpha * c0 + ibeta * c1;
+  // return alpha * tf[i] + beta * tf[i1];
+}
+
 __device__ __host__ 
 static inline float4 value2color(float value, float4 *tf, float2 trans)
 {
@@ -349,6 +379,7 @@ __device__ __host__ static inline void rc(
         float3 Ks,
         float3 L,
         float4 *tf,
+        float4 *ptf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -359,9 +390,9 @@ __device__ __host__ static inline void rc(
   float3 N, /* L = make_float3(-1, 0, 0),*/  V = rayD; 
   // const float3 Ka = make_float3(0.04), Kd = make_float3(0.3), Ks = make_float3(0.2); 
   float3 p, g; // position and gradient
-  float value;
+  float value, value1;
   float t = tnear;
-  int nid, last_nid = -1;
+  int nid = -2, nid1, last_nid = -1;
 
   while (t < tfar) {
     p = rayO + rayD*t;
@@ -383,11 +414,23 @@ __device__ __host__ static inline void rc(
     }
 
     float alpha;
+#if 1 // preintegration
+    if (nid == -2) { // first time
+      nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+    } else {
+      value = value1;
+      nid = nid1;
+      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+    }
+#else
     nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
     // nid = interpolateXGC2<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi, disp);
+#endif
  
     if (nid >= 0) {
-      src = value2color(value, tf, trans);
+      // src = value2color(value, tf, trans);
+      src = value2color_preint(value, value1, ptf, trans);
       
       // if (alpha < 0.001) src.w = fminf(0.999f, src.w*slice_highlight_ratio); // TODO: optimize if
       // if (alpha < 0.01) src.w = 0.999f;
@@ -448,6 +491,7 @@ __device__ __host__ static inline void raycasting(
         float3 Ks,
         float3 L,
         float4 *tf, 
+        float4 *ptf,
         float2 trans,             // range transformation 
         float3 rayO,              // ray origin 
         float3 rayD,              // ray direction
@@ -463,12 +507,12 @@ __device__ __host__ static inline void raycasting(
 #if 1
   if (b0 && (!b1))
     rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
-        slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+        slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
     rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
-        slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize, tnear0, tnear1);
+        slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tnear0, tnear1);
     rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
-        slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize, tfar1, tfar0);
+        slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
@@ -538,6 +582,7 @@ __global__ static void raycasting_kernel(
         float3 Ks,
         float3 L,
         float4 *tf,
+        float4 *ptf,
         float2 trans, 
         float stepsize)
 {
@@ -550,7 +595,7 @@ __global__ static void raycasting_kernel(
 
   float4 dst = make_float4(0.f); 
   raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
-      slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize);
+      slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize);
   
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
   output_rgba8[(y*viewport[2]+x)*4+1] = dst.y * 255;
@@ -593,6 +638,7 @@ static void raycasting_cpu(
         float3 Ks,
         float3 L,
         float4 *tf,
+        float4 *ptf,
         float2 trans, 
         float stepsize)
 {
@@ -605,7 +651,7 @@ static void raycasting_cpu(
 
       float4 dst = make_float4(0.f); 
       raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
-          slice_highlight_ratio, Ka, Kd, Ks, L, tf, trans, rayO, rayD, stepsize);
+          slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
       output_rgba8[(y*viewport[2]+x)*4+1] = clamp(dst.y, 0.f, 1.f) * 255;
@@ -665,6 +711,7 @@ void rc_render(ctx_rc *ctx)
           make_float3(ctx->Ks),
           make_float3(ctx->light_direction[0], ctx->light_direction[1], ctx->light_direction[2]),
           (float4*)ctx->d_tf,
+          (float4*)ctx->d_ptf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 
@@ -699,6 +746,7 @@ void rc_render_cpu(ctx_rc *ctx)
           make_float3(ctx->Ks),
           make_float3(ctx->light_direction[0], ctx->light_direction[1], ctx->light_direction[2]),
           (float4*)ctx->h_tf,
+          (float4*)ctx->h_ptf,
           make_float2(ctx->trans[0], ctx->trans[1]), 
           ctx->stepsize);
 }
@@ -763,9 +811,12 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
 {
   if (tf != ctx->h_tf)
     memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
+  
+  createPreIntegrationTable(ctx->h_ptf, ctx->h_tf, size_tf);
 
 #if WITH_CUDA
   cudaMemcpy(ctx->d_tf, tf, sizeof(float)*size_tf*4, cudaMemcpyHostToDevice);
+  cudaMemcpy(ctx->d_ptf, ctx->h_tf, sizeof(float)*size_tf*size_tf*4, cudaMemcpyHostToDevice);
   checkLastCudaError("[rc_set_tf]");
 #endif
 }
@@ -879,6 +930,7 @@ void rc_create_ctx(ctx_rc **ctx)
   memset(*ctx, 0, sizeof(ctx_rc));
 
   (*ctx)->h_tf = (float*)malloc(sizeof(float)*size_tf*4);
+  (*ctx)->h_ptf = (float*)malloc(sizeof(float)*size_tf*size_tf*4);
 
   const size_t max_npx = 4096*4096;
   (*ctx)->h_output = malloc(4*max_npx);
@@ -889,10 +941,8 @@ void rc_create_ctx(ctx_rc **ctx)
   cudaSetDevice(0);
   cudaMalloc((void**)&((*ctx)->d_output_rgba8), 4*max_npx); 
   
-  // cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
-  // cudaMallocArray( &(*ctx)->d_tfArray, &channelDesc, size_tf*4, 1 ); 
-
   cudaMalloc((void**)&((*ctx)->d_tf), sizeof(float)*size_tf*4);
+  cudaMalloc((void**)&((*ctx)->d_ptf), sizeof(float)*size_tf*size_tf*4);
   cudaMalloc((void**)&((*ctx)->d_viewport), sizeof(int)*4);
   cudaMalloc((void**)&((*ctx)->d_invmvp), sizeof(float)*16);
   
@@ -905,6 +955,8 @@ void rc_destroy_ctx(ctx_rc **ctx)
   // TODO: free any resources
 #if WITH_CUDA
   cudaFree((*ctx)->d_output_rgba8);
+  cudaFree((*ctx)->d_tf);
+  cudaFree((*ctx)->d_ptf);
   cudaFree((*ctx)->d_disp);
   cudaFree((*ctx)->d_invdet);
   cudaFree((*ctx)->d_psi);
@@ -913,6 +965,7 @@ void rc_destroy_ctx(ctx_rc **ctx)
   free((*ctx)->h_neighbors);
   free((*ctx)->h_output);
   free((*ctx)->h_tf);
+  free((*ctx)->h_ptf);
   free(*ctx); 
   *ctx = NULL; 
 }
