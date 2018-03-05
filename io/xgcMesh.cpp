@@ -294,6 +294,7 @@ json XGCMesh::jsonfyMeshInfo() const {
   json j;
   
   j["nPhi"] = nPhi;
+  j["iPhi"] = iPhi;
   j["nNodes"] = nNodes;
   j["nTriangles"] = nTriangles;
   

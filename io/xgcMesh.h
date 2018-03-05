@@ -13,7 +13,7 @@
 #include <json.hpp>
 
 struct XGCMesh {
-  int nNodes, nTriangles, nPhi;
+  int nNodes, nTriangles, nPhi, iPhi;
   int *conn = NULL, *nextNode = NULL;
   int *neighbors = NULL;
   double *coords = NULL;

@@ -58,6 +58,7 @@ void XGCData::readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp)
   adios_read_bp_reset_dimension_order(fp, 0);
 
   readValueInt(fp, "nphi", &m.nPhi);
+  readValueInt(fp, "iphi", &m.iPhi);
     
   ADIOS_VARINFO *avi = adios_inq_var(fp, "dpot");
   assert(avi != NULL);
