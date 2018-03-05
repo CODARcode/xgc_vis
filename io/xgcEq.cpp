@@ -62,7 +62,7 @@ void XGCEq::parseFromFile(const std::string& filename)
     ifs >> I[i];
 
   psi_rz.resize(mr*mz); // column major order, the dim of mr changes faster
-  std::vector psi_rz_column_major(mr*mz);
+  std::vector<double> psi_rz_column_major(mr*mz);
   for (int i=0; i<mr*mz; i++) 
     ifs >> psi_rz_column_major[i];
   for (int i=0; i<mr; i++) // transpose
