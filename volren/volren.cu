@@ -256,8 +256,9 @@ inline int interpolateXGC2(float &value, float3 &g, int &last_nid, BVHNodeD *bvh
   static const float pi2 = 2*pi;
   
   float3 lambda;
-  int nid = BVHNodeD_locatePoint(bvh, r, z, lambda, invdet);
+  int nid = BVHNodeD_locatePoint_coherent(bvh, last_nid, r, z, lambda, invdet, neighbors);
   if (nid == -1) return nid; 
+  last_nid = nid;
       
   const float deltaAngle = pi2/nPhi;
 
@@ -280,6 +281,7 @@ inline int interpolateXGC2(float &value, float3 &g, int &last_nid, BVHNodeD *bvh
 
   float v0 = BVHNodeD_sample(bvh, nid0, lambda0, data + nNodes*p0); //  + nNodes*p0);
   float v1 = BVHNodeD_sample(bvh, nid1, lambda1, data + nNodes*p1); //  + nNodes*p1);
+  value = (1-alpha)*v0 + alpha*v1;
 
   // if (alpha<0 || alpha>=1) fprintf(stderr, "%f\n", alpha);
 
