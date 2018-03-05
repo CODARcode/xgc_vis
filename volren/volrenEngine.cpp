@@ -54,11 +54,11 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
 
     if (!j["enableShading"].is_null()) task->enable_shading = j["enableShading"].get<bool>();
     if (!j["Ka"].is_null()) task->Ka = j["Ka"].get<float>();
-    if (!j["Kd"].is_null()) task->Ka = j["Kd"].get<float>();
-    if (!j["Ks"].is_null()) task->Ka = j["Ks"].get<float>();
-    if (!j["lightDirectionX"].is_null()) task->light_direction[0] = j["lightDirectionX"].get<float>();
-    if (!j["lightDirectionY"].is_null()) task->light_direction[1] = j["lightDirectionY"].get<float>();
-    if (!j["lightDirectionZ"].is_null()) task->light_direction[2] = j["lightDirectionZ"].get<float>();
+    if (!j["Kd"].is_null()) task->Kd = j["Kd"].get<float>();
+    if (!j["Ks"].is_null()) task->Ks = j["Ks"].get<float>();
+    if (!j["lightingDirectionX"].is_null()) task->light_direction[0] = j["lightingDirectionX"].get<float>();
+    if (!j["lightingDirectionY"].is_null()) task->light_direction[1] = j["lightingDirectionY"].get<float>();
+    if (!j["lightingDirectionZ"].is_null()) task->light_direction[2] = j["lightingDirectionZ"].get<float>();
 
   } catch (...) {
     fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");

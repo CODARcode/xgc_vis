@@ -788,6 +788,9 @@ void rc_set_psi_range(ctx_rc *ctx, bool on, float psi_range_min, float psi_range
 
 void rc_set_shading(ctx_rc *ctx, bool on, float Ka, float Kd, float Ks, float lx, float ly, float lz)
 {
+  // fprintf(stderr, "shading: Ka=%f, Kd=%f, Ks=%f, L={%f, %f, %f}\n", 
+  //     Ka, Kd, Ks, lx, ly, lz);
+
   ctx->toggle_shading = on;
   ctx->Ka = Ka;
   ctx->Kd = Kd;
