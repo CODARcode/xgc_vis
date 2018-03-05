@@ -6,6 +6,7 @@
 #cmakedefine WITH_QT 1
 #cmakedefine WITH_VTK 1
 #cmakedefine WITH_TBB 1
+#cmakedefine WITH_NC 1
 
 // needed for malloc
 #include <cstdlib>
