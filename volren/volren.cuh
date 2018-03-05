@@ -41,7 +41,7 @@ struct ctx_rc {
   float slice_highlight_ratio;
 
   float *d_data, *h_data;
-  int nNodes, nPhi, nTriangles, nBVHNodes;
+  int nNodes, nPhi, iPhi, nTriangles, nBVHNodes;
 
   // float *d_output;
   unsigned char *d_output_rgba8;
@@ -65,7 +65,7 @@ void rc_bind_psi(ctx_rc *ctx, int nNodes, float *psi, float psi_min, float psi_m
 void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp); // displacements of nodes
 void rc_bind_bvh(ctx_rc *ctx, int nBVHNodes, BVHNodeD *bvh);
 void rc_bind_neighbors(ctx_rc *ctx, int nTriangles, int *neighbors);
-void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data, float *grad);
+void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, int iPhi, float *data, float *grad);
 
 void rc_set_default_tf(ctx_rc *ctx);
 void rc_set_tf(ctx_rc *ctx, float *tf); 

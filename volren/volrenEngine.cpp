@@ -125,7 +125,7 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
   rc_bind_invdet(rc, m.nTriangles, m.invdetf);
 
   // dpot
-  rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, d.dpotf, d.graddpotf);
+  rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, m.iPhi, d.dpotf, d.graddpotf);
 
   started = true;
   while (1) { // volren loop

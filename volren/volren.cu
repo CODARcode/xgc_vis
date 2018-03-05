@@ -195,7 +195,7 @@ template <int PSI, int SHADING>
 __device__ __host__
 inline int interpolateXGC(float &value, float3 &g, int &last_nid, BVHNodeD *bvh,
     float3 p, float r2, float r, float phi, float z, float &alpha,
-    float2 psi_range, float2 angle_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, int *neighbors, float *psi)
+    float2 psi_range, float2 angle_range, int nPhi, int iPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, int *neighbors, float *psi)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -251,7 +251,7 @@ template <int PSI, int SHADING>
 __device__ __host__
 inline int interpolateXGC2(float &value, float3 &g, int &last_nid, BVHNodeD *bvh,
     float3 p, float r2, float r, float phi, float z, float &alpha,
-    float2 psi_range, float2 angle_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, int *neighbors, float *psi, float *disp)
+    float2 psi_range, float2 angle_range, int nPhi, int iPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, int *neighbors, float *psi, float *disp)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
@@ -363,6 +363,7 @@ template <int ANGLE, int PSI, int SHADING>
 __device__ __host__ static inline void rc(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
+        int iPhi, 
         int nNodes,               // number of nodes 
         int nTriangles,           // number of triangles 
         float *data,              // volume data in unstructured mesh
@@ -417,16 +418,16 @@ __device__ __host__ static inline void rc(
     float alpha;
 #if PREINT // preintegration
     if (nid == -2) { // first time
-      nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
-      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+      nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, iPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, iPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
     } else {
       value = value1;
       nid = nid1;
-      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+      nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, iPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
     }
 #else
-    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
-    // nid = interpolateXGC2<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi, disp);
+    nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, iPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+    // nid = interpolateXGC2<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, iPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi, disp);
 #endif
  
     if (nid >= 0) {
@@ -477,6 +478,7 @@ template <int ANGLE, int PSI, int SHADING>
 __device__ __host__ static inline void raycasting(
         float4 &dst,              // destination color
         int nPhi,                 // number of planes
+        int iPhi,
         int nNodes,               // number of nodes 
         int nTriangles, 
         float *data,              // volume data in unstructured mesh
@@ -509,17 +511,17 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
         slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
         slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
         slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
   if (b0) {
-    rc<SHADING>(dst, nPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
+    rc<SHADING>(dst, nPhi, iPhi, nNodes, data, bvh, disp, tf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   }
 #endif
 }
@@ -568,6 +570,7 @@ __global__ static void raycasting_kernel(
         int *viewport, 
         float *invmvp,
         int nPhi, 
+        int iPhi,
         int nNodes, 
         int nTriangles, 
         float *data, 
@@ -597,7 +600,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
       slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize);
   
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
@@ -624,6 +627,7 @@ static void raycasting_cpu(
         int *viewport, 
         float *invmvp,
         int nPhi, 
+        int iPhi,
         int nNodes, 
         int nTriangles,
         float *data, 
@@ -653,7 +657,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
           slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
@@ -697,6 +701,7 @@ void rc_render(ctx_rc *ctx)
           ctx->d_viewport, 
           ctx->d_invmvp,
           ctx->nPhi, 
+          ctx->iPhi, 
           ctx->nNodes,
           ctx->nTriangles,
           ctx->d_data, 
@@ -732,6 +737,7 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->viewport, 
           ctx->invmvp,
           ctx->nPhi, 
+          ctx->iPhi, 
           ctx->nNodes,
           ctx->nTriangles,
           ctx->h_data, 
@@ -912,12 +918,13 @@ void rc_bind_invdet(ctx_rc *ctx, int nTriangles, float *invdet)
 #endif
 }
 
-void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data, float *grad)
+void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, int iPhi, float *data, float *grad)
 {
   ctx->h_data = data;
   ctx->h_grad = grad;
   ctx->nNodes = nNodes;
   ctx->nPhi = nPhi;
+  ctx->iPhi = iPhi;
   ctx->nTriangles = nTriangles;
 #if WITH_CUDA
   if (ctx->d_data == NULL)
