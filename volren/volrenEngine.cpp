@@ -1,4 +1,5 @@
 #include "volren/volrenEngine.h"
+#include "volren/kdbvh.h"
 #include <json.hpp>
 
 using json = nlohmann::json;
@@ -53,11 +54,17 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
 
     if (!j["enableShading"].is_null()) task->enable_shading = j["enableShading"].get<bool>();
     if (!j["Ka"].is_null()) task->Ka = j["Ka"].get<float>();
-    if (!j["Kd"].is_null()) task->Ka = j["Kd"].get<float>();
-    if (!j["Ks"].is_null()) task->Ka = j["Ks"].get<float>();
-    if (!j["lightDirectionX"].is_null()) task->light_direction[0] = j["lightDirectionX"].get<float>();
-    if (!j["lightDirectionY"].is_null()) task->light_direction[1] = j["lightDirectionY"].get<float>();
-    if (!j["lightDirectionZ"].is_null()) task->light_direction[2] = j["lightDirectionZ"].get<float>();
+    if (!j["Kd"].is_null()) task->Kd = j["Kd"].get<float>();
+    if (!j["Ks"].is_null()) task->Ks = j["Ks"].get<float>();
+    if (!j["lightingDirectionX"].is_null()) task->light_direction[0] = j["lightingDirectionX"].get<float>();
+    if (!j["lightingDirectionY"].is_null()) task->light_direction[1] = j["lightingDirectionY"].get<float>();
+    if (!j["lightingDirectionZ"].is_null()) task->light_direction[2] = j["lightingDirectionZ"].get<float>();
+
+    if (j["psiStart"].is_null()) task->psi_start = 0.f; 
+    else task->psi_start = j["psiStart"].get<float>();
+    
+    if (j["psiEnd"].is_null()) task->psi_end = 0.f; 
+    else task->psi_end = j["psiEnd"].get<float>();
 
   } catch (...) {
     fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");
@@ -97,7 +104,8 @@ void VolrenEngine::start(XGCMesh& m, XGCData& d)
 void VolrenEngine::start_(XGCMesh& m, XGCData& d)
 {
   fprintf(stderr, "[volren] building BVH...\n");
-  std::vector<QuadNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
+  std::vector<BVHNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
+  // std::vector<BVHNodeD> bvh = buildKDBVHGPU(m);
 
   fprintf(stderr, "[volren] initialize volren...\n");
   ctx_rc *rc;
@@ -107,7 +115,7 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
   rc_set_default_tf(rc);
   // rc_set_stepsize(rc, 0.001);
   rc_set_stepsize(rc, 0.005);
-  rc_bind_bvh(rc, bvh.size(), (QuadNodeD*)bvh.data());
+  rc_bind_bvh(rc, bvh.size(), (BVHNodeD*)bvh.data());
   // rc_test_point_locator(rc, 2.3f, -0.4f);
  
   // mesh 
@@ -142,14 +150,15 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
-      rc_set_psi_range(rc, true, 0, 0.2); // TODO: argument
+      // rc_set_psi_range(rc, false, 0, 0.2); // TODO: argument
+      rc_set_psi_range(rc, true, task->psi_start, task->psi_end); // TODO: argument
       rc_set_angle_range(rc, task->enable_angle, task->start_angle, task->end_angle);
       rc_set_shading(rc, task->enable_shading, task->Ka, task->Kd, task->Ks, 
           task->light_direction[0], task->light_direction[1], task->light_direction[2]);
       rc_set_slice_highlight_ratio(rc, false, 0.999); // TODO: argument
       if (task->tf) 
         rc_set_tf(rc, task->tf);
-      rc_clear_output(rc);
+      // rc_clear_output(rc);
       rc_render(rc);
       // rc_render_cpu(rc);
       auto t1 = clock::now();
@@ -161,6 +170,8 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       auto t3 = clock::now();
       float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
       fprintf(stderr, "[volren] volren download time: %f ns\n", tt2);
+      
+      task->cond.notify_one();
       
       // fprintf(stderr, "[volren] converting to png...\n");
       auto t4 = clock::now();
@@ -176,8 +187,6 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       auto t5 = clock::now();
       float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
       fprintf(stderr, "[volren] png compression time: %f ns, size=%zu\n", tt4, task->png.size);
-      
-      task->cond.notify_one();
     } else if (task->tag == VOLREN_EXIT) {
       fprintf(stderr, "[volren] exiting...\n");
       rc_destroy_ctx(&rc);

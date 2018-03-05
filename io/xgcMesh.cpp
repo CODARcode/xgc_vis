@@ -36,7 +36,7 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
  
   adios_read_finalize_method (ADIOS_READ_METHOD_BP);
   adios_read_close(fp);
-  
+
   // psi
   psif = (float*)realloc(psif, sizeof(float)*nNodes);
   for (int i=0; i<nNodes; i++) {
@@ -51,7 +51,8 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
   psi_min_x = coords[psi_min_node*2];
   psi_min_y = coords[psi_min_node*2+1];
   
-  // inverse of determinants
+  // centroids and inverse of determinants
+  centroidsf = (float*)realloc(centroidsf, sizeof(float)*nTriangles*2);
   invdetf = (float*)realloc(invdetf, sizeof(float)*nTriangles);
   for (int i=0; i<nTriangles; i++) {
     const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
@@ -59,6 +60,8 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
           y0 = coords[i0*2+1], y1 = coords[i1*2+1], y2 = coords[i2*2+1];
     float det = (y1-y2)*(x0-x2) + (x2-x1)*(y0-y2);
     invdetf[i] = 1.f / det;
+    centroidsf[i*2] = (x0 + x1 + x2) / 3;
+    centroidsf[i*2+1] = (y0 + y1 + y2) / 3;
   }
   
   // displacements

@@ -11,12 +11,13 @@ option (WITH_CUDA "Build with CUDA" OFF)
 option (WITH_QT "Build with Qt" OFF)
 option (WITH_VTK "Build with VTK" OFF)
 option (WITH_PNG "Build with PNG" OFF)
+option (WITH_NC "Build with NetCDF" OFF)
 option (WITH_OPENMP "Build with OpenMP" OFF)
 
 set (CMAKE_CXX_STANDARD 11)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules)
+set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 set (Boost_USE_STATIC_LIBS ON)
 set (Boost_USE_MULTITHREADED ON)
@@ -53,7 +54,12 @@ if (WITH_PNG)
   find_package (PNG REQUIRED)
   include_directories (${PNG_INCLUDE_DIRS})
 endif ()
-  
+
+if (WITH_NC)
+  find_package (NetCDF REQUIRED)
+  include_directories (${NETCDF_INCLUDES})
+endif ()
+
 if (WITH_ADIOS)
   find_package (ADIOS REQUIRED)
   include_directories (${ADIOS_INCLUDE_DIRS})

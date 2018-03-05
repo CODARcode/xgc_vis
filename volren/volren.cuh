@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-struct QuadNodeD;
+struct BVHNodeD;
 struct cudaArray; 
 
 static const int size_tf = 256;
@@ -17,7 +17,7 @@ struct ctx_rc {
   float invmvp[16]; // inverse(proj*modelview)
 
   int *d_neighbors, *h_neighbors; // neighbor indices are for quadnodes.
-  QuadNodeD *d_bvh, *h_bvh;
+  BVHNodeD *d_bvh, *h_bvh;
   int *d_viewport;
   float *d_invmvp;
 
@@ -41,14 +41,14 @@ struct ctx_rc {
   float slice_highlight_ratio;
 
   float *d_data, *h_data;
-  int nNodes, nPhi, nTriangles, nQuadNodes;
+  int nNodes, nPhi, nTriangles, nBVHNodes;
 
   // float *d_output;
   unsigned char *d_output_rgba8;
   void *h_output;
 
   float *h_tf, *d_tf; // fixed length 1024
-  cudaArray *d_tfArray;
+  float *h_ptf, *d_ptf; // preintegrated tf
   
   float stepsize;
   float trans[2];
@@ -63,7 +63,7 @@ void rc_destroy_ctx(ctx_rc **ctx);
 void rc_bind_invdet(ctx_rc *ctx, int nTriangles, float *invdet); // determinant of triangles
 void rc_bind_psi(ctx_rc *ctx, int nNodes, float *psi, float psi_min, float psi_max);
 void rc_bind_disp(ctx_rc *ctx, int nNodes, float *disp); // displacements of nodes
-void rc_bind_bvh(ctx_rc *ctx, int nQuadNodes, QuadNodeD *bvh);
+void rc_bind_bvh(ctx_rc *ctx, int nBVHNodes, BVHNodeD *bvh);
 void rc_bind_neighbors(ctx_rc *ctx, int nTriangles, int *neighbors);
 void rc_bind_data(ctx_rc *ctx, int nNodes, int nTriangles, int nPhi, float *data, float *grad);
 
