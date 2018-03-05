@@ -245,18 +245,17 @@ inline int interpolateXGC(float &value, float3 &g, int &last_nid, BVHNodeD *bvh,
   return nid;
 }
 
+
+template <int PSI, int SHADING>
 __device__ __host__
-inline int interpolateXGC2(float &value, float3 &g, BVHNodeD *bvh, float3 p, int nPhi, int nNodes, int nTriangles, float *data, float *disp, float *invdet, int *neighbors)
+inline int interpolateXGC2(float &value, float3 &g, int &last_nid, BVHNodeD *bvh,
+    float3 p, float r2, float r, float phi, float z, float &alpha,
+    float2 psi_range, float2 angle_range, int nPhi, int nNodes, int nTriangles, float *data, float2 *grad, float *invdet, int *neighbors, float *psi, float *disp)
 {
   static const float pi = 3.141592654f;
   static const float pi2 = 2*pi;
   
-  // cylindar coordinates
-  float r = sqrt(p.x*p.x + p.y*p.y);
-  float phi = atan2(p.y, p.x) + pi;
-  float z = p.z;
   float3 lambda;
-  
   int nid = BVHNodeD_locatePoint(bvh, r, z, lambda, invdet);
   if (nid == -1) return nid; 
       
@@ -264,7 +263,7 @@ inline int interpolateXGC2(float &value, float3 &g, BVHNodeD *bvh, float3 p, int
 
   int p0 = (int)(phi/deltaAngle)%nPhi;
   int p1 = (p0+1)%nPhi;
-  float alpha = (phi - deltaAngle*p0) / deltaAngle;
+  alpha = (phi - deltaAngle*p0) / deltaAngle;
 
   // interpolate disp
   const BVHNodeD &q = bvh[nid];
@@ -375,8 +374,8 @@ __device__ __host__ static inline void rc(
     }
 
     float alpha;
-    // const int nid = interpolateXGC2(value, bvh, p, nPhi, nNodes, nTriangles, data, disp, invdet);
     nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
+    // nid = interpolateXGC2<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi, disp);
  
     if (nid >= 0) {
       src = value2color(value, tf, trans);
