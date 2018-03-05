@@ -4,6 +4,7 @@
 #include "common.cuh"
 
 #define BVH_NUM_CHILDREN 4
+#define PREINT 0
 
 static void createPreIntegrationTable(float *lut_preint, float *lut, int resolution)
 {
@@ -319,10 +320,10 @@ static inline float4 value2color_preint(float value, float value1, float4 *ptf, 
   const float ibeta = x - i*delta, ialpha = 1 - ibeta;
   const float jbeta = y - j*delta, jalpha = 1 - jbeta;
 
-  float4 c0 = jalpha * ptf[i*n+j] + jbeta * ptf[i*n+j1], 
-         c1 = jalpha * ptf[i1*n+j] + jbeta * ptf[i1*n+j1];
+  float4 c0 = ialpha * ptf[i*n+j] + ibeta * ptf[i1*n+j], 
+         c1 = ialpha * ptf[i*n+j1] + ibeta * ptf[i1*n+j1];
 
-  return ialpha * c0 + ibeta * c1;
+  return jalpha * c0 + jbeta * c1;
   // return alpha * tf[i] + beta * tf[i1];
 }
 
@@ -414,7 +415,7 @@ __device__ __host__ static inline void rc(
     }
 
     float alpha;
-#if 1 // preintegration
+#if PREINT // preintegration
     if (nid == -2) { // first time
       nid = interpolateXGC<PSI, SHADING>(value, g, last_nid, bvh, p, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
       nid1 = interpolateXGC<PSI, SHADING>(value1, g, last_nid, bvh, p+rayD*stepsize, r2, r, phi, z, alpha, psi_range, angle_range, nPhi, nNodes, nTriangles, data, grad, invdet, neighbors, psi);
@@ -429,9 +430,11 @@ __device__ __host__ static inline void rc(
 #endif
  
     if (nid >= 0) {
-      // src = value2color(value, tf, trans);
+#if PREINT
       src = value2color_preint(value, value1, ptf, trans);
-      
+#else
+      src = value2color(value, tf, trans);
+#endif  
       // if (alpha < 0.001) src.w = fminf(0.999f, src.w*slice_highlight_ratio); // TODO: optimize if
       // if (alpha < 0.01) src.w = 0.999f;
 
@@ -811,12 +814,16 @@ void rc_set_tf(ctx_rc *ctx, float *tf)
 {
   if (tf != ctx->h_tf)
     memcpy(ctx->h_tf, tf, sizeof(float)*size_tf*4);
-  
+ 
+#if PREINT
   createPreIntegrationTable(ctx->h_ptf, ctx->h_tf, size_tf);
+#endif
 
 #if WITH_CUDA
   cudaMemcpy(ctx->d_tf, tf, sizeof(float)*size_tf*4, cudaMemcpyHostToDevice);
+#if PREINT
   cudaMemcpy(ctx->d_ptf, ctx->h_tf, sizeof(float)*size_tf*size_tf*4, cudaMemcpyHostToDevice);
+#endif
   checkLastCudaError("[rc_set_tf]");
 #endif
 }
