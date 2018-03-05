@@ -7,7 +7,7 @@
 
 struct XGCEq {
   void parseFromFile(const std::string& filename);
-  void saveToNCFile(const std::string& filename);
+  void writeToNetCDF(const std::string& filename);
   void printInfo() const;
 
   size_t mr, mz, mpsi;

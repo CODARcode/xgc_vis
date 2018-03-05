@@ -13,6 +13,7 @@ int main(int argc, char **argv)
 {
   XGCEq eq;
   eq.parseFromFile(argv[1]);
+  eq.writeToNetCDF(argv[2]);
 
 #if 0
   XGCMesh m;

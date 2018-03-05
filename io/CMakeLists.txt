@@ -7,3 +7,7 @@ add_executable (testio main.cpp)
 if (WITH_VTK)
   target_link_libraries (xgcvis_io ${VTK_LIBRARIES})
 endif ()
+
+if (WITH_NC)
+  target_link_libraries (xgcvis_io ${NETCDF_LIBRARIES})
+endif ()

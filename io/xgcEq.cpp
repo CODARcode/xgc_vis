@@ -2,35 +2,39 @@
 #include <fstream>
 #include <cassert>
 
-void XGCEq::saveToNCFile(const std::string& filename) 
+#if WITH_NC
+#include <netcdf.h>
+#endif
+
+void XGCEq::writeToNetCDF(const std::string& filename) 
 {
-#ifdef WITH_NC
+#if WITH_NC
   int ncid;
   int dimid_psi, dimid_z, dimid_r;
   int varid_psigrid, varid_I, varid_psi_rz, varid_rgrid, varid_zgrid;
 
   NC_SAFE_CALL( nc_create(filename.c_str(), NC_CLOBBER | NC_64BIT_OFFSET, &ncid) );
   
-  NC_SAFE_CALL( nc_def_dim(ncid, "psi", mpsi, &dimid_psi) );
+  // NC_SAFE_CALL( nc_def_dim(ncid, "psi", mpsi, &dimid_psi) );
   NC_SAFE_CALL( nc_def_dim(ncid, "z", mz, &dimid_z) );
   NC_SAFE_CALL( nc_def_dim(ncid, "r", mr, &dimid_r) );
 
   int dimids_rz[2] = {dimid_r, dimid_z};
 
-  NC_SAFE_CALL( nc_def_var(ncid, "psigrid", NC_DOUBLE, 1, &dimid_psi, &varid_psigrid) );
-  NC_SAFE_CALL( nc_def_var(ncid, "rgrid", NC_DOUBLE, 1, &dimid_r, &varid_rgrid) );
-  NC_SAFE_CALL( nc_def_var(ncid, "zgrid", NC_DOUBLE, 1, &dimid_z, &varid_zgrid) );
-  NC_SAFE_CALL( nc_def_var(ncid, "I", NC_DOUBLE, 1, &dimid_psi, &varid_I) );
+  // NC_SAFE_CALL( nc_def_var(ncid, "psigrid", NC_DOUBLE, 1, &dimid_psi, &varid_psigrid) );
+  // NC_SAFE_CALL( nc_def_var(ncid, "rgrid", NC_DOUBLE, 1, &dimid_r, &varid_rgrid) );
+  // NC_SAFE_CALL( nc_def_var(ncid, "zgrid", NC_DOUBLE, 1, &dimid_z, &varid_zgrid) );
+  // NC_SAFE_CALL( nc_def_var(ncid, "I", NC_DOUBLE, 1, &dimid_psi, &varid_I) );
   NC_SAFE_CALL( nc_def_var(ncid, "psi_rz", NC_DOUBLE, 2, dimids_rz, &varid_psi_rz) );
   NC_SAFE_CALL( nc_enddef(ncid) );
 
   size_t st[2] = {0, 0};
   size_t sz_psi[1] = {mpsi}, sz_z[1] = {mz}, sz_r[1] = {mr}, sz_rz[2] = {mr, mz};
 
-  NC_SAFE_CALL( nc_put_vara_double(ncid, varid_psigrid, st, sz_psi, psigrid.data()) );
-  NC_SAFE_CALL( nc_put_vara_double(ncid, varid_rgrid, st, sz_r, rgrid.data()) );
-  NC_SAFE_CALL( nc_put_vara_double(ncid, varid_zgrid, st, sz_z, zgrid.data()) );
-  NC_SAFE_CALL( nc_put_vara_double(ncid, varid_I, st, sz_psi, I.data()) );
+  // NC_SAFE_CALL( nc_put_vara_double(ncid, varid_psigrid, st, sz_psi, psigrid.data()) );
+  // NC_SAFE_CALL( nc_put_vara_double(ncid, varid_rgrid, st, sz_r, rgrid.data()) );
+  // NC_SAFE_CALL( nc_put_vara_double(ncid, varid_zgrid, st, sz_z, zgrid.data()) );
+  // NC_SAFE_CALL( nc_put_vara_double(ncid, varid_I, st, sz_psi, I.data()) );
   NC_SAFE_CALL( nc_put_vara_double(ncid, varid_psi_rz, st, sz_rz, psi_rz.data()) );
 
   NC_SAFE_CALL( nc_close(ncid) );
