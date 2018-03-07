@@ -170,8 +170,6 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
       fprintf(stderr, "[volren] volren download time: %f ns\n", tt2);
       
-      task->cond.notify_one();
-      
       // fprintf(stderr, "[volren] converting to png...\n");
       auto t4 = clock::now();
       if (task->format == VOLREN_FORMAT_PNG) {
@@ -185,6 +183,8 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       }
       auto t5 = clock::now();
       float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
+      task->cond.notify_one();
+      
       fprintf(stderr, "[volren] png compression time: %f ns, size=%zu\n", tt4, task->png.size);
     } else if (task->tag == VOLREN_EXIT) {
       fprintf(stderr, "[volren] exiting...\n");
