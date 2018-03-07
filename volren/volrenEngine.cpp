@@ -87,17 +87,24 @@ VolrenEngine::VolrenEngine()
 VolrenEngine::~VolrenEngine()
 {
   stop();
-  if (started()) 
-    thread->join();
 }
 
 void VolrenEngine::stop()
 {
+  fprintf(stderr, "rank=%d, stopping volren engine!\n", rank);
+
   if (started()) {
-    json j;
-    j["tag"] = "exit";
-    VolrenTask *t = enqueueAndWait(j.dump());
-    delete t;
+    fprintf(stderr, "rank=%d, submitting a exit job!\n", rank);
+    if (rank == 0) {
+      json j;
+      j["tag"] = "exit";
+      VolrenTask *t = enqueueAndWait(j.dump());
+      delete t;
+    }
+    fprintf(stderr, "rank=%d, joining volren engine!\n", rank);
+    thread->join();
+    delete thread;
+    thread = NULL;
   }
 }
 
@@ -111,11 +118,11 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
   MPI_Comm_size(comm, &np);
   MPI_Comm_rank(comm, &rank);
 
-  fprintf(stderr, "[volren] building BVH...\n");
+  fprintf(stderr, "[volren,rank=%d] building BVH...\n", rank);
   std::vector<BVHNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
   // std::vector<BVHNodeD> bvh = buildKDBVHGPU(m);
 
-  fprintf(stderr, "[volren] initialize volren...\n");
+  fprintf(stderr, "[volren,rank=%d] initialize volren...\n", rank);
   ctx_rc *rc;
   rc_create_ctx(&rc);
   rc_set_range(rc, -100.f, 100.f); // TODO
@@ -167,7 +174,7 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
      
       typedef std::chrono::high_resolution_clock clock;
 
-      fprintf(stderr, "[volren] rendering...\n");
+      fprintf(stderr, "[volren,rank=%d] rendering...\n", rank);
       auto t0 = clock::now();
       rc_set_viewport(rc, 0, 0, task->viewport[2], task->viewport[3]);
       rc_set_invmvpd(rc, task->invmvpd);
@@ -184,13 +191,13 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
       // rc_render_cpu(rc);
       auto t1 = clock::now();
       float tt0 = std::chrono::duration_cast<std::chrono::nanoseconds>(t1-t0).count();
-      fprintf(stderr, "[volren] volren time: %f ns\n", tt0);
+      fprintf(stderr, "[volren,rank=%d] volren time: %f ns\n", rank, tt0);
       
       auto t2 = clock::now();
       rc_copy_output_to_host(rc);
       auto t3 = clock::now();
       float tt2 = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count();
-      fprintf(stderr, "[volren] volren download time: %f ns\n", tt2);
+      fprintf(stderr, "[volren,rank=%d] volren download time: %f ns\n", rank, tt2);
       
       // fprintf(stderr, "[volren] converting to png...\n");
       auto t4 = clock::now();
@@ -207,11 +214,11 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
       float tt4 = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count();
       task->cond.notify_one();
       
-      fprintf(stderr, "[volren] png compression time: %f ns, size=%zu\n", tt4, task->png.size);
+      fprintf(stderr, "[volren,rank=%d] png compression time: %f ns, size=%zu\n", rank, tt4, task->png.size);
     } else if (task->tag == VOLREN_EXIT) {
       rc_destroy_ctx(&rc);
       task->cond.notify_one();
-      fprintf(stderr, "[volren] exiting...\n");
+      fprintf(stderr, "[volren,rank=%d] exiting...\n", rank);
       return;
     }
   }

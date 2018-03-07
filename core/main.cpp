@@ -532,9 +532,11 @@ int main(int argc, char **argv)
 #endif
   
   if (ws_thread) {
-    fprintf(stderr, "waiting for wss to exit...\n");
+    fprintf(stderr, "[rank=%d] waiting for wss to exit...\n", rank);
     ws_thread->join();
   }
+
+  volrenEngine.stop();
 
   // adios_close(*varFP);
   delete ex;
@@ -542,7 +544,7 @@ int main(int argc, char **argv)
 
   adios_finalize(0);
 
-  fprintf(stderr, "exiting...\n");
+  fprintf(stderr, "[rank=%d] exiting...\n", rank);
   MPI_Finalize();
   return 0;
 }

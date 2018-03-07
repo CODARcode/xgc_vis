@@ -214,7 +214,8 @@ inline int interpolateXGC(float &value, float3 &g, int &last_nid, BVHNodeD *bvh,
       return -1;
   }
 
-  const float deltaAngle = pi2/(nPhi*iPhi);
+  // const float deltaAngle = pi2/(nPhi*iPhi);
+  const float deltaAngle = pi2/nPhi;
 #ifdef __CUDA_ARCH__
   int p0 = __float2int_rd(__fdividef(phi, deltaAngle)) % nPhi;
 #else
