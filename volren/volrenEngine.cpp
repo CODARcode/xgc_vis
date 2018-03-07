@@ -75,20 +75,20 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
   return task;
 }
 
-VolrenEngine::VolrenEngine() : 
-  started(false), thread(NULL)
+VolrenEngine::VolrenEngine()
 {
 }
 
 VolrenEngine::~VolrenEngine()
 {
   stop();
-  thread->join();
+  if (started()) 
+    thread->join();
 }
 
 void VolrenEngine::stop()
 {
-  if (started) {
+  if (started()) {
     VolrenTask *task = new VolrenTask;
     task->tag = VOLREN_EXIT;
     enqueueAndWait(task);
@@ -127,7 +127,6 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
   // dpot
   rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, m.iPhi, d.dpotf, d.graddpotf);
 
-  started = true;
   while (1) { // volren loop
     VolrenTask *task = NULL;
     // dequeue task
@@ -190,7 +189,6 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
     } else if (task->tag == VOLREN_EXIT) {
       fprintf(stderr, "[volren] exiting...\n");
       rc_destroy_ctx(&rc);
-      started = false;
       task->cond.notify_one();
       return;
     }

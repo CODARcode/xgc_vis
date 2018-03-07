@@ -58,8 +58,8 @@ struct VolrenEngine {
   void enqueueAndWait(VolrenTask *task);
   VolrenTask* enqueueAndWait(const std::string& s);
 
-  bool started;
-  std::thread *thread;
+  bool started() const {return thread != NULL;}
+  std::thread *thread = NULL;
   std::queue<VolrenTask*> volrenTaskQueue;
   std::mutex mutex_volrenTaskQueue;
   std::condition_variable cond_volrenTaskQueue;
