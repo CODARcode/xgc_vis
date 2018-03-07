@@ -369,6 +369,8 @@ __device__ __host__ static inline void rc(
         int nTriangles,           // number of triangles 
         float *data,              // volume data in unstructured mesh
         float2 *grad,              // gradient
+        float3 bvmin,              // bounding volume for parallel rendering
+        float3 bvmax,
         BVHNodeD *bvh,
         float *disp,
         float *invdet,
@@ -484,6 +486,8 @@ __device__ __host__ static inline void raycasting(
         int nTriangles, 
         float *data,              // volume data in unstructured mesh
         float2 *grad,
+        float3 bvmin,
+        float3 bvmax,
         BVHNodeD *bvh,
         float *disp,
         float *invdet,
@@ -512,12 +516,12 @@ __device__ __host__ static inline void raycasting(
   
 #if 1
   if (b0 && (!b1))
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvmin, bvmax, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
         slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tnear0, tfar0);
   else if (b0 && b1) {
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvmin, bvmax, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
         slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tnear0, tnear1);
-    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+    rc<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvmin, bvmax, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
         slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize, tfar1, tfar0);
   }
 #else
@@ -576,6 +580,8 @@ __global__ static void raycasting_kernel(
         int nTriangles, 
         float *data, 
         float2 *grad,
+        float3 bvmin,
+        float3 bvmax,
         BVHNodeD *bvh,
         float *disp,
         float *invdet,
@@ -601,7 +607,7 @@ __global__ static void raycasting_kernel(
   setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
   float4 dst = make_float4(0.f); 
-  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+  raycasting<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvmin, bvmax, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
       slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize);
   
   output_rgba8[(y*viewport[2]+x)*4+0] = dst.x * 255;
@@ -633,6 +639,8 @@ static void raycasting_cpu(
         int nTriangles,
         float *data, 
         float2 *grad,
+        float3 bvmin,
+        float3 bvmax,
         BVHNodeD *bvh,
         float *disp,
         float *invdet,
@@ -658,7 +666,7 @@ static void raycasting_cpu(
       setup_ray(viewport, invmvp, x, y, rayO, rayD);
 
       float4 dst = make_float4(0.f); 
-      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
+      raycasting<ANGLE, PSI, SHADING>(dst, nPhi, iPhi, nNodes, nTriangles, data, grad, bvmin, bvmax, bvh, disp, invdet, neighbors, psi, psi_range, angle_range, 
           slice_highlight_ratio, Ka, Kd, Ks, L, tf, ptf, trans, rayO, rayD, stepsize);
 
       output_rgba8[(y*viewport[2]+x)*4+0] = clamp(dst.x, 0.f, 1.f) * 255;
@@ -707,6 +715,8 @@ void rc_render(ctx_rc *ctx)
           ctx->nTriangles,
           ctx->d_data, 
           (float2*)ctx->d_grad,
+          make_float3(ctx->bvmin[0], ctx->bvmin[1], ctx->bvmin[2]), 
+          make_float3(ctx->bvmax[0], ctx->bvmax[1], ctx->bvmax[2]), 
           ctx->d_bvh,
           ctx->d_disp,
           ctx->d_invdet,
@@ -743,6 +753,8 @@ void rc_render_cpu(ctx_rc *ctx)
           ctx->nTriangles,
           ctx->h_data, 
           (float2*)ctx->h_grad,
+          make_float3(ctx->bvmin[0], ctx->bvmin[1], ctx->bvmin[2]), 
+          make_float3(ctx->bvmax[0], ctx->bvmax[1], ctx->bvmax[2]), 
           ctx->h_bvh,
           ctx->h_disp,
           ctx->h_invdet,

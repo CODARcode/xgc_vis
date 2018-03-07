@@ -17,6 +17,7 @@ struct ctx_rc {
   float invmvp[16]; // inverse(proj*modelview)
 
   int *d_neighbors, *h_neighbors; // neighbor indices are for quadnodes.
+  float bvmin[3], bvmax[3];
   BVHNodeD *d_bvh, *h_bvh;
   int *d_viewport;
   float *d_invmvp;
