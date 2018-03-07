@@ -62,8 +62,9 @@ struct VolrenEngine {
 
 private:
   VolrenTask* createTaskFromString(const std::string& s);
+
+  int np=INT_MAX, rank=INT_MAX;
   
-  int np=1, rank=0;
   std::thread *thread = NULL;
   std::queue<VolrenTask*> volrenTaskQueue;
   std::mutex mutex_volrenTaskQueue;

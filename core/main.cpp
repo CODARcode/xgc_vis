@@ -33,7 +33,7 @@ using json = nlohmann::json;
 XGCMesh xgcMesh;
 XGCData xgcData;
 
-VolrenEngine volrenEngine;
+VolrenEngine *volrenEngine = NULL;
 
 XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
@@ -94,7 +94,7 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
   } else if (query == "/exitServer") {
     con->close(0, "exit");
     wss.stop_listening();
-    volrenEngine.stop();
+    volrenEngine->stop();
   } else if (query == "/testPost") {
     std::string posts = con->get_request_body();
     fprintf(stderr, "posts=%s\n", posts.c_str());
@@ -104,7 +104,7 @@ void onHttp(server *s, websocketpp::connection_hdl hdl)
     con->append_header("Content-Type", "image/png");
     
     std::string posts = con->get_request_body();
-    VolrenTask *task = volrenEngine.enqueueAndWait(posts);
+    VolrenTask *task = volrenEngine->enqueueAndWait(posts);
 
     // response
     std::string response(task->png.buffer, task->png.size);
@@ -235,7 +235,7 @@ void startWebsocketServer(int port)
 
     // Start the server accept loop
     wss.start_accept();
-#if 0 
+#if 0
     char hostname[1024];
     gethostname(hostname, 1024);
     fprintf(stderr, "=================WEBSOCKET================\n");
@@ -261,7 +261,7 @@ void startWebsocketServer(int port)
 
 void sigint_handler(int)
 {
-  volrenEngine.stop();
+  volrenEngine->stop();
   wss.stop_listening();
   exit(0);
 }
@@ -468,11 +468,13 @@ int main(int argc, char **argv)
       continue;
     }
 
-    fprintf(stderr, "starting analysis..\n");
+    fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
   
     if (volren) {
-      volrenEngine.start(MPI_COMM_WORLD, xgcMesh, xgcData);
-      if (rank == 0) volrenEngine.enqueueAndWait("");
+      volrenEngine = new VolrenEngine();
+      volrenEngine->start(MPI_COMM_WORLD, xgcMesh, xgcData);
+      sleep(1);
+      if (rank == 0) volrenEngine->enqueueAndWait("");
     }
 
     mutex_ex.lock();
@@ -515,7 +517,7 @@ int main(int argc, char **argv)
       // ex->dumpBranches(filename_output_branches, branchSet);
     }
     
-    fprintf(stderr, "done.\n");
+    fprintf(stderr, "[rank=%d] done.\n", rank);
 
     // sleep(6);
     if (single_input) {
@@ -530,13 +532,18 @@ int main(int argc, char **argv)
     adios_finalize(0);
   }
 #endif
-  
-  if (ws_thread) {
+ 
+  if (ws_thread != NULL) {
     fprintf(stderr, "[rank=%d] waiting for wss to exit...\n", rank);
     ws_thread->join();
+    delete ws_thread;
+    ws_thread = NULL;
   }
 
-  volrenEngine.stop();
+  if (volrenEngine != NULL) {
+    volrenEngine->stop();
+    delete volrenEngine;
+  }
 
   // adios_close(*varFP);
   delete ex;

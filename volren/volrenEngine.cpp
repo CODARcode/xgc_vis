@@ -1,6 +1,7 @@
 #include "volren/volrenEngine.h"
 #include "volren/kdbvh.h"
 #include <json.hpp>
+#include <execinfo.h>
 
 using json = nlohmann::json;
 
@@ -89,19 +90,40 @@ VolrenEngine::~VolrenEngine()
   stop();
 }
 
+
+static void
+print_trace (void)
+{
+  void *array[10];
+  size_t size;
+  char **strings;
+  size_t i;
+
+  size = backtrace (array, 10);
+  strings = backtrace_symbols (array, size);
+
+  printf ("Obtained %zd stack frames.\n", size);
+
+  for (i = 0; i < size; i++)
+    printf ("%s\n", strings[i]);
+
+  free (strings);
+}
+
 void VolrenEngine::stop()
 {
-  fprintf(stderr, "rank=%d, stopping volren engine!\n", rank);
+  // fprintf(stderr, "[volren,rank=%d] stopping volren engine!\n", rank);
+  // print_trace();
 
   if (started()) {
-    fprintf(stderr, "rank=%d, submitting a exit job!\n", rank);
     if (rank == 0) {
+      fprintf(stderr, "[volren,rank=%d] submitting a exit job!\n", rank);
       json j;
       j["tag"] = "exit";
       VolrenTask *t = enqueueAndWait(j.dump());
       delete t;
     }
-    fprintf(stderr, "rank=%d, joining volren engine!\n", rank);
+    fprintf(stderr, "[volren,rank=%d] joining volren thread\n", rank);
     thread->join();
     delete thread;
     thread = NULL;
@@ -243,11 +265,12 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
 
 VolrenTask* VolrenEngine::enqueueAndWait(const std::string& s)
 {
-  VolrenTask *task = createTaskFromString(s);
+  VolrenTask *task = NULL; 
 
   // enqueue
   {
     std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+    task = createTaskFromString(s);
     volrenTaskQueue.push(task);
     mlock.unlock();
     cond_volrenTaskQueue.notify_one();
