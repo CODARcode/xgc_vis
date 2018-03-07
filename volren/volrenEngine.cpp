@@ -25,6 +25,10 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
     json j = json::parse(query);
     fprintf(stderr, "[volren] json parameter: %s\n", j.dump().c_str());
 
+    if (!j["tag"].is_null()) {
+      if (j["tag"] == "exit") task->tag = VOLREN_EXIT;
+    }
+
     if (j["width"].is_null() || j["height"].is_null())
       memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
     else {
@@ -89,20 +93,23 @@ VolrenEngine::~VolrenEngine()
 void VolrenEngine::stop()
 {
   if (started()) {
-    VolrenTask *task = new VolrenTask;
-    task->tag = VOLREN_EXIT;
-    enqueueAndWait(task);
-    delete task;
+    json j;
+    j["tag"] = "exit";
+    VolrenTask *t = enqueueAndWait(j.dump());
+    delete t;
   }
 }
 
-void VolrenEngine::start(XGCMesh& m, XGCData& d)
+void VolrenEngine::start(MPI_Comm comm, XGCMesh& m, XGCData& d)
 {
-  thread = new std::thread(&VolrenEngine::start_, this, std::ref(m), std::ref(d));
+  thread = new std::thread(&VolrenEngine::start_, this, comm, std::ref(m), std::ref(d));
 }
 
-void VolrenEngine::start_(XGCMesh& m, XGCData& d)
+void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
 {
+  MPI_Comm_size(comm, &np);
+  MPI_Comm_rank(comm, &rank);
+
   fprintf(stderr, "[volren] building BVH...\n");
   std::vector<BVHNodeD> bvh = buildBVHGPU(m.nNodes, m.nTriangles, m.coords, m.conn);
   // std::vector<BVHNodeD> bvh = buildKDBVHGPU(m);
@@ -212,11 +219,14 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
 #endif
 }
 
-void VolrenEngine::enqueueAndWait(VolrenTask *task)
+VolrenTask* VolrenEngine::enqueueAndWait(const std::string& s)
 {
+  VolrenTask *task = NULL;
+
   // enqueue
   {
     std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
+    task = VolrenTask::createVolrenTaskFromString(s);
     volrenTaskQueue.push(task);
     mlock.unlock();
     cond_volrenTaskQueue.notify_one();
@@ -227,11 +237,6 @@ void VolrenEngine::enqueueAndWait(VolrenTask *task)
     std::unique_lock<std::mutex> mlock(task->mutex);
     task->cond.wait(mlock);
   }
-}
 
-VolrenTask* VolrenEngine::enqueueAndWait(const std::string& s)
-{
-  VolrenTask* task = VolrenTask::createVolrenTaskFromString(s);
-  enqueueAndWait(task);
   return task;
 }

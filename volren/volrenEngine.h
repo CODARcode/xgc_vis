@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <thread>
+#include <mpi.h>
 #include "volren/png_utils.hpp"
 #include "volren/bvh.h"
 #include "volren/volren.cuh"
@@ -52,13 +53,15 @@ struct VolrenEngine {
   VolrenEngine();
   ~VolrenEngine();
 
-  void start(XGCMesh& m, XGCData& d);
-  void start_(XGCMesh& m, XGCData& d);
+  void start(MPI_Comm comm, XGCMesh& m, XGCData& d);
+  void start_(MPI_Comm comm, XGCMesh& m, XGCData& d);
   void stop();
-  void enqueueAndWait(VolrenTask *task);
   VolrenTask* enqueueAndWait(const std::string& s);
 
   bool started() const {return thread != NULL;}
+
+private:
+  int np=1, rank=0;
   std::thread *thread = NULL;
   std::queue<VolrenTask*> volrenTaskQueue;
   std::mutex mutex_volrenTaskQueue;

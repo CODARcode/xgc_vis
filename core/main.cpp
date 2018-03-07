@@ -270,7 +270,13 @@ int main(int argc, char **argv)
 {
   std::thread *ws_thread = NULL;
 
-  MPI_Init(&argc, &argv);
+  int np=1, rank=0;
+  int required = MPI_THREAD_MULTIPLE, provided;
+  // MPI_Init(&argc, &argv);
+  MPI_Init_thread(&argc, &argv, required, &provided);
+  MPI_Comm_size(MPI_COMM_WORLD, &np);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  assert(required == provided);
   
   using namespace boost::program_options;
   options_description opts(argv[0]);
@@ -377,7 +383,7 @@ int main(int argc, char **argv)
   ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
   
   // starting server
-  if (vm.count("server")) {
+  if (rank == 0 && vm.count("server")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
     // signal(SIGINT, sigint_handler);
   }
@@ -462,8 +468,8 @@ int main(int argc, char **argv)
     fprintf(stderr, "starting analysis..\n");
   
     if (volren) {
-      volrenEngine.start(xgcMesh, xgcData); 
-      volrenEngine.enqueueAndWait("");
+      volrenEngine.start(MPI_COMM_WORLD, xgcMesh, xgcData);
+      if (rank == 0) volrenEngine.enqueueAndWait("");
     }
 
     mutex_ex.lock();
