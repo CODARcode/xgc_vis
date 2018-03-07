@@ -11,7 +11,7 @@ VolrenTask::~VolrenTask()
   if (png.buffer != NULL) free(png.buffer);
 }
 
-VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
+VolrenTask* VolrenEngine::createTaskFromString(const std::string& query)
 {
   const int defaulat_viewport[4] = {0, 0, 720, 382};
   // const int defaulat_viewport[4] = {0, 0, 1440, 764};
@@ -24,7 +24,7 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
   // parse query
   try {
     json j = json::parse(query);
-    fprintf(stderr, "[volren] json parameter: %s\n", j.dump().c_str());
+    fprintf(stderr, "[volren,rank=%d] json parameter: %s\n", rank, j.dump().c_str());
 
     if (!j["tag"].is_null()) {
       if (j["tag"] == "exit") task->tag = VOLREN_EXIT;
@@ -72,7 +72,7 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
     else task->psi_end = j["psiEnd"].get<float>();
 
   } catch (...) {
-    fprintf(stderr, "[volren] json parse failed, using defaulat parameters.\n");
+    fprintf(stderr, "[volren,rank=%d] json parse failed, using defaulat parameters.\n", rank);
     memcpy(task->viewport, defaulat_viewport, sizeof(int)*4);
     memcpy(task->invmvpd, defaulat_invmvpd, sizeof(double)*16);
   }
@@ -165,7 +165,7 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
       std::string str;
       str.resize(str_len);
       MPI_Bcast((char*)str.data(), task->str.size(), MPI_CHAR, 0, comm);
-      task = VolrenTask::createVolrenTaskFromString(str);
+      task = createTaskFromString(str);
     }
     
     if (task->tag == VOLREN_RENDER) 
@@ -243,7 +243,7 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
 
 VolrenTask* VolrenEngine::enqueueAndWait(const std::string& s)
 {
-  VolrenTask *task = VolrenTask::createVolrenTaskFromString(s);
+  VolrenTask *task = createTaskFromString(s);
 
   // enqueue
   {

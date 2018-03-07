@@ -47,8 +47,6 @@ struct VolrenTask {
   std::string str;
 
   ~VolrenTask();
-
-  static VolrenTask* createVolrenTaskFromString(const std::string& s);
 };
 
 struct VolrenEngine {
@@ -63,6 +61,8 @@ struct VolrenEngine {
   bool started() const {return thread != NULL;}
 
 private:
+  VolrenTask* createTaskFromString(const std::string& s);
+  
   int np=1, rank=0;
   std::thread *thread = NULL;
   std::queue<VolrenTask*> volrenTaskQueue;
