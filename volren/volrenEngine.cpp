@@ -186,7 +186,7 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
       MPI_Bcast(&str_len, 1, MPI_INT, 0, comm);
       std::string str;
       str.resize(str_len);
-      MPI_Bcast((char*)str.data(), task->str.size(), MPI_CHAR, 0, comm);
+      MPI_Bcast((char*)str.data(), str_len, MPI_CHAR, 0, comm);
       task = createTaskFromString(str);
     }
     
