@@ -187,9 +187,9 @@ void VolrenEngine::start_(XGCMesh& m, XGCData& d)
       
       fprintf(stderr, "[volren] png compression time: %f ns, size=%zu\n", tt4, task->png.size);
     } else if (task->tag == VOLREN_EXIT) {
-      fprintf(stderr, "[volren] exiting...\n");
       rc_destroy_ctx(&rc);
       task->cond.notify_one();
+      fprintf(stderr, "[volren] exiting...\n");
       return;
     }
   }

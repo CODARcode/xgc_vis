@@ -379,7 +379,7 @@ int main(int argc, char **argv)
   // starting server
   if (vm.count("server")) {
     ws_thread = new std::thread(startWebsocketServer, vm["port"].as<int>());
-    signal(SIGINT, sigint_handler);
+    // signal(SIGINT, sigint_handler);
   }
 
   // read data
