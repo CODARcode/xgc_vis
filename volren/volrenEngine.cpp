@@ -19,6 +19,7 @@ VolrenTask* VolrenTask::createVolrenTaskFromString(const std::string& query)
     
   // create task
   VolrenTask *task = new VolrenTask;
+  task->str = query;
  
   // parse query
   try {
@@ -136,14 +137,28 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
 
   while (1) { // volren loop
     VolrenTask *task = NULL;
+    int str_len;
+
     // dequeue task
-    {
+    if (rank == 0) {
       std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
       while (volrenTaskQueue.empty()) {
         cond_volrenTaskQueue.wait(mlock);
       }
       task = volrenTaskQueue.front();
       volrenTaskQueue.pop();
+
+      if (np > 1) { // distributed rendering
+        str_len = task->str.size();
+        MPI_Bcast(&str_len, 1, MPI_INT, 0, comm);
+        MPI_Bcast((char*)task->str.data(), task->str.size(), MPI_CHAR, 0, comm);
+      }
+    } else {
+      MPI_Bcast(&str_len, 1, MPI_INT, 0, comm);
+      std::string str;
+      str.resize(str_len);
+      MPI_Bcast((char*)str.data(), task->str.size(), MPI_CHAR, 0, comm);
+      task = VolrenTask::createVolrenTaskFromString(str);
     }
     
     if (task->tag == VOLREN_RENDER) 
@@ -221,12 +236,11 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
 
 VolrenTask* VolrenEngine::enqueueAndWait(const std::string& s)
 {
-  VolrenTask *task = NULL;
+  VolrenTask *task = VolrenTask::createVolrenTaskFromString(s);
 
   // enqueue
   {
     std::unique_lock<std::mutex> mlock(mutex_volrenTaskQueue);
-    task = VolrenTask::createVolrenTaskFromString(s);
     volrenTaskQueue.push(task);
     mlock.unlock();
     cond_volrenTaskQueue.notify_one();

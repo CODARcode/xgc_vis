@@ -30,8 +30,8 @@ struct VolrenTask {
   int viewport[4];
   double invmvpd[16];
   float *tf = NULL;
-  png_mem_buffer png;
   unsigned char *fb = NULL;
+  png_mem_buffer png;
   std::condition_variable cond;
   std::mutex mutex;
 
@@ -43,6 +43,8 @@ struct VolrenTask {
   bool enable_shading = true;
   float Ks = 0.2f, Kd = 0.3f, Ka = 0.04f;
   float light_direction[3] = {-1, 0, 0};
+  
+  std::string str;
 
   ~VolrenTask();
 

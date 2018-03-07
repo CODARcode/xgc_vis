@@ -270,14 +270,15 @@ int main(int argc, char **argv)
 {
   std::thread *ws_thread = NULL;
 
-  int np=1, rank=0;
+  // int np=1, rank=0;
+  int np, rank;
   int required = MPI_THREAD_MULTIPLE, provided;
   // MPI_Init(&argc, &argv);
   MPI_Init_thread(&argc, &argv, required, &provided);
   MPI_Comm_size(MPI_COMM_WORLD, &np);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  assert(required == provided);
-  
+  // assert(required == provided);
+
   using namespace boost::program_options;
   options_description opts(argv[0]);
   opts.add_options()
@@ -304,7 +305,7 @@ int main(int argc, char **argv)
   notify(vm);
 
   if (!vm.count("mesh") || vm.count("h") || !(vm.count("input") || vm.count("pattern"))) {
-    std::cout << opts << std::endl;
+    if (rank == 0) std::cerr << opts << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
@@ -347,25 +348,27 @@ int main(int argc, char **argv)
   bool write_binary = (vm["write_method"].as<std::string>() == "BIN");
   bool volren = vm.count("volren") && vm.count("server");
 
-  fprintf(stderr, "==========================================\n");
-  fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
-  if (single_input) {
-    fprintf(stderr, "filename_input=%s\n", filename_input.c_str());
-  } else {
-    fprintf(stderr, "filename_input_pattern=%s\n", vm["pattern"].as<std::string>().c_str());
-    for (int i=0; i<input_filename_list.size(); i++) 
-      fprintf(stderr, "filename_input_%d=%s\n", i, input_filename_list[i].c_str());
+  if (rank == 0) {
+    fprintf(stderr, "==========================================\n");
+    fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
+    if (single_input) {
+      fprintf(stderr, "filename_input=%s\n", filename_input.c_str());
+    } else {
+      fprintf(stderr, "filename_input_pattern=%s\n", vm["pattern"].as<std::string>().c_str());
+      for (int i=0; i<input_filename_list.size(); i++) 
+        fprintf(stderr, "filename_input_%d=%s\n", i, input_filename_list[i].c_str());
+    }
+    if (filename_output.size() > 0) 
+      fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
+    else if (output_prefix.size() > 0)
+      fprintf(stderr, "output_prefix=%s\n", output_prefix.c_str());
+    else
+      fprintf(stderr, "filename_output=(null)\n");
+    fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
+    fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
+    fprintf(stderr, "write_method_params=%s\n", write_method_params_str.c_str());
+    fprintf(stderr, "==========================================\n");
   }
-  if (filename_output.size() > 0) 
-    fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
-  else if (output_prefix.size() > 0)
-    fprintf(stderr, "output_prefix=%s\n", output_prefix.c_str());
-  else
-    fprintf(stderr, "filename_output=(null)\n");
-  fprintf(stderr, "read_method=%s\n", read_method_str.c_str());
-  fprintf(stderr, "write_method=%s\n", write_method_str.c_str());
-  fprintf(stderr, "write_method_params=%s\n", write_method_params_str.c_str());
-  fprintf(stderr, "==========================================\n");
 
   ADIOS_READ_METHOD read_method;
   if (read_method_str == "BP") read_method = ADIOS_READ_METHOD_BP;
