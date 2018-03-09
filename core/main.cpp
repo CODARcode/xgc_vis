@@ -252,10 +252,10 @@ void startWebsocketServer(int port)
     wss.run();
   } catch (websocketpp::exception const & e) {
     std::cerr << e.what() << std::endl;
-    exit(EXIT_FAILURE);
+    // exit(EXIT_FAILURE);
   } catch (...) {
-    std::cerr << "other exception" << std::endl;
-    exit(EXIT_FAILURE);
+    std::cerr << "[wss] other exception" << std::endl;
+    // exit(EXIT_FAILURE);
   }
 }
 
