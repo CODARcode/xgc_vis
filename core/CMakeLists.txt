@@ -1,4 +1,4 @@
-add_executable (xgcvis_core main.cpp xgcBlobExtractor.cpp xgcMultiscaleAnalysis.cpp)
+add_executable (xgcvis_core main.cpp xgcBlobExtractor.cpp xgcMultiscaleAnalysis.cpp xgcLevelSetAnalysis.cpp)
 target_link_libraries (xgcvis_core tourtre xgcvis_common xgcvis_volren ${Boost_LIBRARIES} ${ZLIB_LIBRARIES})
 
 #add_executable (test1 test.cpp xgcBlobExtractor.cpp)
