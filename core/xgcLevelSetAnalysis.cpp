@@ -2,7 +2,7 @@
 #include <set>
 #include <queue>
 
-void XGCLevelSetAnalysis::thresholdByPercentageOfTotalEnergy(const XGCMesh &m, const XGCData &d, double percent)
+void XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(const XGCMesh &m, const XGCData &d, double percent)
 {
   // compute total energy 
   double total_energy = 0;

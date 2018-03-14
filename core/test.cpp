@@ -2,30 +2,20 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
-#include "core/xgcBlobExtractor.h"
+#include "io/xgcMesh.h"
+#include "io/xgcData.h"
+#include "core/xgcLevelSetAnalysis.h"
 
 int main(int argc, char **argv)
 {
-  const int nNodes = 10, nTriangles = 10;
-  double *coords = (double*)malloc(sizeof(double)*nNodes); // doesn't matter
-  int conn[] = {
-    3, 4, 9, 
-    3, 1, 4, 
-    1, 2, 4, 
-    2, 8, 4, 
-    2, 0, 8, 
-    2, 7, 0, 
-    2, 5, 7, 
-    2, 1, 5, 
-    1, 3, 5, 
-    3, 6, 5};
-  double psi[nNodes];
-  for (int i=0; i<nNodes; i++) 
-    psi[i] = i;
+  XGCMesh m;
+  m.readMeshFromADIOS(argv[1], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
 
-  XGCBlobExtractor *ex = new XGCBlobExtractor(nNodes, nTriangles, coords, conn);
-  ex->setData(0, 1, psi);
+  ADIOS_FILE *varFP = adios_read_open_file(argv[2], ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
+  XGCData d;
+  d.readDpotFromADIOS(m, varFP);
 
-  ex->buildContourTree2D(0);
+  XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(m, d, 0.98);
+
   return 0;
 }

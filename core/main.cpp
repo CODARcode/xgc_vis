@@ -19,6 +19,7 @@
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
 #include "core/xgcBlobExtractor.h"
+#include "core/xgcLevelSetAnalysis.h"
 #include "volren/volrenEngine.h"
 // #include "volren/bvh.h"
 // #include "volren/volren.cuh"
@@ -469,6 +470,8 @@ int main(int argc, char **argv)
     }
 
     fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
+
+    XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.98);
   
     if (volren) {
       volrenEngine = new VolrenEngine();

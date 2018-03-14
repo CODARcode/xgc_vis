@@ -5,7 +5,7 @@
 #include "io/xgcData.h"
 
 struct XGCLevelSetAnalysis {
-  static void thresholdByPercentageOfTotalEnergy(const XGCMesh &m, const XGCData &d, double percent);
+  static void thresholdingByPercentageOfTotalEnergy(const XGCMesh &m, const XGCData &d, double percent);
 };
 
 #endif
