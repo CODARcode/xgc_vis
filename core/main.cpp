@@ -471,7 +471,7 @@ int main(int argc, char **argv)
 
     fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
 
-    XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.98);
+    // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
   
     if (volren) {
       volrenEngine = new VolrenEngine();

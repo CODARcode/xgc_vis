@@ -8,9 +8,11 @@ void XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(const XGCMesh &m
   double total_energy = 0;
   for (int i=0; i<m.nNodes*m.nPhi; i++) 
     total_energy += d.dpot[i] * d.dpot[i];
+  fprintf(stderr, "total_energy=%f\n", total_energy);
 
   // compute threshold
   double threshold_energy = total_energy * percent;
+  fprintf(stderr, "threshold_energy=%f\n", threshold_energy);
 
   // sorting 
   std::vector<double> total_order(m.nNodes*m.nPhi, 0);
@@ -24,7 +26,10 @@ void XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(const XGCMesh &m
   for (int i=0; i<total_order.size(); i++) {
     size_t j = total_order[i];
     energy += d.dpot[j] * d.dpot[j];
-    if (energy >= threshold_energy) break;
+    if (energy >= threshold_energy) { 
+      fprintf(stderr, "energy=%f, i=%d, n=%zu, nNodes=%d, nPhi=%d\n", energy, i, total_order.size(), m.nNodes, m.nPhi); 
+      break;
+    }
     else candidates.insert(j);
   }
 
@@ -59,11 +64,14 @@ void XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(const XGCMesh &m
       Q.pop();
       candidates.erase(current);
 
+      // fprintf(stderr, "current_component_id=%d, current=%zu, size_candidate=%zu\n", current_component_id, current, candidates.size());
       components[current_component_id].push_back(current);
 
       for (auto neighbor : find_neighbors(current)) { // FIXME: neighbor ids
-        if (candidates.find(neighbor) != candidates.end()) // neighbor is above threshold and connected to the current
+        if (candidates.find(neighbor) != candidates.end()) { // neighbor is above threshold and connected to the current
+          if (neighbor == 281) fprintf(stderr, "f, current=%zu\n", current);
           Q.push(neighbor);
+        }
       }
     }
 
