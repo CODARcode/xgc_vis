@@ -12,6 +12,11 @@
 #include <cfloat>
 #include <json.hpp>
 
+enum {
+  XGC_INPUT_FORMAT_BP = 0, 
+  XGC_INPUT_FORMAT_H5 = 1
+};
+
 struct XGCMesh {
   int nNodes, nTriangles, nPhi, iPhi;
   int *conn = NULL, *nextNode = NULL;

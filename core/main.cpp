@@ -346,6 +346,11 @@ int main(int argc, char **argv)
     single_input = true;
   }
 
+  int input_format; 
+  if (filename_mesh.rfind(".bp") != std::string::npos) input_format = XGC_INPUT_FORMAT_BP;
+  else if (filename_mesh.rfind(".h5") != std::string::npos) input_format = XGC_INPUT_FORMAT_H5;
+  else assert(false);
+
   bool write_binary = (vm["write_method"].as<std::string>() == "BIN");
   bool volren = vm.count("volren") && vm.count("server");
 
@@ -382,7 +387,19 @@ int main(int argc, char **argv)
   }
 
   /// read mesh
-  xgcMesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
+  if (input_format == XGC_INPUT_FORMAT_BP) {
+#if WITH_ADIOS
+    xgcMesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
+#else
+    assert(false);
+#endif
+  } else if (input_format == XGC_INPUT_FORMAT_H5) {
+#if WITH_H5
+    xgcMesh.readMeshFromH5(filename_mesh);
+#else
+    assert(false);
+#endif
+  }
 
   ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
   
@@ -434,34 +451,9 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
 
-    xgcMesh.nPhi = 1;
-    readValueInt(varFP, "nphi", &xgcMesh.nPhi);
-    // readScalars<double>(varFP, "dpot", &dpot);
-
-    ADIOS_VARINFO *avi = adios_inq_var(varFP, "dpot");
-    assert(avi != NULL);
-
-    adios_inq_var_stat(varFP, avi, 0, 0);
-    adios_inq_var_blockinfo(varFP, avi);
-    adios_inq_var_meshinfo(varFP, avi);
-
-    // uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(nNodes), static_cast<uint64_t>(nPhi), 1, 1};
-    uint64_t st[4] = {0, 0, 0, 0}, sz[4] = {static_cast<uint64_t>(xgcMesh.nPhi), static_cast<uint64_t>(xgcMesh.nNodes), 1, 1};
-    ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
-    // fprintf(stderr, "%d, {%d, %d, %d, %d}\n", avi->ndim, avi->dims[0], avi->dims[1], avi->dims[2], avi->dims[3]);
-
-    assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
-
-    if (xgcData.dpot == NULL)
-      xgcData.dpot = (double*)malloc(sizeof(double)*xgcMesh.nPhi*xgcMesh.nNodes);
-
-    adios_schedule_read_byid(varFP, sel, avi->varid, 0, 1, xgcData.dpot);
-    adios_perform_reads(varFP, 1);
-    adios_selection_delete(sel);
-
+    xgcData.readDpotFromADIOS(xgcMesh, varFP);
     xgcData.deriveSinglePrecisionDpot(xgcMesh);
     xgcData.deriveGradient(xgcMesh);
-
 
     if (skipped_timesteps.find(current_time_index) != skipped_timesteps.end()) {
       fprintf(stderr, "skipping timestep %lu.\n", current_time_index);
