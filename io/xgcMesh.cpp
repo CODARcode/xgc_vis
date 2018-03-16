@@ -48,7 +48,7 @@ void XGCMesh::readMeshFromH5(const std::string& filename)
 
   psi = (double*)malloc(sizeof(double)*nNodes);
   hid_t h5id_psi = H5Dopen2(h5fid, "/psi", H5P_DEFAULT);
-  H5Dread(h5id_psi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, conn);
+  H5Dread(h5id_psi, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, conn);
   H5Dclose(h5id_psi);
 
   H5Fclose(h5fid);

@@ -1,6 +1,7 @@
 #ifndef _XGCDATA_H
 #define _XGCDATA_H
 
+#include "def.h"
 #include <string>
 #include <vector>
 #include <map>
@@ -18,7 +19,14 @@ struct XGCData {
   void deriveTotalEnergy();
 
   ~XGCData();
+
+#if WITH_ADIOS
   void readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp);
+#endif
+
+#if WITH_H5
+  void readDpotFromH5(XGCMesh& m, const std::string& filename);
+#endif
 
   using json = nlohmann::json;
   json jsonfyData(const XGCMesh&) const; 

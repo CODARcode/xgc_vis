@@ -4,6 +4,10 @@
 #include <iostream>
 #include <string>
 
+#if WITH_H5
+#include <hdf5.h>
+#endif
+
 #if WITH_VTK
 #include <vtkDataSet.h>
 #include <vtkUnstructuredGrid.h>
@@ -53,6 +57,7 @@ void XGCData::deriveGradient(const XGCMesh& m) {
     }
 }
 
+#if WITH_ADIOS
 void XGCData::readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp)
 {
   adios_read_bp_reset_dimension_order(fp, 0);
@@ -79,6 +84,30 @@ void XGCData::readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp)
   adios_perform_reads(fp, 1);
   adios_selection_delete(sel);
 }
+#endif
+
+#if WITH_H5
+void XGCData::readDpotFromH5(XGCMesh &m, const std::string& filename)
+{
+  hid_t h5fid = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+  
+  hid_t h5id_nphi = H5Dopen2(h5fid, "/nphi", H5P_DEFAULT);
+  H5Dread(h5id_nphi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &m.nPhi);
+  H5Dclose(h5id_nphi);
+  
+  hid_t h5id_iphi = H5Dopen2(h5fid, "/iphi", H5P_DEFAULT);
+  H5Dread(h5id_iphi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &m.nPhi);
+  H5Dclose(h5id_iphi);
+
+  if (dpot == NULL) 
+    dpot = (double*)malloc(sizeof(double)*m.nPhi*m.nNodes);
+  hid_t h5id_dpot = H5Dopen2(h5fid, "/dpot", H5P_DEFAULT);
+  H5Dread(h5id_dpot, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dpot);
+  H5Dclose(h5id_dpot);
+
+  H5Fclose(h5fid);
+}
+#endif
 
 json XGCData::jsonfyDataInfo(const XGCMesh&) const 
 {
