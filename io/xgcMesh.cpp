@@ -12,8 +12,52 @@
 #include "io/xgcMesh.h"
 #include "io/bp_utils.hpp"
 
+#if WITH_H5
+#include <hdf5.h>
+#endif
+
 using json = nlohmann::json;
 
+#if WITH_H5
+void XGCMesh::readMeshFromH5(const std::string& filename)
+{
+  hid_t h5fid = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+
+  hid_t h5id_nn = H5Dopen2(h5fid, "/n_n", H5P_DEFAULT);
+  H5Dread(h5id_nn, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &nNodes);
+  H5Dclose(h5id_nn);
+ 
+  hid_t h5id_nt = H5Dopen2(h5fid, "/n_t", H5P_DEFAULT);
+  H5Dread(h5id_nt, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &nTriangles);
+  H5Dclose(h5id_nt);
+
+  coords = (double*)malloc(sizeof(double)*nNodes*2);
+  hid_t h5id_coords = H5Dopen2(h5fid, "/coordinates/values", H5P_DEFAULT);
+  H5Dread(h5id_coords, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, coords);
+  H5Dclose(h5id_coords);
+
+  conn = (int*)malloc(sizeof(int)*nTriangles*3);
+  hid_t h5id_conn = H5Dopen2(h5fid, "/cell_set[0]/node_connect_list", H5P_DEFAULT);
+  H5Dread(h5id_conn, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, conn);
+  H5Dclose(h5id_conn);
+
+  nextNode = (int*)malloc(sizeof(int)*nNodes);
+  hid_t h5id_nextnode = H5Dopen2(h5fid, "/nextnode", H5P_DEFAULT);
+  H5Dread(h5id_nextnode, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, conn);
+  H5Dclose(h5id_nextnode);
+
+  psi = (double*)malloc(sizeof(double)*nNodes);
+  hid_t h5id_psi = H5Dopen2(h5fid, "/psi", H5P_DEFAULT);
+  H5Dread(h5id_psi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, conn);
+  H5Dclose(h5id_psi);
+
+  H5Fclose(h5fid);
+
+  preprocessMesh();
+}
+#endif
+
+#if WITH_ADIOS
 void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm)
 {
   adios_read_init_method(readMethod, comm, "");
@@ -36,7 +80,12 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
  
   adios_read_finalize_method (ADIOS_READ_METHOD_BP);
   adios_read_close(fp);
+  
+  preprocessMesh();
+}
+#endif
 
+void XGCMesh::preprocessMesh() {
   // psi
   psif = (float*)realloc(psif, sizeof(float)*nNodes);
   for (int i=0; i<nNodes; i++) {

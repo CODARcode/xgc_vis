@@ -11,3 +11,7 @@ endif ()
 if (WITH_NC)
   target_link_libraries (xgcvis_io ${NETCDF_LIBRARIES})
 endif ()
+
+if (WITH_H5)
+  target_link_libraries (xgcvis_io ${HDF5_C_LIBRARIES})
+endif ()

@@ -29,7 +29,13 @@ struct XGCMesh {
 
   std::vector<std::set<size_t> > nodeGraph; // node->{neighbor nodes}
 
+#if WITH_ADIOS
   void readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm);
+#endif
+
+#if WITH_H5
+  void readMeshFromH5(const std::string& filename);
+#endif
 
   int findPsiSaddle(); 
 
@@ -45,6 +51,8 @@ struct XGCMesh {
   ~XGCMesh();
   
 private:
+  void preprocessMesh();
+
   void buildNeighbors();
   void buildNodeGraph();
 };

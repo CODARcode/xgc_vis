@@ -1,12 +1,14 @@
 #ifndef _DEF_H
 #define _DEF_H
 
+#cmakedefine WITH_ADIOS 1
 #cmakedefine WITH_CUDA 1
 #cmakedefine WITH_PNG 1
 #cmakedefine WITH_QT 1
 #cmakedefine WITH_VTK 1
 #cmakedefine WITH_TBB 1
 #cmakedefine WITH_NC 1
+#cmakedefine WITH_H5 1
 
 // needed for malloc
 #include <cstdlib>

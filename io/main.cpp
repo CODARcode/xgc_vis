@@ -11,9 +11,14 @@
 
 int main(int argc, char **argv)
 {
+  XGCMesh m;
+  m.readMeshFromH5(argv[1]);
+
+#if 0
   XGCEq eq;
   eq.parseFromFile(argv[1]);
   eq.writeToNetCDF(argv[2]);
+#endif
 
 #if 0
   XGCMesh m;
