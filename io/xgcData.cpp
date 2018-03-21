@@ -96,7 +96,7 @@ void XGCData::readDpotFromH5(XGCMesh &m, const std::string& filename)
   H5Dclose(h5id_nphi);
   
   hid_t h5id_iphi = H5Dopen2(h5fid, "/iphi", H5P_DEFAULT);
-  H5Dread(h5id_iphi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &m.nPhi);
+  H5Dread(h5id_iphi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &m.iPhi);
   H5Dclose(h5id_iphi);
 
   if (dpot == NULL) 

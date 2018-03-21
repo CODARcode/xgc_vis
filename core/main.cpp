@@ -412,14 +412,16 @@ int main(int argc, char **argv)
   // read data
   fprintf(stderr, "opening data stream...\n");
   ADIOS_FILE *varFP;
-  if (single_input) {
-    if (read_method == ADIOS_READ_METHOD_BP)
-      varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
-    else 
-      varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
-    // fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
+  if (input_format == XGC_INPUT_FORMAT_BP) {
+    if (single_input) {
+      if (read_method == ADIOS_READ_METHOD_BP)
+        varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
+      else 
+        varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
+      // fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
+    }
+    adios_read_bp_reset_dimension_order(varFP, 0);
   }
-  adios_read_bp_reset_dimension_order(varFP, 0);
     
   size_t current_time_index = 0; // only for multiple inputs.
 
@@ -451,7 +453,10 @@ int main(int argc, char **argv)
       varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
     }
 
-    xgcData.readDpotFromADIOS(xgcMesh, varFP);
+    if (input_format == XGC_INPUT_FORMAT_BP) 
+      xgcData.readDpotFromADIOS(xgcMesh, varFP);
+    else if (input_format == XGC_INPUT_FORMAT_H5) 
+      xgcData.readDpotFromH5(xgcMesh, filename_input);
     xgcData.deriveSinglePrecisionDpot(xgcMesh);
     xgcData.deriveGradient(xgcMesh);
 
