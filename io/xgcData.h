@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <mpi.h>
 #include <json.hpp>
 #include "io/xgcMesh.h"
 
@@ -21,6 +22,11 @@ struct XGCData {
   ~XGCData();
 
 #if WITH_ADIOS
+  void openAdiosStream(const std::string& filename, const std::string& readMethodString, MPI_Comm comm);
+  void openAdiosFilesByPattern(const std::string& pattern);
+
+  void readNextTimestep();
+
   void readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp);
 #endif
 

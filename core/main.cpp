@@ -412,7 +412,7 @@ int main(int argc, char **argv)
   // read data
   fprintf(stderr, "opening data stream...\n");
   ADIOS_FILE *varFP;
-  if (single_input > 0) {
+  if (single_input) {
     if (read_method == ADIOS_READ_METHOD_BP)
       varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
     else 
