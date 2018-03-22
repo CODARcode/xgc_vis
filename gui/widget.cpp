@@ -31,7 +31,7 @@ CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *pa
     QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
-    toggle_mesh(false), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
+    toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
     current_slice(0)
 {
   updateMesh();
@@ -136,7 +136,6 @@ void CGLWidget::mouseMoveEvent(QMouseEvent* e)
 void CGLWidget::keyPressEvent(QKeyEvent* e)
 {
   switch (e->key()) {
-#if 0
   case Qt::Key_M: 
     toggle_mesh = !toggle_mesh;
     updateGL();
@@ -147,6 +146,7 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
     updateGL();
     break;
 
+#if 0
   case Qt::Key_E:
     toggle_extrema = !toggle_extrema;
     updateGL();
@@ -359,7 +359,8 @@ void CGLWidget::renderSinglePlane()
     glEnableClientState(GL_COLOR_ARRAY);
 
     glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
-    glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*m.nTriangles*3*3] );
+    // glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*m.nTriangles*3*3] );
+    glColorPointer(3, GL_FLOAT, 0, f_colors.data() );
     glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
 
     glDisableClientState(GL_COLOR_ARRAY);
