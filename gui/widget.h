@@ -38,6 +38,7 @@ public:
   ~CGLWidget(); 
 
   void updateMesh();
+  void updateData();
 
   void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
   void loadMeshFromJsonFile(const std::string& filename);

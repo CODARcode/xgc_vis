@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 configure_file (def.h.cmake def.h)
 
+set (EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
+set (LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
+
 option (WITH_ADIOS "Build with ADIOS" ON)
 option (WITH_CUDA "Build with CUDA" OFF)
 option (WITH_QT "Build with Qt" OFF)

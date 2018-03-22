@@ -24,6 +24,11 @@
 // #include "volren/bvh.h"
 // #include "volren/volren.cuh"
 
+#if WITH_QT
+#include <QApplication>
+#include "gui/widget.h"
+#endif
+
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
 server wss;
@@ -296,6 +301,7 @@ int main(int argc, char **argv)
     ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
     ("server,s", "enable websocket server")
     ("volren,v", "enable volren (-s required)")
+    ("gui,g", "start gui")
     ("port,p", value<int>()->default_value(9002), "websocket server port")
     ("help,h", "display this information");
   
@@ -353,6 +359,7 @@ int main(int argc, char **argv)
 
   bool write_binary = (vm["write_method"].as<std::string>() == "BIN");
   bool volren = vm.count("volren") && vm.count("server");
+  bool gui = vm.count("gui");
 
   if (rank == 0) {
     fprintf(stderr, "==========================================\n");
@@ -470,6 +477,19 @@ int main(int argc, char **argv)
 
     // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
   
+    if (gui) { // TODO: async
+      QApplication app(argc, argv);
+      QGLFormat fmt = QGLFormat::defaultFormat();
+      fmt.setSampleBuffers(true);
+      fmt.setSamples(16); 
+      QGLFormat::setDefaultFormat(fmt); 
+      
+      CGLWidget *widget = new CGLWidget(xgcMesh, xgcData);
+      widget->show(); 
+
+      app.exec();
+    }
+
     if (volren) {
       volrenEngine = new VolrenEngine();
       volrenEngine->start(MPI_COMM_WORLD, xgcMesh, xgcData);

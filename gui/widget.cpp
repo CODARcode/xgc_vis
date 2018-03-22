@@ -1,3 +1,4 @@
+#include "def.h"
 #include <QMouseEvent>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -18,16 +19,6 @@
 // #include <GL/glut.h>
 #endif
 
-#define CHECK_GLERROR()\
-{\
-  GLenum err = glGetError();\
-  if (err != GL_NO_ERROR) {\
-    const GLubyte *errString = gluErrorString(err);\
-    qDebug("[%s line %d] GL Error: %s\n",\
-            __FILE__, __LINE__, errString);\
-  }\
-}
-
 using nlohmann::json;
 
 typedef websocketpp::client<websocketpp::config::asio_client> client;
@@ -46,7 +37,7 @@ CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *pa
   updateMesh();
   // thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
 
-  contour = d.sampleAlongPsiContour(m, 0.2); 
+  // contour = d.sampleAlongPsiContour(m, 0.2); 
   // m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
   // contour = m.sampleScalarsAlongPsiContour(d.dpot, 10, 0.2); // TODO FIXME
   // contour = m.testMarchingTriangles(m.psi, 0.2);
@@ -261,7 +252,6 @@ void CGLWidget::paintGL()
   glClearColor(1, 1, 1, 0); 
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 
-#if 1
   _projmatrix.setToIdentity(); 
   _projmatrix.perspective(_fovy, (float)width()/height(), _znear, _zfar); 
   _mvmatrix.setToIdentity();
@@ -278,10 +268,10 @@ void CGLWidget::paintGL()
 
   // glutWireTeapot(1.0);
 
-  // renderSinglePlane();
+  renderSinglePlane();
   // renderMultiplePlanes();
 
-
+#if 0
   glTranslatef(-m.coords_centroid_x, -m.coords_centroid_y, 0.f);
   glColor3f(0, 0, 0);
   glBegin(GL_LINE_LOOP);
@@ -289,10 +279,9 @@ void CGLWidget::paintGL()
   for (int i=0; i<contour.size()/3; i++) 
     glVertex2f(contour[i*3], contour[i*3+1]);
   glEnd();
-
+#endif
 
   CHECK_GLERROR();
-#endif
 }
 
 void CGLWidget::renderMultiplePlanes()
@@ -379,6 +368,18 @@ void CGLWidget::renderSinglePlane()
 
   CHECK_GLERROR();
 }
+
+template <typename T>
+static T clamp(T min, T max, T val)
+{
+  return std::max(min, std::min(max, val));
+}
+
+template <typename T>
+static T clamp_normalize(T min, T max, T val)
+{
+  return (clamp(min, max, val) - min) / (max - min);
+}
  
 void CGLWidget::updateMesh()
 {
@@ -395,14 +396,22 @@ void CGLWidget::updateMesh()
   }
 }
 
-template <typename T>
-static T clamp(T min, T max, T val)
+void CGLWidget::updateData()
 {
-  return std::max(min, std::min(max, val));
-}
+  const float min = -100, max = 100;
 
-template <typename T>
-static T clamp_normalize(T min, T max, T val)
-{
-  return (clamp(min, max, val) - min) / (max - min);
+  f_colors.clear();
+
+  for (int plane = 0; plane < m.nPhi; plane ++) {
+    for (int i=0; i<m.nTriangles; i++) {
+      int v[3] = {m.conn[i*3], m.conn[i*3+1], m.conn[i*3+2]};
+
+      for (int j=0; j<3; j++) {
+        float val = clamp_normalize(min, max, (float)d.dpot[plane*m.nNodes + v[j]]);
+        f_colors.push_back(val);
+        f_colors.push_back(1-val);
+        f_colors.push_back(0);
+      }
+    }
+  }
 }
