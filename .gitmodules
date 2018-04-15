@@ -1,0 +1,3 @@
+[submodule "OpenFTK"]
+	path = third_party/ftk
+	url = git@github.com:hguo/OpenFTK.git

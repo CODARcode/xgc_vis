@@ -35,6 +35,7 @@ include_directories (
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/third_party/libtourtre/include
+  ${PROJECT_SOURCE_DIR}/third_party/ftk/include
   ${PROJECT_SOURCE_DIR}/third_party/json
   ${PROJECT_SOURCE_DIR}/third_party/websocketpp
   ${PROJECT_SOURCE_DIR}/third_party/concurrentqueue

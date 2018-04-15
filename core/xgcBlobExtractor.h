@@ -7,7 +7,7 @@
 #include <set>
 #include <map>
 #include <json.hpp>
-#include "common/FeatureTransitionMatrix.h"
+#include <ftk/transition/transition.h>
 
 class XGCBlobExtractor
 {
@@ -82,8 +82,8 @@ private: // analysis
   // std::map<ctBranch*, size_t> branchSet;
 
 public:
-  FeatureTransitionMatrix relateFeatures(const std::vector<int> &labels0, const std::vector<int> &signs0, 
-      const std::vector<int> &labels1, const std::vector<int> &sings1);
+  // FeatureTransitionMatrix relateFeatures(const std::vector<int> &labels0, const std::vector<int> &signs0, 
+  //     const std::vector<int> &labels1, const std::vector<int> &sings1);
 }; 
 
 #endif

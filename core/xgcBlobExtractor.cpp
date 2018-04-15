@@ -756,23 +756,6 @@ json XGCBlobExtractor::jsonfyMesh() const {
   // return ss.str();
 }
 
-FeatureTransitionMatrix XGCBlobExtractor::relateFeatures(
-    const std::vector<int> &labels0, const std::vector<int> &signs0, 
-    const std::vector<int> &labels1, const std::vector<int> &signs1)
-{
-  const int n0 = signs0.size(), n1 = signs1.size();
-  FeatureTransitionMatrix tm(n0, n1);
-
-  // check volume overlap
-  for (int i = 0; i<nNodes; i ++) {
-    int l0 = labels0[i], l1 = labels1[i];
-    if (l0 == INT_MAX || l1 == INT_MAX) continue;
-    tm(l0, l1) ++;
-  }
-
-  return tm;
-}
-
 void XGCBlobExtractor::findConnectedComponents(
     const std::vector<size_t>& ranks, 
     size_t i, 
