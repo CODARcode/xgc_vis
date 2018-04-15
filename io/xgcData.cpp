@@ -101,9 +101,17 @@ void XGCData::readDpotFromH5(XGCMesh &m, const std::string& filename)
 
   if (dpot == NULL) 
     dpot = (double*)malloc(sizeof(double)*m.nPhi*m.nNodes);
+
+  double *dpot1 = (double*)malloc(sizeof(double)*m.nPhi*m.nNodes);
   hid_t h5id_dpot = H5Dopen2(h5fid, "/dpot", H5P_DEFAULT);
-  H5Dread(h5id_dpot, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dpot);
+  H5Dread(h5id_dpot, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dpot1);
   H5Dclose(h5id_dpot);
+ 
+  // transpose
+  for (int i=0; i<m.nPhi; i++) 
+    for (int j=0; j<m.nNodes; j++)
+      dpot[i*m.nNodes + j] = dpot1[j*m.nPhi + i];
+  free(dpot1);
 
   H5Fclose(h5fid);
 }

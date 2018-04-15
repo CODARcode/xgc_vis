@@ -35,6 +35,7 @@ CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *pa
     current_slice(0)
 {
   updateMesh();
+  updateData();
   // thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
 
   // contour = d.sampleAlongPsiContour(m, 0.2); 
@@ -359,8 +360,8 @@ void CGLWidget::renderSinglePlane()
     glEnableClientState(GL_COLOR_ARRAY);
 
     glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
-    // glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*m.nTriangles*3*3] );
-    glColorPointer(3, GL_FLOAT, 0, f_colors.data() );
+    glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*m.nTriangles*3*3] );
+    // glColorPointer(3, GL_FLOAT, 0, f_colors.data() );
     glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
 
     glDisableClientState(GL_COLOR_ARRAY);
