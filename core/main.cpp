@@ -18,6 +18,7 @@
 #include "io/bp_utils.hpp"
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
+#include "io/xgcDataReader.h"
 #include "core/xgcBlobExtractor.h"
 #include "core/xgcLevelSetAnalysis.h"
 #include "volren/volrenEngine.h"
