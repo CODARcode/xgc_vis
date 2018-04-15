@@ -46,22 +46,6 @@ XGCBlobExtractor *ex = NULL;
 std::mutex mutex_ex;
 
 
-std::set<size_t> loadSkipList(const std::string& filename)
-{
-  std::ifstream ifs(filename, std::ifstream::in);
-  json j;
-  ifs >> j;
-  ifs.close();
-
-  std::set<size_t> skip;
-  for (json::iterator it = j.begin();  it != j.end();  it ++) {
-    size_t t = *it;
-    skip.insert(t);
-    // fprintf(stderr, "will skip time step %lu\n", t);
-  }
-  return skip;
-}
-
 void onHttp(server *s, websocketpp::connection_hdl hdl) 
 {
   server::connection_ptr con = s->get_con_from_hdl(hdl);
@@ -170,7 +154,6 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     for (int i=0; i<nNodes*nPhi; i++) 
       array[i] = array0[i];
   } else if (incoming["type"] == "requestData") {
-    // int client_current_time_index = incoming["client_current_time_index"];
     outgoing["type"] = "data";
 
     mutex_ex.lock();
@@ -290,8 +273,8 @@ int main(int argc, char **argv)
   options_description opts(argv[0]);
   opts.add_options()
     ("mesh,m", value<std::string>(), "mesh_file")
-    ("input,i", value<std::string>(), "input_file")
-    ("pattern", value<std::string>(), "input file pattern, e.g. 'xgc.3d.*.bp'.  only works for BP.")
+    ("input_type,t", value<std::string>(), "ADIOS_STREAM|ADIOS_FILES|H5_FILES")
+    ("input,i", value<std::string>(), "input")
     ("output,o", value<std::string>()->default_value(""), "output_file")
     ("output_prefix", value<std::string>()->default_value(""), "output file prefix (e.g. 'features' will generate features.%05d.bp)")
     ("output_branches,o", value<std::string>()->default_value(""), "output_branches")
@@ -299,7 +282,6 @@ int main(int argc, char **argv)
     ("read_method,r", value<std::string>()->default_value("BP"), "read_method (BP|DATASPACES|DIMES|FLEXPATH)")
     ("write_method,w", value<std::string>()->default_value("BIN"), "write_method (POSIX|MPI|DIMES|BIN), bin for raw binary")
     ("write_method_params", value<std::string>()->default_value(""), "write_method_params")
-    ("skip", value<std::string>(), "skip timesteps that are specified in a json file")
     ("server,s", "enable websocket server")
     ("volren,v", "enable volren (-s required)")
     ("gui,g", "start gui")
@@ -312,32 +294,13 @@ int main(int argc, char **argv)
       .run(), vm);
   notify(vm);
 
-  if (!vm.count("mesh") || vm.count("h") || !(vm.count("input") || vm.count("pattern"))) {
+  if (vm.count("h") || !vm.count("mesh") || !(vm.count("input") || !vm.count("input_type"))) {
     if (rank == 0) std::cerr << opts << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-  std::vector<std::string> input_filename_list;
-  if (vm.count("pattern")) {
-    const std::string pattern = vm["pattern"].as<std::string>();
-    glob_t results; 
-    glob(pattern.c_str(), 0, NULL, &results); 
-    for (int i=0; i<results.gl_pathc; i++)
-      input_filename_list.push_back(results.gl_pathv[i]); 
-    globfree(&results);
-
-    if (input_filename_list.empty()) {
-      fprintf(stderr, "FATAL: cannot find any data file matching '%s'\n", pattern.c_str());
-      MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-  }
-
-  std::set<size_t> skipped_timesteps;
-  if (vm.count("skip")) {
-    const std::string filename = vm["skip"].as<std::string>();
-    skipped_timesteps = loadSkipList(filename);
-  }
-
+  const std::string input_type_str = vm["input_type"].as<std::string>();
+  const std::string input = vm["input"].as<std::string>();
   const std::string filename_mesh = vm["mesh"].as<std::string>();
   const std::string output_prefix = vm["output_prefix"].as<std::string>();
   const std::string output_prefix_branches = vm["output_prefix_branches"].as<std::string>();
@@ -346,17 +309,6 @@ int main(int argc, char **argv)
   const std::string write_method_params_str = vm["write_method_params"].as<std::string>();
   std::string filename_output = vm["output"].as<std::string>();
   std::string filename_output_branches = vm["output_branches"].as<std::string>();
-  std::string filename_input;
-  bool single_input = false;
-  if (vm.count("input")) {
-    filename_input = vm["input"].as<std::string>();
-    single_input = true;
-  }
-
-  int input_format; 
-  if (filename_mesh.rfind(".bp") != std::string::npos) input_format = XGC_INPUT_FORMAT_BP;
-  else if (filename_mesh.rfind(".h5") != std::string::npos) input_format = XGC_INPUT_FORMAT_H5;
-  else assert(false);
 
   bool write_binary = (vm["write_method"].as<std::string>() == "BIN");
   bool volren = vm.count("volren") && vm.count("server");
@@ -365,13 +317,8 @@ int main(int argc, char **argv)
   if (rank == 0) {
     fprintf(stderr, "==========================================\n");
     fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
-    if (single_input) {
-      fprintf(stderr, "filename_input=%s\n", filename_input.c_str());
-    } else {
-      fprintf(stderr, "filename_input_pattern=%s\n", vm["pattern"].as<std::string>().c_str());
-      for (int i=0; i<input_filename_list.size(); i++) 
-        fprintf(stderr, "filename_input_%d=%s\n", i, input_filename_list[i].c_str());
-    }
+    fprintf(stderr, "input_type=%s\n", input_type_str.c_str());
+    fprintf(stderr, "input=%s\n", input.c_str());
     if (filename_output.size() > 0) 
       fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
     else if (output_prefix.size() > 0)
@@ -395,19 +342,11 @@ int main(int argc, char **argv)
   }
 
   /// read mesh
-  if (input_format == XGC_INPUT_FORMAT_BP) {
-#if WITH_ADIOS
+  
+  if (filename_mesh.rfind(".bp") != std::string::npos)
     xgcMesh.readMeshFromADIOS(filename_mesh, ADIOS_READ_METHOD_BP, MPI_COMM_WORLD);
-#else
-    assert(false);
-#endif
-  } else if (input_format == XGC_INPUT_FORMAT_H5) {
-#if WITH_H5
+  else 
     xgcMesh.readMeshFromH5(filename_mesh);
-#else
-    assert(false);
-#endif
-  }
 
   ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
   
@@ -418,20 +357,10 @@ int main(int argc, char **argv)
   }
 
   // read data
-  fprintf(stderr, "opening data stream...\n");
-  ADIOS_FILE *varFP;
-  if (input_format == XGC_INPUT_FORMAT_BP) {
-    if (single_input) {
-      if (read_method == ADIOS_READ_METHOD_BP)
-        varFP = adios_read_open_file(filename_input.c_str(), read_method, MPI_COMM_WORLD);
-      else 
-        varFP = adios_read_open (filename_input.c_str(), read_method, MPI_COMM_WORLD, ADIOS_LOCKMODE_ALL, -1.0);
-      // fprintf(stderr, "varFP=%p, errno=%d\n", varFP, err_end_of_stream);
-    }
-    adios_read_bp_reset_dimension_order(varFP, 0);
-  }
-    
-  size_t current_time_index = 0; // only for multiple inputs.
+  fprintf(stderr, "opening input data\n");
+  XGCDataReader *reader = XGCDataReaderFactory::newXGCDataReader(input_type_str, read_method_str, MPI_COMM_WORLD);
+  if (reader == NULL) MPI_Abort(MPI_COMM_WORLD, 1);
+  reader->open(input);
 
   // output
   int64_t groupHandle = -1;
@@ -447,32 +376,10 @@ int main(int argc, char **argv)
   }
 
   while (1) {
-    if (single_input) {
-      if (adios_errno == err_end_of_stream) break;
-      current_time_index ++;
-      fprintf(stderr, "reading data, time_index=%lu\n", current_time_index);
-    } else { // multiple input;
-      if (current_time_index >= input_filename_list.size()) {
-        fprintf(stderr, "all done.\n");
-        break;
-      }
-      const std::string &current_input_filename = input_filename_list[ current_time_index ++ ];
-      fprintf(stderr, "reading data from %s\n", current_input_filename.c_str());
-      varFP = adios_read_open_file(current_input_filename.c_str(), read_method, MPI_COMM_WORLD);
-    }
-
-    if (input_format == XGC_INPUT_FORMAT_BP) 
-      xgcData.readDpotFromADIOS(xgcMesh, varFP);
-    else if (input_format == XGC_INPUT_FORMAT_H5) 
-      xgcData.readDpotFromH5(xgcMesh, filename_input);
+    fprintf(stderr, "reading timestep %d\n", reader->getCurrentTimestep());
+    reader->read(xgcMesh, xgcData);
     xgcData.deriveSinglePrecisionDpot(xgcMesh);
     xgcData.deriveGradient(xgcMesh);
-
-    if (skipped_timesteps.find(current_time_index) != skipped_timesteps.end()) {
-      fprintf(stderr, "skipping timestep %lu.\n", current_time_index);
-      adios_advance_step(varFP, 0, 1.0);
-      continue;
-    }
 
     fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
 
@@ -499,7 +406,7 @@ int main(int argc, char **argv)
     }
 
     mutex_ex.lock();
-    ex->setData(current_time_index, xgcMesh.nPhi, xgcData.dpot);
+    ex->setData(reader->getCurrentTimestep(), xgcMesh.nPhi, xgcData.dpot);
     // ex->setPersistenceThreshold(persistence_threshold);
     // ex->buildContourTree3D();
     // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
@@ -510,41 +417,37 @@ int main(int argc, char **argv)
     int *labels = ex->getLabels(0).data();
     if (output_prefix.length() > 0) {
       std::stringstream ss_filename;
-      ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << current_time_index 
+      ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << reader->getCurrentTimestep() 
         << (write_binary ? ".bin" : ".bp");
       filename_output = ss_filename.str();
     }
       
     if (filename_output.length() > 0) {
-      fprintf(stderr, "writing results for timestep %zu to %s\n", 
-          current_time_index, filename_output.c_str());
+      fprintf(stderr, "writing results for timestep %d to %s\n", 
+          reader->getCurrentTimestep(), filename_output.c_str());
       if (write_binary)
         ex->dumpLabels(filename_output);
       else 
-        writeUnstructredMeshDataFile(current_time_index, MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
+        writeUnstructredMeshDataFile(reader->getCurrentTimestep(), MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
             xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn, xgcData.dpot, xgcMesh.psi, labels);
     }
    
     // write branches
     if (output_prefix_branches.length() > 0) {
       std::stringstream ss_filename;
-      ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << current_time_index << ".json";
+      ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << reader->getCurrentTimestep() << ".json";
       filename_output_branches = ss_filename.str();
     }
 
     if (filename_output_branches.length() > 0) {
-      fprintf(stderr, "writing branch decompositions for timestep %zu to %s\n", 
-          current_time_index, filename_output_branches.c_str()); 
+      fprintf(stderr, "writing branch decompositions for timestep %d to %s\n", 
+          reader->getCurrentTimestep(), filename_output_branches.c_str()); 
       // ex->dumpBranches(filename_output_branches, branchSet);
     }
     
     fprintf(stderr, "[rank=%d] done.\n", rank);
 
-    // sleep(6);
-    if (single_input) {
-      if (read_method == ADIOS_READ_METHOD_BP) break;
-      else adios_advance_step(varFP, 0, 1.0);
-    }
+    if (reader->advanceTimestep() < 0) break; 
   }
 
 #if 0
@@ -569,6 +472,8 @@ int main(int argc, char **argv)
   // adios_close(*varFP);
   delete ex;
   ex = NULL;
+
+  delete reader;
 
   adios_finalize(0);
 
