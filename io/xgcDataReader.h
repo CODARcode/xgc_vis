@@ -19,6 +19,9 @@ struct XGCDataReader {
   virtual int advanceTimestep() {
     return ++ currentTimestep;
   }
+  virtual int recedeTimestep() {
+    return -- currentTimestep;
+  }
     
   static std::vector<std::string> glob(const std::string& pattern) {
     std::vector<std::string> filenames;
@@ -36,6 +39,13 @@ struct XGCDataReader {
   }
 
   int getCurrentTimestep() const {return currentTimestep;}
+  
+  ADIOS_READ_METHOD adiosReadMethod() const {
+    if (readMethod == "DATASPACES") return ADIOS_READ_METHOD_DATASPACES;
+    else if (readMethod == "DIMES") return ADIOS_READ_METHOD_DIMES;
+    else if (readMethod == "FLEXPATH") return ADIOS_READ_METHOD_FLEXPATH;
+    else return ADIOS_READ_METHOD_BP;
+  };
 
 protected:
   MPI_Comm comm = MPI_COMM_WORLD;
@@ -45,16 +55,27 @@ protected:
   friend class XGCDataReaderFactory;
 };
 
-struct XGCDataReader_Adios : public XGCDataReader {
-  ADIOS_READ_METHOD adiosReadMethod() const {
-    if (readMethod == "DATASPACES") return ADIOS_READ_METHOD_DATASPACES;
-    else if (readMethod == "DIMES") return ADIOS_READ_METHOD_DIMES;
-    else if (readMethod == "FLEXPATH") return ADIOS_READ_METHOD_FLEXPATH;
-    else return ADIOS_READ_METHOD_BP;
-  };
+struct XGCDataReader_Files : public XGCDataReader {
+  std::vector<std::string> input_filename_list;
+
+  void open(const std::string& pattern) {
+    input_filename_list = XGCDataReader::glob(pattern);
+  }
+
+  void close() {}
+
+  int advanceTimestep() {
+    if (currentTimestep >= input_filename_list.size() - 1) return -1;
+    else return ++ currentTimestep;
+  }
+
+  int recedeTimestep() {
+    if (currentTimestep == 0) return -1;
+    else return -- currentTimestep;
+  }
 };
 
-struct XGCDataReader_AdiosStream : public XGCDataReader_Adios {
+struct XGCDataReader_AdiosStream : public XGCDataReader {
   ADIOS_FILE *varFP = NULL;
 
   void open(const std::string& name) {
@@ -73,45 +94,21 @@ struct XGCDataReader_AdiosStream : public XGCDataReader_Adios {
     adios_advance_step(varFP, 0, 1.0);
     return ++ currentTimestep;
   }
+
+  int recedeTimestep() {return currentTimestep;}
 };
 
-struct XGCDataReader_AdiosFiles : public XGCDataReader_Adios {
-  std::vector<std::string> input_filename_list;
-
-  void open(const std::string& pattern) {
-    input_filename_list = XGCDataReader::glob(pattern);
-  }
-
+struct XGCDataReader_AdiosFiles : public XGCDataReader_Files {
   void read(XGCMesh &m, XGCData& d) {
     ADIOS_FILE *varFP = adios_read_open_file(input_filename_list[currentTimestep].c_str(), adiosReadMethod(), comm);
     d.readDpotFromADIOS(m, varFP);
     // adios_close(*varFP);
   }
-
-  void close() {}
-
-  int advanceTimestep() {
-    if (currentTimestep >= input_filename_list.size() - 1) return -1;
-    else return ++ currentTimestep;
-  }
 };
 
-struct XGCDataReader_H5Files : public XGCDataReader {
-  std::vector<std::string> input_filename_list;
-
-  void open(const std::string& pattern) {
-    input_filename_list = XGCDataReader::glob(pattern);
-  }
-
-  void close() {}
-
+struct XGCDataReader_H5Files : public XGCDataReader_Files {
   void read(XGCMesh &m, XGCData& d) {
     d.readDpotFromH5(m, input_filename_list[currentTimestep]);
-  }
-  
-  int advanceTimestep() {
-    if (currentTimestep >= input_filename_list.size() - 1) return -1;
-    else return ++ currentTimestep;
   }
 };
 

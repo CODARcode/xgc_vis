@@ -374,80 +374,80 @@ int main(int argc, char **argv)
     adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
     adios_delete_vardefs(groupHandle);
   }
-
-  while (1) {
-    fprintf(stderr, "reading timestep %d\n", reader->getCurrentTimestep());
-    reader->read(xgcMesh, xgcData);
-    xgcData.deriveSinglePrecisionDpot(xgcMesh);
-    xgcData.deriveGradient(xgcMesh);
-
-    fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
-
-    // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
-  
-    if (gui) { // TODO: async
-      QApplication app(argc, argv);
-      QGLFormat fmt = QGLFormat::defaultFormat();
-      fmt.setSampleBuffers(true);
-      fmt.setSamples(16); 
-      QGLFormat::setDefaultFormat(fmt); 
-      
-      CGLWidget *widget = new CGLWidget(xgcMesh, xgcData);
-      widget->show(); 
-
-      app.exec();
-    }
-
-    if (volren) {
-      volrenEngine = new VolrenEngine();
-      volrenEngine->start(MPI_COMM_WORLD, xgcMesh, xgcData);
-      sleep(1);
-      if (rank == 0) volrenEngine->enqueueAndWait("");
-    }
-
-    mutex_ex.lock();
-    ex->setData(reader->getCurrentTimestep(), xgcMesh.nPhi, xgcData.dpot);
-    // ex->setPersistenceThreshold(persistence_threshold);
-    // ex->buildContourTree3D();
-    // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
-    // ex->buildContourTree2DAll();
-    mutex_ex.unlock();
-
-    // write labels
-    int *labels = ex->getLabels(0).data();
-    if (output_prefix.length() > 0) {
-      std::stringstream ss_filename;
-      ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << reader->getCurrentTimestep() 
-        << (write_binary ? ".bin" : ".bp");
-      filename_output = ss_filename.str();
-    }
-      
-    if (filename_output.length() > 0) {
-      fprintf(stderr, "writing results for timestep %d to %s\n", 
-          reader->getCurrentTimestep(), filename_output.c_str());
-      if (write_binary)
-        ex->dumpLabels(filename_output);
-      else 
-        writeUnstructredMeshDataFile(reader->getCurrentTimestep(), MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
-            xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn, xgcData.dpot, xgcMesh.psi, labels);
-    }
-   
-    // write branches
-    if (output_prefix_branches.length() > 0) {
-      std::stringstream ss_filename;
-      ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << reader->getCurrentTimestep() << ".json";
-      filename_output_branches = ss_filename.str();
-    }
-
-    if (filename_output_branches.length() > 0) {
-      fprintf(stderr, "writing branch decompositions for timestep %d to %s\n", 
-          reader->getCurrentTimestep(), filename_output_branches.c_str()); 
-      // ex->dumpBranches(filename_output_branches, branchSet);
-    }
     
-    fprintf(stderr, "[rank=%d] done.\n", rank);
+  if (gui) { // TODO: async
+    QApplication app(argc, argv);
+    QGLFormat fmt = QGLFormat::defaultFormat();
+    fmt.setSampleBuffers(true);
+    fmt.setSamples(16); 
+    QGLFormat::setDefaultFormat(fmt); 
+    
+    CGLWidget *widget = new CGLWidget(xgcMesh, xgcData, *reader);
+    widget->show(); 
 
-    if (reader->advanceTimestep() < 0) break; 
+    app.exec();
+  } else {
+    while (1) {
+      fprintf(stderr, "reading timestep %d\n", reader->getCurrentTimestep());
+      reader->read(xgcMesh, xgcData);
+      xgcData.deriveSinglePrecisionDpot(xgcMesh);
+      xgcData.deriveGradient(xgcMesh);
+
+      fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
+
+      // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
+    
+      if (volren) {
+        volrenEngine = new VolrenEngine();
+        volrenEngine->start(MPI_COMM_WORLD, xgcMesh, xgcData);
+        sleep(1);
+        if (rank == 0) volrenEngine->enqueueAndWait("");
+      }
+
+      mutex_ex.lock();
+      ex->setData(reader->getCurrentTimestep(), xgcMesh.nPhi, xgcData.dpot);
+      // ex->setPersistenceThreshold(persistence_threshold);
+      // ex->buildContourTree3D();
+      // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
+      // ex->buildContourTree2DAll();
+      mutex_ex.unlock();
+
+      // write labels
+      int *labels = ex->getLabels(0).data();
+      if (output_prefix.length() > 0) {
+        std::stringstream ss_filename;
+        ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << reader->getCurrentTimestep() 
+          << (write_binary ? ".bin" : ".bp");
+        filename_output = ss_filename.str();
+      }
+        
+      if (filename_output.length() > 0) {
+        fprintf(stderr, "writing results for timestep %d to %s\n", 
+            reader->getCurrentTimestep(), filename_output.c_str());
+        if (write_binary)
+          ex->dumpLabels(filename_output);
+        else 
+          writeUnstructredMeshDataFile(reader->getCurrentTimestep(), MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
+              xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn, xgcData.dpot, xgcMesh.psi, labels);
+      }
+     
+      // write branches
+      if (output_prefix_branches.length() > 0) {
+        std::stringstream ss_filename;
+        ss_filename << output_prefix_branches << "." << std::setfill('0') << std::setw(5) << reader->getCurrentTimestep() << ".json";
+        filename_output_branches = ss_filename.str();
+      }
+
+      if (filename_output_branches.length() > 0) {
+        fprintf(stderr, "writing branch decompositions for timestep %d to %s\n", 
+            reader->getCurrentTimestep(), filename_output_branches.c_str()); 
+        // ex->dumpBranches(filename_output_branches, branchSet);
+      }
+      
+      fprintf(stderr, "[rank=%d] done.\n", rank);
+
+      if (reader->advanceTimestep() < 0) break; 
+    }
   }
 
 #if 0

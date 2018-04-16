@@ -26,14 +26,16 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
-  : m(m_), d(d_), 
+CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, XGCDataReader &r_, const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
+  : m(m_), d(d_), r(r_), 
     QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
     toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
     current_slice(0)
 {
+  r.read(m, d);
+
   updateMesh();
   updateData();
   // thread_ws = new std::thread(&CGLWidget::connectToWebSocketServer, this, "ws://red:9002");
@@ -156,6 +158,24 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
   case Qt::Key_L:
     toggle_labels = !toggle_labels;
     updateGL();
+    break;
+
+  case Qt::Key_Up:
+    if (r.advanceTimestep() >= 0) {
+      fprintf(stderr, "advancing timestep...\n");
+      r.read(m, d);
+      updateData();
+      updateGL();
+    }
+    break;
+
+  case Qt::Key_Down:
+    if (r.recedeTimestep() >= 0) {
+      fprintf(stderr, "receding timestep...\n");
+      r.read(m, d);
+      updateData();
+      updateGL();
+    }
     break;
 
   case Qt::Key_Right:

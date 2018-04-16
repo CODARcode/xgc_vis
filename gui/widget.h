@@ -3,6 +3,7 @@
 
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
+#include "io/xgcDataReader.h"
 
 // #include <GL/glew.h>
 #include <QGLWidget>
@@ -34,7 +35,7 @@ class CGLWidget : public QGLWidget
   Q_OBJECT
 
 public:
-  CGLWidget(XGCMesh &m, XGCData &d, const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
+  CGLWidget(XGCMesh &m, XGCData &d, XGCDataReader& r, const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
   ~CGLWidget(); 
 
   void updateMesh();
@@ -87,6 +88,7 @@ public: // client
 private: 
   XGCMesh &m; 
   XGCData &d;
+  XGCDataReader &r;
 
   std::vector<double> contour;
 
