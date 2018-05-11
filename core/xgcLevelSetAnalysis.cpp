@@ -80,3 +80,48 @@ void XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(const XGCMesh &m
   
   // std::vector<int> segmentation(m.nNodes*m.nPhi, 0);
 }
+
+std::map<int, std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet2D(const XGCMesh &m, const XGCData &d, double isoval)
+{
+  // find candidates
+  std::set<size_t> candidates;
+  for (int i=0; i<m.nNodes; i++) 
+    if (d.dpot[i] >= isoval) candidates.insert(i);
+  // fprintf(stderr, "#candidates=%lu\n", candidates.size());
+
+  // connected components analysis
+  int current_component_id = 0;
+  std::map<int, std::set<size_t> > components;
+
+  std::set<size_t> Q;
+  // std::queue<size_t> Q;
+  
+  while (!candidates.empty()) {
+    Q.insert(*candidates.begin());
+
+    std::set<size_t> visited;
+    while (!Q.empty()) {
+      size_t current = *Q.begin();
+      Q.erase(current);
+      visited.insert(current);
+
+      // fprintf(stderr, "current_component_id=%d, current=%zu, size_visited=%zu\n", current_component_id, current, visited.size());
+
+      for (auto neighbor : m.nodeGraph[current]) { // neighbor ids
+        if (candidates.find(neighbor) != candidates.end() && visited.find(neighbor) == visited.end() && Q.find(neighbor) == Q.end()) { 
+          // fprintf(stderr, "pusing %lu\n", neighbor);
+          Q.insert(neighbor);
+        }
+      }
+    }
+    
+    for (auto v : visited) 
+      candidates.erase(v);
+
+    components[current_component_id++] = visited;
+    // fprintf(stderr, "component_id=%d, size=%lu\n", current_component_id, visited.size());
+  }
+
+  return components;
+  // fprintf(stderr, "#components=%lu\n", components.size());
+}

@@ -10,6 +10,7 @@
 #include "widget.h"
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
+#include "core/xgcLevelSetAnalysis.h"
 
 #ifdef __APPLE__
 #include <OpenGL/glu.h>
@@ -420,6 +421,43 @@ void CGLWidget::updateMesh()
 
 void CGLWidget::updateData()
 {
+#if 0
+  const double threshold = 80;
+
+  // TODO
+  f_colors.clear();
+
+  for (int plane = 0; plane < m.nPhi; plane ++) {
+    for (int i=0; i<m.nTriangles; i++) {
+      int v[3] = {m.conn[i*3], m.conn[i*3+1], m.conn[i*3+2]};
+
+      for (int j=0; j<3; j++) {
+        if (d.dpot[plane*m.nNodes + v[j]] >= threshold) {
+          // float val = clamp_normalize(min, max, (float)d.dpot[plane*m.nNodes + v[j]]);
+          f_colors.push_back(1);
+          f_colors.push_back(0);
+          f_colors.push_back(0);
+        } else {
+          f_colors.push_back(0);
+          f_colors.push_back(0);
+          f_colors.push_back(0);
+        }
+      }
+    }
+  }
+  
+  auto components = XGCLevelSetAnalysis::extractSuperLevelSet2D(m, d, threshold);
+  std::vector<size_t> labels;
+
+  fprintf(stderr, "#components=%lu\n", components.size());
+
+  // for (const auto &kv : components) {
+  //   for (const auto v : kv.second) {
+  //   }
+  // }
+#endif
+
+#if 1
   const float min = -100, max = 100;
 
   f_colors.clear();
@@ -436,4 +474,5 @@ void CGLWidget::updateData()
       }
     }
   }
+#endif
 }
