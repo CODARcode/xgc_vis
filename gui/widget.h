@@ -107,12 +107,11 @@ private: // mesh
   std::vector<float> f_vertices;
   std::vector<float> f_colors, f_label_colors;
 
-  std::map<size_t, QColor> label_colors;
-
 private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
   std::vector<size_t> labels;
+  std::map<size_t, QColor> label_colors; 
   // std::map<int, std::vector<size_t> > all_labels;
   // std::vector<int> maximum, minimum;
   

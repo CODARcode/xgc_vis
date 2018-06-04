@@ -373,8 +373,11 @@ void CGLWidget::renderSinglePlane()
     glBegin(GL_POINTS);
     for (int i=0; i<m.nNodes; i++) {
       int label = labels[i];
-      if (label != 0) 
+      if (label != 0) {
+        QColor c = label_colors[label];
+        glColor3ub(c.red(), c.green(), c.blue());
         glVertex2f(m.coords[i*2], m.coords[i*2+1]);
+      }
     }
     glEnd();
   } else if (toggle_mesh) {
@@ -458,6 +461,7 @@ void CGLWidget::updateData()
 
   labels.resize(m.nNodes * m.nPhi);
   for (const auto &kv : components) {
+    label_colors[kv.first] = QColor(rand()%256, rand()%256, rand()%256);
     for (const auto v : kv.second) {
       labels[v] = kv.first;
     }
