@@ -368,8 +368,16 @@ void CGLWidget::renderSinglePlane()
   glColor3f(0, 0, 0);
 
   glTranslatef(-1.7, 0, 0);
-
-  if (toggle_mesh) {
+    
+  if (toggle_labels) {
+    glBegin(GL_POINTS);
+    for (int i=0; i<m.nNodes; i++) {
+      int label = labels[i];
+      if (label != 0) 
+        glVertex2f(m.coords[i*2], m.coords[i*2+1]);
+    }
+    glEnd();
+  } else if (toggle_mesh) {
     if (toggle_wireframe) {
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // render wireframe
     }
@@ -381,8 +389,7 @@ void CGLWidget::renderSinglePlane()
     glEnableClientState(GL_COLOR_ARRAY);
 
     glVertexPointer(2, GL_FLOAT, 0, f_vertices.data());
-    glColorPointer(3, GL_FLOAT, 0, &f_colors[current_slice*m.nTriangles*3*3] );
-    // glColorPointer(3, GL_FLOAT, 0, f_colors.data() );
+    glColorPointer(3, GL_FLOAT, 0, f_colors.data() );
     glDrawArrays(GL_TRIANGLES, 0, f_vertices.size()/2);
 
     glDisableClientState(GL_COLOR_ARRAY);
@@ -421,7 +428,7 @@ void CGLWidget::updateMesh()
 
 void CGLWidget::updateData()
 {
-#if 0
+#if 1
   const double threshold = 80;
 
   // TODO
@@ -447,14 +454,14 @@ void CGLWidget::updateData()
   }
   
   auto components = XGCLevelSetAnalysis::extractSuperLevelSet2D(m, d, threshold);
-  std::vector<size_t> labels;
-
   fprintf(stderr, "#components=%lu\n", components.size());
 
-  // for (const auto &kv : components) {
-  //   for (const auto v : kv.second) {
-  //   }
-  // }
+  labels.resize(m.nNodes * m.nPhi);
+  for (const auto &kv : components) {
+    for (const auto v : kv.second) {
+      labels[v] = kv.first;
+    }
+  }
 #endif
 
 #if 1

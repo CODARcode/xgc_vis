@@ -105,14 +105,15 @@ private: // camera
 
 private: // mesh
   std::vector<float> f_vertices;
-  std::vector<float> f_colors;
+  std::vector<float> f_colors, f_label_colors;
 
   std::map<size_t, QColor> label_colors;
 
 private: // analysis
   std::vector<std::set<int> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
-  std::map<int, std::vector<size_t> > all_labels;
+  std::vector<size_t> labels;
+  // std::map<int, std::vector<size_t> > all_labels;
   // std::vector<int> maximum, minimum;
   
   std::vector<ctBranch*> branches;
