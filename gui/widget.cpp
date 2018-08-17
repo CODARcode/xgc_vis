@@ -456,8 +456,8 @@ void CGLWidget::updateData()
     }
   }
   
-  auto components = XGCLevelSetAnalysis::extractSuperLevelSet2D(m, d, threshold);
-  // auto components = XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(m, d, 0.1);
+  // auto components = XGCLevelSetAnalysis::extractSuperLevelSet2D(m, d, threshold);
+  auto components = XGCLevelSetAnalysis::extractSuperLevelSetOfEnergy2D(m, d, 0.2);
   fprintf(stderr, "#components=%lu\n", components.size());
 
   labels.resize(m.nNodes * m.nPhi);
