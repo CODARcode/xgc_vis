@@ -37,7 +37,7 @@ std::vector<std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSetOfEnergy
   total_order.clear();
   
   auto neighbors = std::bind(&XGCMesh::getNodeNeighbors2D, &m, std::placeholders::_1);
-  return extractConnectedComponents<size_t>(neighbors, qualified);
+  return ftk::extractConnectedComponents<size_t>(neighbors, qualified);
 }
 
 
@@ -46,34 +46,13 @@ std::vector<std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet2D(const
   auto neighbors = std::bind(&XGCMesh::getNodeNeighbors2D, &m, std::placeholders::_1);
   auto criterion = [&d, isoval](size_t i) {return d.dpot[i] >= isoval;};
 
-  std::vector<std::set<size_t> > components = extractConnectedComponents<size_t>(m.nNodes, neighbors, criterion);
-
-  return components;
+  return ftk::extractConnectedComponents<size_t>(m.nNodes, neighbors, criterion);
 }
 
 std::vector<std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet3D(const XGCMesh &m, const XGCData &d, double isoval)
 {
-#if 0
-  auto neighbors = [&m](size_t v) {
-    size_t plane = v / m.nNodes; 
-    size_t node = v % m.nNodes;
-    const std::set<size_t> &local_neighbors = m.nodeGraph[node];
-
-    std::set<size_t> neighbors;
-    for (auto &local_neighbor : local_neighbors) {
-      neighbors.insert( ((plane - 1 + m.nPhi) % m.nPhi) * m.nNodes + local_neighbor);
-      neighbors.insert( plane * m.nNodes + local_neighbor );
-      neighbors.insert( ((plane + 1 + m.nPhi) % m.nPhi) * m.nNodes + local_neighbor);
-    }
-
-    return neighbors;
-  };
-#endif
-  
   auto neighbors = std::bind(&XGCMesh::getNodeNeighbors3D, &m, std::placeholders::_1);
   auto criterion = [&d, isoval](size_t i) {return d.dpot[i] >= isoval;};
 
-  std::vector<std::set<size_t> > components = extractConnectedComponents<size_t>(m.nNodes*m.nPhi, neighbors, criterion);
-
-  return components;
+  return ftk::extractConnectedComponents<size_t>(m.nNodes*m.nPhi, neighbors, criterion);
 }
