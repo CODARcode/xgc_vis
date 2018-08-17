@@ -27,8 +27,6 @@ struct XGCMesh {
   float psi_min_x, psi_min_y;
   double coords_min_x, coords_min_y, coords_max_x, coords_max_y, coords_centroid_x, coords_centroid_y;
 
-  std::vector<std::set<size_t> > nodeGraph; // node->{neighbor nodes}
-
 #if WITH_ADIOS
   void readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD readMethod, MPI_Comm comm);
 #endif
@@ -43,6 +41,20 @@ struct XGCMesh {
   json jsonfyMesh() const;
   json jsonfyMeshInfo() const;
 
+  std::set<size_t> getNodeNeighbors2D(size_t i) const {return nodeNeighbors[i];}
+  std::set<size_t> getNodeNeighbors3D(size_t v) const {
+    size_t plane = v / nNodes; 
+    size_t node = v % nNodes;
+    const std::set<size_t> &neighbors2D = nodeNeighbors[node];
+
+    std::set<size_t> neighbors;
+    for (auto &neighbor2D : neighbors2D) {
+      neighbors.insert( ((plane - 1 + nPhi) % nPhi) * nNodes + neighbor2D);
+      neighbors.insert( plane * nNodes + neighbor2D );
+      neighbors.insert( ((plane + 1 + nPhi) % nPhi) * nNodes + neighbor2D);
+    }
+    return neighbors;
+  }
 
   std::list<std::list<double> > marchingTriangles(double*, double isoval);
   std::vector<double> sampleScalarsAlongPsiContour(double *scalar, int nSamples, double isoval);
@@ -55,6 +67,8 @@ private:
 
   void buildNeighbors();
   void buildNodeGraph();
+
+  std::vector<std::set<size_t> > nodeNeighbors; // nodeGraph; // node->{neighbor nodes}
 };
 
 #endif

@@ -1,58 +1,7 @@
 #include "core/xgcLevelSetAnalysis.h"
+#include <ftk/algorithms/cca.h>
 #include <set>
 #include <queue>
-
-template <class IdType>
-std::vector<std::set<IdType> > connectedComponentAnalysis(
-    const std::function<std::set<IdType>(size_t) >& neighbors,
-    std::set<IdType> seeds)
-{
-  // extract connected components
-  std::vector<std::set<IdType> > components;
-
-  std::set<IdType> Q;
-
-  while (!seeds.empty()) {
-    Q.insert(*seeds.begin());
-
-    std::set<IdType> visited;
-    while (!Q.empty()) {
-      IdType current = *Q.begin();
-      Q.erase(current);
-      visited.insert(current);
-
-      for (auto neighbor : neighbors(current)) {
-        if (seeds.find(neighbor) != seeds.end()
-            && visited.find(neighbor) == visited.end()
-            && Q.find(neighbor) == Q.end()) {
-          Q.insert(neighbor);
-        }
-      }
-    }
-
-    for (auto v : visited)
-      seeds.erase(v);
-
-    components.push_back(visited);
-  }
-
-  return components;
-}
-
-template <class IdType>
-std::vector<std::set<IdType> > connectedComponentAnalysis(
-    IdType nNodes,
-    const std::function<std::set<IdType>(size_t) >& neighbors,
-    const std::function<bool(IdType)>& criterion)
-{
-  // find seeds
-  std::set<IdType> seeds;
-  for (IdType i=0; i<nNodes; i++) 
-    if (criterion(i)) 
-      seeds.insert(i);
-
-  return connectedComponentAnalysis(neighbors, seeds);
-}
 
 
 #if 0
@@ -76,7 +25,7 @@ std::vector<std::set<size_t> > XGCLevelSetAnalysis::thresholdingByPercentageOfTo
       [&d](size_t v0, size_t v1) { return d.dpot[v0] < d.dpot[v1]; });
 
   // summation
-  std::set<size_t> seeds;
+  std::set<size_t> qualified;
   double energy = 0;
   for (int i=0; i<total_order.size(); i++) {
     size_t j = total_order[i];
@@ -85,7 +34,7 @@ std::vector<std::set<size_t> > XGCLevelSetAnalysis::thresholdingByPercentageOfTo
       fprintf(stderr, "energy=%f, i=%d, n=%zu, nNodes=%d, nPhi=%d\n", energy, i, total_order.size(), m.nNodes, m.nPhi); 
       break;
     }
-    else seeds.insert(j);
+    else qualified.insert(j);
   }
 
   // free total_order
@@ -140,12 +89,37 @@ std::vector<std::set<size_t> > XGCLevelSetAnalysis::thresholdingByPercentageOfTo
 
 std::vector<std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet2D(const XGCMesh &m, const XGCData &d, double isoval)
 {
-  auto neighbors = [&m](size_t i) {return m.nodeGraph[i];};
+  auto neighbors = std::bind(&XGCMesh::getNodeNeighbors2D, &m, std::placeholders::_1);
   auto criterion = [&d, isoval](size_t i) {return d.dpot[i] >= isoval;};
 
-  fprintf(stderr, "start cca..\n");
-  std::vector<std::set<size_t> > components = connectedComponentAnalysis<size_t>(m.nNodes, neighbors, criterion);
-  fprintf(stderr, "#components=%lu\n", components.size());
+  std::vector<std::set<size_t> > components = extractConnectedComponents<size_t>(m.nNodes, neighbors, criterion);
+
+  return components;
+}
+
+std::vector<std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet3D(const XGCMesh &m, const XGCData &d, double isoval)
+{
+#if 0
+  auto neighbors = [&m](size_t v) {
+    size_t plane = v / m.nNodes; 
+    size_t node = v % m.nNodes;
+    const std::set<size_t> &local_neighbors = m.nodeGraph[node];
+
+    std::set<size_t> neighbors;
+    for (auto &local_neighbor : local_neighbors) {
+      neighbors.insert( ((plane - 1 + m.nPhi) % m.nPhi) * m.nNodes + local_neighbor);
+      neighbors.insert( plane * m.nNodes + local_neighbor );
+      neighbors.insert( ((plane + 1 + m.nPhi) % m.nPhi) * m.nNodes + local_neighbor);
+    }
+
+    return neighbors;
+  };
+#endif
+  
+  auto neighbors = std::bind(&XGCMesh::getNodeNeighbors3D, &m, std::placeholders::_1);
+  auto criterion = [&d, isoval](size_t i) {return d.dpot[i] >= isoval;};
+
+  std::vector<std::set<size_t> > components = extractConnectedComponents<size_t>(m.nNodes*m.nPhi, neighbors, criterion);
 
   return components;
 }

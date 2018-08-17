@@ -182,17 +182,17 @@ void XGCMesh::buildNeighbors()
 
 void XGCMesh::buildNodeGraph()
 {
-  nodeGraph.clear();
-  nodeGraph.resize(nNodes);
+  nodeNeighbors.clear();
+  nodeNeighbors.resize(nNodes);
   for (int i=0; i<nTriangles; i++) {
     int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
 
-    nodeGraph[i0].insert(i1);
-    nodeGraph[i0].insert(i2);
-    nodeGraph[i1].insert(i0);
-    nodeGraph[i1].insert(i2);
-    nodeGraph[i2].insert(i0);
-    nodeGraph[i2].insert(i1);
+    nodeNeighbors[i0].insert(i1);
+    nodeNeighbors[i0].insert(i2);
+    nodeNeighbors[i1].insert(i0);
+    nodeNeighbors[i1].insert(i2);
+    nodeNeighbors[i2].insert(i0);
+    nodeNeighbors[i2].insert(i1);
   }
 }
 
