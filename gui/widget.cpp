@@ -460,10 +460,10 @@ void CGLWidget::updateData()
   fprintf(stderr, "#components=%lu\n", components.size());
 
   labels.resize(m.nNodes * m.nPhi);
-  for (const auto &kv : components) {
-    label_colors[kv.first] = QColor(rand()%256, rand()%256, rand()%256);
-    for (const auto v : kv.second) {
-      labels[v] = kv.first;
+  for (size_t i = 0; i < components.size(); i++) {
+    label_colors[i] = QColor(rand()%256, rand()%256, rand()%256);
+    for (const auto v : components[i]) {
+      labels[v] = i; 
     }
   }
 #endif

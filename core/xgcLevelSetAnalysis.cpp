@@ -81,8 +81,63 @@ void XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(const XGCMesh &m
   // std::vector<int> segmentation(m.nNodes*m.nPhi, 0);
 }
 
-std::map<int, std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet2D(const XGCMesh &m, const XGCData &d, double isoval)
+template <class IdType>
+std::vector<std::set<IdType> > connectedComponentAnalysis(
+    IdType nNodes,
+    const std::function<std::set<IdType>(size_t) >& neighbors,
+    const std::function<bool(IdType)>& criterion)
 {
+  // find candidates
+  std::set<IdType> candidates;
+  for (IdType i=0; i<nNodes; i++) 
+    if (criterion(i)) 
+      candidates.insert(i);
+
+  // extract connected components
+  std::vector<std::set<IdType> > components;
+
+  std::set<IdType> Q;
+
+  while (!candidates.empty()) {
+    Q.insert(*candidates.begin());
+
+    std::set<IdType> visited;
+    while (!Q.empty()) {
+      IdType current = *Q.begin();
+      Q.erase(current);
+      visited.insert(current);
+
+      for (auto neighbor : neighbors(current)) {
+        if (candidates.find(neighbor) != candidates.end()
+            && visited.find(neighbor) == visited.end()
+            && Q.find(neighbor) == Q.end()) {
+          Q.insert(neighbor);
+        }
+      }
+    }
+
+    for (auto v : visited)
+      candidates.erase(v);
+
+    components.push_back(visited);
+  }
+
+  return components;
+}
+
+
+std::vector<std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet2D(const XGCMesh &m, const XGCData &d, double isoval)
+{
+  auto neighbors = [&m](size_t i) {return m.nodeGraph[i];};
+  auto criterion = [&d, isoval](size_t i) {return d.dpot[i] >= isoval;};
+
+  std::vector<std::set<size_t> > components = connectedComponentAnalysis<size_t>(m.nNodes, neighbors, criterion);
+
+  fprintf(stderr, "#components=%lu\n", components.size());
+
+  return components;
+
+#if 0
   // find candidates
   std::set<size_t> candidates;
   for (int i=0; i<m.nNodes; i++) 
@@ -123,5 +178,5 @@ std::map<int, std::set<size_t> > XGCLevelSetAnalysis::extractSuperLevelSet2D(con
   }
 
   return components;
-  // fprintf(stderr, "#components=%lu\n", components.size());
+#endif
 }
