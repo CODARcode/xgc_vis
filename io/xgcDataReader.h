@@ -60,6 +60,7 @@ struct XGCDataReader_Files : public XGCDataReader {
 
   void open(const std::string& pattern) {
     input_filename_list = XGCDataReader::glob(pattern);
+    assert(input_filename_list.size() > 0);
   }
 
   void close() {}

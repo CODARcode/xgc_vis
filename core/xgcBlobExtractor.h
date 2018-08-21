@@ -7,7 +7,8 @@
 #include <set>
 #include <map>
 #include <json.hpp>
-#include <ftk/transition/transition.h>
+// #include <ftk/transition/transition.h>
+#include <ftk/graph/graph.hh>
 
 class XGCBlobExtractor
 {

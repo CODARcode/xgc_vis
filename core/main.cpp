@@ -387,7 +387,15 @@ int main(int argc, char **argv)
 
     app.exec();
   } else {
+    typedef std::vector<std::set<size_t> > Components;
+    std::shared_ptr<Components> lastComponents;
+    int lastTimestep = -1;
+
+    ftk::Graph<> g;
+
     while (1) {
+      int currentTimestep = reader->getCurrentTimestep();
+
       fprintf(stderr, "reading timestep %d\n", reader->getCurrentTimestep());
       reader->read(xgcMesh, xgcData);
       xgcData.deriveSinglePrecisionDpot(xgcMesh);
@@ -396,8 +404,23 @@ int main(int argc, char **argv)
       fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
 
       // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
-      XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 120);
-    
+      std::shared_ptr<Components> components = 
+        std::make_shared<Components>(XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 180));
+   
+      if (lastComponents) {
+        fprintf(stderr, "associating...\n");
+        auto mat = ftk::trackConnectedComponents(*lastComponents, *components);
+        for (auto p : mat) {
+          g.addNode(lastTimestep, p.first);
+          g.addNode(currentTimestep, p.second);
+          g.addEdge(lastTimestep, p.first, currentTimestep, p.second);
+          // fprintf(stderr, "%zu -- %zu\n", pair.first, pair.second);
+        }
+      }
+
+      lastTimestep = currentTimestep;
+      lastComponents = components; 
+
       if (volren) {
         volrenEngine = new VolrenEngine();
         volrenEngine->start(MPI_COMM_WORLD, xgcMesh, xgcData);
@@ -448,7 +471,11 @@ int main(int argc, char **argv)
       fprintf(stderr, "[rank=%d] done.\n", rank);
 
       if (reader->advanceTimestep() < 0) break; 
-    }
+    } // while
+
+    g.relabel();
+    g.detectEvents();
+    g.generateDotFile("mydot");
   }
 
 #if 0
