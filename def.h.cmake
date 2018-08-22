@@ -9,6 +9,7 @@
 #cmakedefine WITH_TBB 1
 #cmakedefine WITH_NC 1
 #cmakedefine WITH_H5 1
+#cmakedefine WITH_ROCKSDB 1
 
 // needed for malloc
 #include <cstdlib>

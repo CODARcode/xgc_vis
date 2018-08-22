@@ -4,6 +4,10 @@ target_link_libraries (xgcvis_core tourtre xgcvis_common xgcvis_volren ${Boost_L
 add_executable (xgcvis main.cpp)
 target_link_libraries (xgcvis xgcvis_core)
 
+if (WITH_ROCKSDB)
+  target_link_libraries (xgcvis ${RocksDB_LIBRARY})
+endif ()
+
 if (WITH_QT)
   target_link_libraries (xgcvis xgcvis_gui)
 endif ()

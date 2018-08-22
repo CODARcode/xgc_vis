@@ -25,6 +25,11 @@
 // #include "volren/bvh.h"
 // #include "volren/volren.cuh"
 
+#include <ftk/storage/storage.h>
+#if WITH_ROCKSDB
+#include <ftk/storage/rocksdbStorage.h>
+#endif
+
 #if WITH_QT
 #include <QApplication>
 #include "gui/widget.h"
@@ -276,6 +281,7 @@ int main(int argc, char **argv)
     ("input_type,t", value<std::string>(), "ADIOS_STREAM|ADIOS_FILES|H5_FILES")
     ("input,i", value<std::string>(), "input")
     ("output,o", value<std::string>()->default_value(""), "output_file")
+    ("db", value<std::string>()->default_value(""), "database name")
     ("output_prefix", value<std::string>()->default_value(""), "output file prefix (e.g. 'features' will generate features.%05d.bp)")
     ("output_branches,o", value<std::string>()->default_value(""), "output_branches")
     ("output_prefix_branches,o", value<std::string>()->default_value(""), "output_prefix_branches")
@@ -302,6 +308,7 @@ int main(int argc, char **argv)
   const std::string input_type_str = vm["input_type"].as<std::string>();
   const std::string input = vm["input"].as<std::string>();
   const std::string filename_mesh = vm["mesh"].as<std::string>();
+  const std::string db_name = vm["db"].as<std::string>();
   const std::string output_prefix = vm["output_prefix"].as<std::string>();
   const std::string output_prefix_branches = vm["output_prefix_branches"].as<std::string>();
   const std::string read_method_str = vm["read_method"].as<std::string>();
@@ -319,6 +326,8 @@ int main(int argc, char **argv)
     fprintf(stderr, "filename_mesh=%s\n", filename_mesh.c_str());
     fprintf(stderr, "input_type=%s\n", input_type_str.c_str());
     fprintf(stderr, "input=%s\n", input.c_str());
+    if (db_name.size() > 0)
+      fprintf(stderr, "db_name=%s\n", db_name.c_str());
     if (filename_output.size() > 0) 
       fprintf(stderr, "filename_output=%s\n", filename_output.c_str());
     else if (output_prefix.size() > 0)
@@ -374,7 +383,15 @@ int main(int argc, char **argv)
     adios_define_mesh_timevarying("no", groupHandle, meshName.c_str());
     adios_delete_vardefs(groupHandle);
   }
-    
+
+  std::shared_ptr<ftk::Storage> db;
+  if (rank == 0 && db_name.size() > 0) {
+#if WITH_ROCKSDB
+    db = std::make_shared<ftk::RocksDBStorage>(ftk::RocksDBStorage());
+#endif
+    db->open(db_name);
+  }
+
   if (gui) { // TODO: async
     QApplication app(argc, argv);
     QGLFormat fmt = QGLFormat::defaultFormat();
@@ -405,7 +422,9 @@ int main(int argc, char **argv)
 
       // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
       std::shared_ptr<Components> components = 
-        std::make_shared<Components>(XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 180));
+        std::make_shared<Components>(XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 220));
+
+      if (db) db->put_obj("cc" + std::to_string(currentTimestep), *components);
    
       if (lastComponents) {
         fprintf(stderr, "associating...\n");
@@ -416,6 +435,8 @@ int main(int argc, char **argv)
           g.addEdge(lastTimestep, p.first, currentTimestep, p.second);
           // fprintf(stderr, "%zu -- %zu\n", pair.first, pair.second);
         }
+
+        if (db) db->put_obj("mat" + std::to_string(lastTimestep) + "." + std::to_string(currentTimestep), mat);
       }
 
       lastTimestep = currentTimestep;
@@ -504,6 +525,8 @@ int main(int argc, char **argv)
   delete reader;
 
   adios_finalize(0);
+
+  if (db) db->close();
 
   fprintf(stderr, "[rank=%d] exiting...\n", rank);
   MPI_Finalize();
