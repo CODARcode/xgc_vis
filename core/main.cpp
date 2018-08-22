@@ -19,12 +19,13 @@
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
 #include "io/xgcDataReader.h"
-#include "core/xgcBlobExtractor.h"
+// #include "core/xgcBlobExtractor.h"
 #include "core/xgcLevelSetAnalysis.h"
 #include "volren/volrenEngine.h"
 // #include "volren/bvh.h"
 // #include "volren/volren.cuh"
 
+#include <ftk/graph/graph.hh>
 #include <ftk/storage/storage.h>
 #if WITH_ROCKSDB
 #include <ftk/storage/rocksdbStorage.h>
@@ -47,8 +48,8 @@ XGCData xgcData;
 
 VolrenEngine *volrenEngine = NULL;
 
-XGCBlobExtractor *ex = NULL;
-std::mutex mutex_ex;
+// XGCBlobExtractor *ex = NULL;
+// std::mutex mutex_ex;
 
 
 void onHttp(server *s, websocketpp::connection_hdl hdl) 
@@ -134,9 +135,10 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
   if (incoming["type"] == "requestMesh") {
     fprintf(stderr, "requesting mesh!\n");
     outgoing["type"] = "mesh";
-    outgoing["data"] = ex->jsonfyMesh();
+    // outgoing["data"] = ex->jsonfyMesh(); // FIXME
   } else if (incoming["type"] == "requestSingleSliceRawData") {
     binary = true;
+#if 0
     const int nNodes = ex->getNNodes();
     const double *array0 = ex->getData();
     buffer_length = sizeof(int) + nNodes*sizeof(float);
@@ -146,8 +148,10 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     *type = 10;
     for (int i=0; i<nNodes; i++) 
       array[i] = array0[i];
+#endif
   } else if (incoming["type"] == "requestMultipleSliceRawData") {
     binary = true;
+#if 0
     const int nNodes = ex->getNNodes();
     const int nPhi = ex->getNPhi();
     const double *array0 = ex->getData();
@@ -158,9 +162,10 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     *type = 11;
     for (int i=0; i<nNodes*nPhi; i++) 
       array[i] = array0[i];
+#endif
   } else if (incoming["type"] == "requestData") {
     outgoing["type"] = "data";
-
+#if 0
     mutex_ex.lock();
     const size_t timestep = ex->getTimestep();
     const int nnodes = ex->getNNodes();
@@ -173,6 +178,7 @@ void onMessage(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     outgoing["timestep"] = timestep;
     outgoing["data"] = dpot;
     outgoing["labels"] = labels;
+#endif
   } else if (incoming["type"] == "requestVolren") {
 #if 0
     binary = true;
@@ -357,7 +363,7 @@ int main(int argc, char **argv)
   else 
     xgcMesh.readMeshFromH5(filename_mesh);
 
-  ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
+  // ex = new XGCBlobExtractor(xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn);
   
   // starting server
   if (rank == 0 && vm.count("server")) {
@@ -449,16 +455,17 @@ int main(int argc, char **argv)
         if (rank == 0) volrenEngine->enqueueAndWait("");
       }
 
-      mutex_ex.lock();
-      ex->setData(reader->getCurrentTimestep(), xgcMesh.nPhi, xgcData.dpot);
+      // mutex_ex.lock();
+      // ex->setData(reader->getCurrentTimestep(), xgcMesh.nPhi, xgcData.dpot);
       // ex->setPersistenceThreshold(persistence_threshold);
       // ex->buildContourTree3D();
       // std::map<ctBranch*, size_t> branchSet = ex->buildContourTree2D(0);
       // ex->buildContourTree2DAll();
-      mutex_ex.unlock();
+      // mutex_ex.unlock();
 
       // write labels
-      int *labels = ex->getLabels(0).data();
+#if 0
+      const std::vector<int> &labels = ex->getLabels(0);
       if (output_prefix.length() > 0) {
         std::stringstream ss_filename;
         ss_filename << output_prefix << "." << std::setfill('0') << std::setw(5) << reader->getCurrentTimestep() 
@@ -472,7 +479,8 @@ int main(int argc, char **argv)
         if (write_binary)
           ex->dumpLabels(filename_output);
         else 
-          writeUnstructredMeshDataFile(reader->getCurrentTimestep(), MPI_COMM_WORLD, groupHandle, filename_output, write_method_str, write_method_params_str,
+          writeUnstructredMeshDataFile(reader->getCurrentTimestep(), MPI_COMM_WORLD, groupHandle, 
+              filename_output, write_method_str, write_method_params_str,
               xgcMesh.nNodes, xgcMesh.nTriangles, xgcMesh.coords, xgcMesh.conn, xgcData.dpot, xgcMesh.psi, labels);
       }
      
@@ -488,7 +496,8 @@ int main(int argc, char **argv)
             reader->getCurrentTimestep(), filename_output_branches.c_str()); 
         // ex->dumpBranches(filename_output_branches, branchSet);
       }
-      
+#endif
+
       fprintf(stderr, "[rank=%d] done.\n", rank);
 
       if (reader->advanceTimestep() < 0) break; 
@@ -519,8 +528,6 @@ int main(int argc, char **argv)
   }
 
   // adios_close(*varFP);
-  delete ex;
-  ex = NULL;
 
   delete reader;
 

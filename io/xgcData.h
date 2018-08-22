@@ -11,8 +11,8 @@
 #include "io/xgcMesh.h"
 
 struct XGCData {
-  double *dpot = NULL;
-  float *dpotf = NULL, *graddpotf = NULL;
+  std::vector<double> dpot;
+  std::vector<float> dpotf, graddpotf;
   float dpotf_min = FLT_MAX, dpotf_max = -FLT_MAX;
 
   void deriveSinglePrecisionDpot(const XGCMesh& m);

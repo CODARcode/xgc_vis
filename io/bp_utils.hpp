@@ -16,7 +16,7 @@ static bool readValueInt(ADIOS_FILE *fp, const char *nm, int *val)
   return true;
 }
 
-template <typename T> static int readScalars(ADIOS_FILE *fp, const char *var, T **arr, bool allocate=true)
+template <typename T> static int readScalars(ADIOS_FILE *fp, const char *var, std::vector<T> arr, bool allocate=true)
 {
   ADIOS_VARINFO *avi = adios_inq_var(fp, var);
   if (avi == NULL) return false;
@@ -38,18 +38,21 @@ template <typename T> static int readScalars(ADIOS_FILE *fp, const char *var, T 
   ADIOS_SELECTION *sel = adios_selection_boundingbox(avi->ndim, st, sz);
   assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
-  if (allocate) 
-    *arr = (T*)malloc(sizeof(double)*nt);
+  if (allocate)
+    arr.resize(nt);
 
-  adios_schedule_read_byid(fp, sel, avi->varid, 0, 1, *arr);
+  adios_schedule_read_byid(fp, sel, avi->varid, 0, 1, &arr[0]);
   int retval = adios_perform_reads(fp, 1);
   
   adios_selection_delete(sel);
   return avi->ndim;
 }
 
-static void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHandle, const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
-    int nNodes, int nTriangles, double *coords, int *conn_, double *dpot, double *psi, int *labels)
+static void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t groupHandle, 
+    const std::string& fileName, const std::string& writeMethod, const std::string& writeMethodParams,
+    int nNodes, int nTriangles, 
+    const std::vector<double> &coords, const std::vector<int> &conn, const std::vector<double> &dpot, 
+    const std::vector<double> &psi, const std::vector<int> &labels)
 {
   const std::string groupName = "xgc_blobs", meshName = "xgc_mesh2D";
   
@@ -111,10 +114,10 @@ static void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t gr
         cellDim.c_str(),
         cellDim.c_str(), 
         "0,0");
-    adios_write_byid(fileHandle, cellId, &conn_[0]);
+    adios_write_byid(fileHandle, cellId, &conn[0]);
     
     // psi
-    if (psi != NULL) {
+    if (psi.size() > 0) {
       adios_define_var_mesh(groupHandle, psiName.c_str(), meshName.c_str());
       adios_define_var_centering(groupHandle, psiName.c_str(), centering.c_str());
       int64_t psiId = adios_define_var(
@@ -125,7 +128,7 @@ static void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t gr
           std::to_string(nNodes).c_str(), 
           std::to_string(nNodes).c_str(),
           "0");
-      adios_write_byid(fileHandle, psiId, psi);
+      adios_write_byid(fileHandle, psiId, &psi[0]);
     }
   }
 
@@ -140,10 +143,10 @@ static void writeUnstructredMeshDataFile(int timestep, MPI_Comm comm, int64_t gr
       std::to_string(nNodes).c_str(), 
       std::to_string(nNodes).c_str(),
       "0");
-  adios_write_byid(fileHandle, dpotId, dpot);
+  adios_write_byid(fileHandle, dpotId, &dpot[0]);
   
   // labels
-  if (labels != NULL) {
+  if (labels.size() > 0) {
     double *d_labels = (double*)malloc(sizeof(double)*nNodes);
     for (int i=0; i<nNodes; i++) 
       d_labels[i] = static_cast<double>(labels[i]);

@@ -9,21 +9,17 @@
 #include <json.hpp>
 // #include <ftk/transition/transition.h>
 #include <ftk/graph/graph.hh>
+#include "io/xgcMesh.h"
+#include "io/xgcData.h"
 
 class XGCBlobExtractor
 {
   using json = nlohmann::json;
 
 public:
-  XGCBlobExtractor(int nNodes, int nTriangles, double *coords, int *conn); 
+  XGCBlobExtractor(XGCMesh &m, XGCData &d);
   ~XGCBlobExtractor() {}
 
-  int getNNodes() const {return nNodes;}
-  int getNPhi() const {return nPhi;}
-  size_t getTimestep() const {return timestep;}
-
-  void setData(size_t timestep, int nPhi, double *dpot);
-  const double *getData() const {return dpot;}
   void setPersistenceThreshold(double threshold) {persistenceThreshold = threshold;}
 
   std::vector<int>& getLabels(int plane) {return all_labels[plane];}
@@ -62,22 +58,14 @@ public:
       const std::vector<size_t> &totalOrder, 
       const std::vector<size_t> &ranks);
 
-private: // mesh
-  std::vector<double> coords;
-  std::vector<int> conn;
-  // double *coords; 
-  // int *conn;
-  int nNodes, nTriangles, nPhi;
-
-private: // data
-  size_t timestep;
-  double *dpot;
+private:
+  const XGCMesh& m;
+  const XGCData& d;
 
 private: // parameters
   double persistenceThreshold;
 
 private: // analysis
-  std::vector<std::set<size_t> > nodeGraph; // node->{neighbor nodes}
   std::map<int, std::vector<int> > maximum, minimum;
   std::map<int, std::vector<int> > all_labels, all_signs;
   // std::map<ctBranch*, size_t> branchSet;

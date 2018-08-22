@@ -27,14 +27,11 @@
 using json = nlohmann::json;
 
 XGCData::~XGCData() {
-  free(dpot);
-  free(dpotf);
-  free(graddpotf);
 }
 
 void XGCData::deriveSinglePrecisionDpot(const XGCMesh& m) {
   dpotf_min = FLT_MAX; dpotf_max = -FLT_MAX;
-  dpotf = (float*)realloc(dpotf, sizeof(float)*m.nNodes*m.nPhi);
+  dpotf.resize(m.nNodes*m.nPhi);
   for (int i=0; i<m.nNodes*m.nPhi; i++) {
     dpotf[i] = dpot[i];
     dpotf_min = std::min(dpotf_min, dpotf[i]);
@@ -43,7 +40,7 @@ void XGCData::deriveSinglePrecisionDpot(const XGCMesh& m) {
 }
 
 void XGCData::deriveGradient(const XGCMesh& m) {
-  graddpotf = (float*)realloc(graddpotf, sizeof(float)*m.nTriangles*m.nPhi*2);
+  graddpotf.resize(m.nTriangles*m.nPhi*2);
   for (int j=0; j<m.nPhi; j++) 
     for (int i=0; i<m.nTriangles; i++) {
       const int i0 = m.conn[i*3], i1 = m.conn[i*3+1], i2 = m.conn[i*3+2];
@@ -77,10 +74,9 @@ void XGCData::readDpotFromADIOS(XGCMesh &m, ADIOS_FILE *fp)
 
   assert(sel->type == ADIOS_SELECTION_BOUNDINGBOX);
 
-  if (dpot == NULL) 
-    dpot = (double*)malloc(sizeof(double)*m.nPhi*m.nNodes);
+  dpot.resize(m.nPhi*m.nNodes);
 
-  adios_schedule_read_byid(fp, sel, avi->varid, 0, 1, dpot);
+  adios_schedule_read_byid(fp, sel, avi->varid, 0, 1, &dpot[0]);
   adios_perform_reads(fp, 1);
   adios_selection_delete(sel);
 }
@@ -99,19 +95,16 @@ void XGCData::readDpotFromH5(XGCMesh &m, const std::string& filename)
   H5Dread(h5id_iphi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &m.iPhi);
   H5Dclose(h5id_iphi);
 
-  if (dpot == NULL) 
-    dpot = (double*)malloc(sizeof(double)*m.nPhi*m.nNodes);
-
-  double *dpot1 = (double*)malloc(sizeof(double)*m.nPhi*m.nNodes);
+  std::vector<double> dpot1(m.nPhi*m.nNodes);
   hid_t h5id_dpot = H5Dopen2(h5fid, "/dpot", H5P_DEFAULT);
-  H5Dread(h5id_dpot, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dpot1);
+  H5Dread(h5id_dpot, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &dpot1[0]);
   H5Dclose(h5id_dpot);
  
   // transpose
+  dpot.resize(m.nPhi*m.nNodes);
   for (int i=0; i<m.nPhi; i++) 
     for (int j=0; j<m.nNodes; j++)
       dpot[i*m.nNodes + j] = dpot1[j*m.nPhi + i];
-  free(dpot1);
 
   H5Fclose(h5fid);
 }
@@ -129,7 +122,7 @@ json XGCData::jsonfyDataInfo(const XGCMesh&) const
 json XGCData::jsonfySingleSliceData(const XGCMesh& m) const 
 {
   json j = jsonfyDataInfo(m);
-  j["dpot"] = base64_encode((unsigned char*)dpotf, sizeof(float)*m.nNodes);
+  j["dpot"] = base64_encode((unsigned char*)dpotf.data(), sizeof(float)*m.nNodes);
 
   return j;
 }
@@ -137,7 +130,7 @@ json XGCData::jsonfySingleSliceData(const XGCMesh& m) const
 json XGCData::jsonfyData(const XGCMesh& m) const 
 {
   json j = jsonfyDataInfo(m);
-  j["dpot"] = base64_encode((unsigned char*)dpotf, sizeof(float)*m.nNodes*m.nPhi);
+  j["dpot"] = base64_encode((unsigned char*)dpotf.data(), sizeof(float)*m.nNodes*m.nPhi);
 
   return j;
 }
@@ -212,7 +205,7 @@ std::vector<double> XGCData::sampleAlongPsiContour(const XGCMesh &m, double isov
     return b;
   };
 
-  auto findIntersection = [&findZero, &candidateTriangles, &m, isoval](int triangleId, int i[3]) {
+  auto findIntersection = [&findZero, &candidateTriangles, &m, isoval](int triangleId, const int i[3]) {
     float3 a;
     bool b[3] = {findZero(i[0], i[1], a[0]), findZero(i[1], i[2], a[1]), findZero(i[2], i[0], a[2])};
     if (b[0] || b[1] || b[2])
@@ -220,7 +213,7 @@ std::vector<double> XGCData::sampleAlongPsiContour(const XGCMesh &m, double isov
   };
 
   for (int i=0; i<m.nTriangles; i++)
-    findIntersection(i, m.conn+i*3);
+    findIntersection(i, &m.conn[i*3]);
 
   // traversal
   auto traceContourTrianglesOnSingleDirection = [this, &m, &candidateTriangles](std::list<double>& contour, int seed, bool forward) {

@@ -31,24 +31,24 @@ void XGCMesh::readMeshFromH5(const std::string& filename)
   H5Dread(h5id_nt, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &nTriangles);
   H5Dclose(h5id_nt);
 
-  coords = (double*)malloc(sizeof(double)*nNodes*2);
+  coords.resize(nNodes*2);
   hid_t h5id_coords = H5Dopen2(h5fid, "/coordinates/values", H5P_DEFAULT);
-  H5Dread(h5id_coords, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, coords);
+  H5Dread(h5id_coords, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &coords[0]);
   H5Dclose(h5id_coords);
 
-  conn = (int*)malloc(sizeof(int)*nTriangles*3);
+  conn.resize(nTriangles*3);
   hid_t h5id_conn = H5Dopen2(h5fid, "/cell_set[0]/node_connect_list", H5P_DEFAULT);
-  H5Dread(h5id_conn, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, conn);
+  H5Dread(h5id_conn, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &conn[0]);
   H5Dclose(h5id_conn);
 
-  nextNode = (int*)malloc(sizeof(int)*nNodes);
+  nextNode.resize(nNodes);
   hid_t h5id_nextnode = H5Dopen2(h5fid, "/nextnode", H5P_DEFAULT);
-  H5Dread(h5id_nextnode, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, nextNode);
+  H5Dread(h5id_nextnode, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &nextNode[0]);
   H5Dclose(h5id_nextnode);
 
-  psi = (double*)malloc(sizeof(double)*nNodes);
+  psi.resize(nNodes); 
   hid_t h5id_psi = H5Dopen2(h5fid, "/psi", H5P_DEFAULT);
-  H5Dread(h5id_psi, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, psi);
+  H5Dread(h5id_psi, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &psi[0]);
   H5Dclose(h5id_psi);
 
   H5Fclose(h5fid);
@@ -73,10 +73,10 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
   
   readValueInt(fp, "n_n", &nNodes);
   readValueInt(fp, "n_t", &nTriangles);
-  readScalars<double>(fp, "/coordinates/values", &coords);
-  readScalars<int>(fp, "/cell_set[0]/node_connect_list", &conn);
-  readScalars<int>(fp, "nextnode", &nextNode);
-  readScalars<double>(fp, "psi", &psi);
+  readScalars<double>(fp, "/coordinates/values", coords);
+  readScalars<int>(fp, "/cell_set[0]/node_connect_list", conn);
+  readScalars<int>(fp, "nextnode", nextNode);
+  readScalars<double>(fp, "psi", psi);
  
   adios_read_finalize_method (ADIOS_READ_METHOD_BP);
   adios_read_close(fp);
@@ -87,7 +87,7 @@ void XGCMesh::readMeshFromADIOS(const std::string& filename, ADIOS_READ_METHOD r
 
 void XGCMesh::preprocessMesh() {
   // psi
-  psif = (float*)realloc(psif, sizeof(float)*nNodes);
+  psif.resize(nNodes);
   for (int i=0; i<nNodes; i++) {
     psif[i] = psi[i];
     if (psi_min > psif[i]) {
@@ -101,8 +101,8 @@ void XGCMesh::preprocessMesh() {
   psi_min_y = coords[psi_min_node*2+1];
   
   // centroids and inverse of determinants
-  centroidsf = (float*)realloc(centroidsf, sizeof(float)*nTriangles*2);
-  invdetf = (float*)realloc(invdetf, sizeof(float)*nTriangles);
+  centroidsf.resize(nTriangles*2);
+  invdetf.resize(nTriangles);
   for (int i=0; i<nTriangles; i++) {
     const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
     float x0 = coords[i0*2], x1 = coords[i1*2], x2 = coords[i2*2],
@@ -114,7 +114,7 @@ void XGCMesh::preprocessMesh() {
   }
   
   // displacements
-  dispf = (float*)realloc(dispf, sizeof(float)*nNodes*2);
+  dispf.resize(nNodes*2);
   for (int i=0; i<nNodes; i++) {
     int j = nextNode[i];
     dispf[i*2] = coords[j*2] - coords[i*2];
@@ -163,7 +163,7 @@ void XGCMesh::buildNeighbors()
     addEdge(i, i2, i0);
   }
 
-  neighbors = (int*)realloc(neighbors, nTriangles*3*sizeof(int));
+  neighbors.resize(nTriangles*3);
 
   for (int i=0; i<nTriangles; i++) {
     const int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
@@ -330,13 +330,6 @@ std::vector<double> XGCMesh::sampleScalarsAlongPsiContour(double *scalar, int nS
 
 
 XGCMesh::~XGCMesh() {
-  free(conn);
-  free(psi);
-  free(nextNode);
-  free(coords);
-  free(dispf);
-  free(invdetf);
-  free(neighbors);
 }
 
 json XGCMesh::jsonfyMeshInfo() const {
@@ -362,9 +355,9 @@ json XGCMesh::jsonfyMeshInfo() const {
 json XGCMesh::jsonfyMesh() const { 
   json j = jsonfyMeshInfo();
 
-  j["coords"] = base64_encode((unsigned char*)coords, sizeof(double)*nNodes*2);
+  j["coords"] = base64_encode((unsigned char*)coords.data(), sizeof(double)*nNodes*2);
   // j["coords"] = std::vector<double>(coords, coords+nNodes*2);
-  j["conn"] = base64_encode((unsigned char*)conn, sizeof(int)*nNodes*3);
+  j["conn"] = base64_encode((unsigned char*)conn.data(), sizeof(int)*nNodes*3);
   // j["conn"] = std::vector<int>(conn, conn+nNodes*3);
  
   return j;

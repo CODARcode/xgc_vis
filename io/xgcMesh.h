@@ -14,14 +14,14 @@
 
 struct XGCMesh {
   int nNodes, nTriangles, nPhi, iPhi;
-  int *conn = NULL, *nextNode = NULL;
-  int *neighbors = NULL;
-  double *coords = NULL;
-  double *psi = NULL;
-  float *centroidsf = NULL;
-  float *psif = NULL;
-  float *dispf = NULL; // displacement derived from nextNode
-  float *invdetf = NULL; // inversed determinant of triangles
+  std::vector<int> conn, nextNode;
+  std::vector<int> neighbors;
+  std::vector<double> coords;
+  std::vector<double> psi;
+  std::vector<float> centroidsf;
+  std::vector<float> psif;
+  std::vector<float> dispf; // displacement derived from nextNode
+  std::vector<float> invdetf; // inversed determinant of triangles
   float psi_min = FLT_MAX, psi_max = -FLT_MAX;
   int psi_min_node; 
   float psi_min_x, psi_min_y;

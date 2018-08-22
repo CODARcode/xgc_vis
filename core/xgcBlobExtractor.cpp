@@ -8,25 +8,10 @@
 
 using json = nlohmann::json;
 
-XGCBlobExtractor::XGCBlobExtractor(int nNodes_, int nTriangles_, double *coords_, int *conn_) :
-  nNodes(nNodes_), nTriangles(nTriangles_), nPhi(1), 
-  coords(coords_, coords_ + nNodes_*2), 
-  conn(conn_, conn_ + 3*nTriangles_),
-  persistenceThreshold(0),
-  timestep(0)
+XGCBlobExtractor::XGCBlobExtractor(XGCMesh &m_, XGCData &d_) :
+  m(m_), d(d_),
+  persistenceThreshold(0)
 {
-  // init nodeGraph
-  nodeGraph.clear();
-  nodeGraph.resize(nNodes);
-  for (int i=0; i<nTriangles; i++) {
-    int i0 = conn[i*3], i1 = conn[i*3+1], i2 = conn[i*3+2];
-    nodeGraph[i0].insert(i1);
-    nodeGraph[i0].insert(i2);
-    nodeGraph[i1].insert(i0);
-    nodeGraph[i1].insert(i2);
-    nodeGraph[i2].insert(i0);
-    nodeGraph[i2].insert(i1);
-  }
 }
 
 void XGCBlobExtractor::constructDiscreteGradient(double *dpot) // based on MS theory
@@ -43,7 +28,7 @@ void XGCBlobExtractor::constructDiscreteGradient(double *dpot) // based on MS th
 
 }
 
-struct XGCData { // either single slice or all slices
+struct MyXGCData { // either single slice or all slices
   std::vector<std::set<size_t> > *nodeGraph;
   std::vector<size_t> *totalOrder;
   double *dpot;
@@ -52,20 +37,20 @@ struct XGCData { // either single slice or all slices
 
 static double value(size_t v, void *d)
 {
-  XGCData *data = (XGCData*)d;
+  MyXGCData *data = (MyXGCData*)d;
   // fprintf(stderr, "%d, %f\n", v, data->dpot[v]);
   return data->dpot[v];
 }
 
 static double value_order(size_t v, void *d)
 {
-  XGCData *data = (XGCData*)d;
+  MyXGCData *data = (MyXGCData*)d;
   return static_cast<double>(data->totalOrder->at(v));
 }
 
 static size_t neighbors(size_t v, size_t *nbrs, void *d)
 {
-  XGCData *data = (XGCData*)d;
+  MyXGCData *data = (MyXGCData*)d;
   std::set<size_t>& nodes = (*data->nodeGraph)[v];
   
   int i = 0;
@@ -79,7 +64,7 @@ static size_t neighbors(size_t v, size_t *nbrs, void *d)
 
 static size_t neighbors3D(size_t v, size_t *nbrs, void *d)
 {
-  XGCData *data = (XGCData*)d;
+  MyXGCData *data = (MyXGCData*)d;
  
   const size_t nNodes = data->nNodes;
   const size_t nPhi = data->nPhi;
@@ -104,7 +89,7 @@ static size_t neighbors3D(size_t v, size_t *nbrs, void *d)
 
 static double volumePriority(ctNode *node, void *d)
 {
-  XGCData *data = static_cast<XGCData*>(d);
+  MyXGCData *data = static_cast<MyXGCData*>(d);
   ctArc *arc = ctNode_leafArc(node);
 
   ctNode *lo = arc->lo,
@@ -233,7 +218,7 @@ int XGCBlobExtractor::flood2D(size_t seed, int id, std::vector<int> &labels, dou
 {
   // fprintf(stderr, "seed=%lu, id=%lu, min=%.10e, max=%.10e\n", seed, id, min, max);
 
-  XGCData *data = (XGCData*)d;
+  MyXGCData *data = (MyXGCData*)d;
 
   int count = 1;
   std::queue<size_t> Q;
@@ -269,9 +254,9 @@ std::vector<int> XGCBlobExtractor::getFlattenedLabels(int plane)
 {
   const std::vector<int>& labels = all_labels[plane];
   const std::vector<int>& signs = all_signs[plane];
-  std::vector<int> flattened(nNodes, 0);
+  std::vector<int> flattened(m.nNodes, 0);
   
-  for (size_t i = 0; i < nNodes; i ++) {
+  for (size_t i = 0; i < m.nNodes; i ++) {
     const int id = labels[i];
     if (id == INT_MAX) continue;
     else if (signs[id] > 0) flattened[i] = 1;
@@ -294,7 +279,7 @@ void XGCBlobExtractor::extractStreamers(int plane, ctBranch *root, std::map<ctBr
       return p0.second < p1.second;
     });
 
-  std::vector<int> labels(nNodes, INT_MAX);
+  std::vector<int> labels(m.nNodes, INT_MAX);
   std::vector<int> signs;
  
   // minimum streamers
@@ -344,22 +329,22 @@ RESTART:
 
 void XGCBlobExtractor::buildContourTree2DAll()
 {
-  for (int plane = 0; plane < nPhi; plane ++) {
+  for (int plane = 0; plane < m.nPhi; plane ++) {
     buildContourTree2D(plane);
   }
 }
 
 std::map<ctBranch*, size_t> XGCBlobExtractor::buildContourTree2D(int plane)
 {
-  fprintf(stderr, "building contour tree for plane %d, nNodes=%d\n", plane, nNodes);
+  fprintf(stderr, "building contour tree for plane %d, nNodes=%d\n", plane, m.nNodes);
 
   // fprintf(stderr, "[1] preparing data\n");
   std::vector<size_t> totalOrder; 
-  for (int i=0; i<nNodes; i++) 
+  for (int i=0; i<m.nNodes; i++) 
     totalOrder.push_back(i);
 
-  XGCData data;
-  data.nodeGraph = &nodeGraph;
+  MyXGCData data;
+  data.nodeGraph = &m.nodeGraph;
   data.dpot = dpot + plane * nNodes;
   data.nNodes = nNodes;
   data.nPhi = nPhi;

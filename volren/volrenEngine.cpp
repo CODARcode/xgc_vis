@@ -156,13 +156,13 @@ void VolrenEngine::start_(MPI_Comm comm, XGCMesh& m, XGCData& d)
   // rc_test_point_locator(rc, 2.3f, -0.4f);
  
   // mesh 
-  rc_bind_neighbors(rc, m.nTriangles, m.neighbors);
-  rc_bind_psi(rc, m.nNodes, m.psif, m.psi_min, m.psi_max);
-  rc_bind_disp(rc, m.nNodes, m.dispf);
-  rc_bind_invdet(rc, m.nTriangles, m.invdetf);
+  rc_bind_neighbors(rc, m.nTriangles, &m.neighbors[0]);
+  rc_bind_psi(rc, m.nNodes, &m.psif[0], m.psi_min, m.psi_max);
+  rc_bind_disp(rc, m.nNodes, &m.dispf[0]);
+  rc_bind_invdet(rc, m.nTriangles, &m.invdetf[0]);
 
   // dpot
-  rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, m.iPhi, d.dpotf, d.graddpotf);
+  rc_bind_data(rc, m.nNodes, m.nTriangles, m.nPhi, m.iPhi, &d.dpotf[0], &d.graddpotf[0]);
 
   while (1) { // volren loop
     VolrenTask *task = NULL;

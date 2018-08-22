@@ -89,7 +89,8 @@ bool insideTriangle(const double *p, const double *p1, const double *p2, const d
   return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
 
-int locatePointBruteForce(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
+int locatePointBruteForce(const double *X, QuadNode *q, int nNodes, int nTriangles, 
+    const std::vector<double> &coords, const std::vector<int> &conn)
 {
   int rtn = -1;
   for (int id=0; id<nTriangles; id++) {
@@ -103,7 +104,8 @@ int locatePointBruteForce(const double *X, QuadNode *q, int nNodes, int nTriangl
   return rtn;
 }
 
-int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
+int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, 
+    const std::vector<double> &coords, const std::vector<int> &conn)
 {
   std::stack<QuadNode*> S;
   S.push(q);
@@ -129,7 +131,8 @@ int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTrian
   return -1;
 }
 
-int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn)
+int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, 
+    const std::vector<double> &coords, const std::vector<int> &conn)
 {
   if (q->aabb.contains(X)) {
     if (q->isLeaf()) {
@@ -152,7 +155,7 @@ int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangle
   return -1;
 }
 
-std::vector<BVHNodeD> convertBVH(QuadNode* r, const int *conn, const double *coords) {
+std::vector<BVHNodeD> convertBVH(QuadNode* r, const std::vector<int> &conn, const std::vector<double> &coords) {
   std::map<QuadNode*, int> nodeMap;
   std::map<int, QuadNode*> nodeReverseMap;
   std::stack<QuadNode*> S;
@@ -227,7 +230,7 @@ void deleteBVH(QuadNode *q) {
   delete q;
 }
 
-std::vector<BVHNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coords, const int *conn)
+std::vector<BVHNodeD> buildBVHGPU(int nNodes, int nTriangles, const std::vector<double> &coords, const std::vector<int> &conn)
 {
   QuadNode *root = new QuadNode;
 

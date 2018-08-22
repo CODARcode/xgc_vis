@@ -52,10 +52,10 @@ int locatePointNonRecursive(const double *X, QuadNode *q, int nNodes, int nTrian
 
 int locatePointRecursive(const double *X, QuadNode *q, int nNodes, int nTriangles, const double *coords, const int *conn);
 
-std::vector<BVHNodeD> convertBVH(QuadNode* r, const int *conn, const double *coords);
+std::vector<BVHNodeD> convertBVH(QuadNode* r, const std::vector<int> &conn, const std::vector<double> &coords);
 
 void deleteBVH(QuadNode *q);
 
-std::vector<BVHNodeD> buildBVHGPU(int nNodes, int nTriangles, const double *coords, const int *conn);
+std::vector<BVHNodeD> buildBVHGPU(int nNodes, int nTriangles, const std::vector<double> &coords, const std::vector<int> &conn);
 
 #endif
