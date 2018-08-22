@@ -398,23 +398,13 @@ int main(int argc, char **argv)
     db->open(db_name);
   }
 
-  if (gui) { // TODO: async
-    QApplication app(argc, argv);
-    QGLFormat fmt = QGLFormat::defaultFormat();
-    fmt.setSampleBuffers(true);
-    fmt.setSamples(16); 
-    QGLFormat::setDefaultFormat(fmt); 
-    
-    CGLWidget *widget = new CGLWidget(xgcMesh, xgcData, *reader);
-    widget->show(); 
+  typedef std::vector<std::set<size_t> > Components;
+  std::shared_ptr<Components> lastComponents;
+  std::vector<Components> allComponents;
+  ftk::Graph<> g;
 
-    app.exec();
-  } else {
-    typedef std::vector<std::set<size_t> > Components;
-    std::shared_ptr<Components> lastComponents;
+  {
     int lastTimestep = -1;
-
-    ftk::Graph<> g;
 
     while (1) {
       int currentTimestep = reader->getCurrentTimestep();
@@ -428,7 +418,8 @@ int main(int argc, char **argv)
 
       // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
       std::shared_ptr<Components> components = 
-        std::make_shared<Components>(XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 220));
+        std::make_shared<Components>(XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 120));
+      allComponents.push_back(*components);
 
       if (db) db->put_obj("cc" + std::to_string(currentTimestep), *components);
    
@@ -506,6 +497,19 @@ int main(int argc, char **argv)
     g.relabel();
     g.detectEvents();
     g.generateDotFile("mydot");
+  }
+  
+  if (gui) { // TODO: async
+    QApplication app(argc, argv);
+    QGLFormat fmt = QGLFormat::defaultFormat();
+    fmt.setSampleBuffers(true);
+    fmt.setSamples(16); 
+    QGLFormat::setDefaultFormat(fmt); 
+    
+    CGLWidget *widget = new CGLWidget(xgcMesh, xgcData, g, allComponents);
+    widget->show(); 
+
+    app.exec();
   }
 
 #if 0

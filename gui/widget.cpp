@@ -27,15 +27,16 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, XGCDataReader &r_, const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
-  : m(m_), d(d_), r(r_), 
+CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, ftk::Graph<> &g_, std::vector<std::vector<std::set<size_t> > > &cc_,
+      const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
+  : m(m_), d(d_), g(g_), cc(cc_),
     QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
     toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
     current_slice(0)
 {
-  r.read(m, d);
+  // r.read(m, d);
 
   updateMesh();
   updateData();
@@ -162,21 +163,31 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
     break;
 
   case Qt::Key_Up:
+    currentTimestep ++;
+    updateData();
+    updateGL();
+#if 0
     if (r.advanceTimestep() >= 0) {
       fprintf(stderr, "advancing timestep...\n");
       r.read(m, d);
       updateData();
       updateGL();
     }
+#endif
     break;
 
   case Qt::Key_Down:
+    currentTimestep --;
+    updateData();
+    updateGL();
+#if 0
     if (r.recedeTimestep() >= 0) {
       fprintf(stderr, "receding timestep...\n");
       r.read(m, d);
       updateData();
       updateGL();
     }
+#endif
     break;
 
   case Qt::Key_Right:
@@ -339,7 +350,7 @@ void CGLWidget::renderMultiplePlanes()
     glDisableClientState(GL_VERTEX_ARRAY);
 #endif
 
-    glPointSize(4.f);
+    glPointSize(10.f);
     
     glColor4f(1, 0, 0, 0.8);
     glBegin(GL_POINTS);
@@ -434,6 +445,7 @@ void CGLWidget::updateData()
 #if 1
   const double threshold = 80;
 
+#if 0
   // TODO
   f_colors.clear();
 
@@ -455,18 +467,24 @@ void CGLWidget::updateData()
       }
     }
   }
+#endif
   
-  auto components = XGCLevelSetAnalysis::extractSuperLevelSet2D(m, d, threshold);
+  // auto components = XGCLevelSetAnalysis::extractSuperLevelSet2D(m, d, threshold);
   // auto components = XGCLevelSetAnalysis::extractSuperLevelSetOfEnergy2D(m, d, 0.2);
-  fprintf(stderr, "#components=%lu\n", components.size());
+  // fprintf(stderr, "#components=%lu\n", components.size());
+
+  auto components = cc[currentTimestep];
 
   labels.resize(m.nNodes * m.nPhi);
+  std::fill(labels.begin(), labels.end(), 0);
   for (size_t i = 0; i < components.size(); i++) {
-    label_colors[i+1] = QColor(rand()%256, rand()%256, rand()%256);
+    auto gLabel = g.getGlobalLabel(currentTimestep, i);
+    if (label_colors.find(gLabel+1) == label_colors.end())
+      label_colors[gLabel+1] = QColor(rand()%256, rand()%256, rand()%256);
     // qDebug() << label_colors[i];
     for (const auto v : components[i]) {
       if (v <= m.nNodes)
-        labels[v] = i+1; 
+        labels[v] = gLabel+1; 
     }
   }
 #endif

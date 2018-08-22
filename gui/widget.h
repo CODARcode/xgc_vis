@@ -14,6 +14,7 @@
 #include <tourtre.h>
 #include <cmath>
 #include <set>
+#include <ftk/graph/graph.hh>
 #include "trackball.h"
 
 #ifndef Q_MOC_RUN
@@ -35,7 +36,8 @@ class CGLWidget : public QGLWidget
   Q_OBJECT
 
 public:
-  CGLWidget(XGCMesh &m, XGCData &d, XGCDataReader& r, const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
+  CGLWidget(XGCMesh &m, XGCData &d, ftk::Graph<> &g, std::vector<std::vector<std::set<size_t> > > &cc,
+      const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
   ~CGLWidget(); 
 
   void updateMesh();
@@ -72,7 +74,11 @@ public: // client
 private: 
   XGCMesh &m; 
   XGCData &d;
-  XGCDataReader &r;
+  // XGCDataReader &r;
+
+  ftk::Graph<> &g;
+  std::vector<std::vector<std::set<size_t> > > &cc;
+  int currentTimestep = 120;
 
   std::vector<double> contour;
 
