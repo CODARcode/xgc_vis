@@ -373,7 +373,7 @@ int main(int argc, char **argv)
 
   // read data
   fprintf(stderr, "opening input data\n");
-  XGCDataReader *reader = XGCDataReaderFactory::newXGCDataReader(input_type_str, read_method_str, MPI_COMM_WORLD);
+  std::shared_ptr<XGCDataReader> reader(XGCDataReaderFactory::newXGCDataReader(input_type_str, read_method_str, MPI_COMM_WORLD));
   if (reader == NULL) MPI_Abort(MPI_COMM_WORLD, 1);
   reader->open(input);
 
@@ -528,8 +528,6 @@ int main(int argc, char **argv)
   }
 
   // adios_close(*varFP);
-
-  delete reader;
 
   adios_finalize(0);
 

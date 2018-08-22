@@ -41,11 +41,7 @@ public:
   void updateMesh();
   void updateData();
 
-  void setTriangularMesh(int nNodes, int nTriangles, int nPhi, double *coords, int *conn);
-  void loadMeshFromJsonFile(const std::string& filename);
   void loadBranchesFromJsonFile(const std::string& filename);
-  void loadLabels(const std::string& filename);
-  // void setData(double *dpot);
 
 protected:
   void initializeGL(); 
@@ -62,18 +58,6 @@ protected:
   void renderMultiplePlanes();
   void renderExtremum();
   void renderLabels();
-
-private: 
-  void buildContourTree(int plane, double *dpot);
-  void simplifyBranchDecompositionByThreshold(ctBranch *b, double threshold, void *);
-  void simplifyBranchDecompositionByNumbers(ctBranch *b, int nLimit, void *);
-  void buildSegmentation(ctBranch *b, std::vector<size_t> &labels, void*); 
-
-  void buildContourTree3D(double *dpot); 
-  void buildSegmentation3D(ctBranch *b, std::vector<size_t> &labels, void*); 
-
-  void extractExtremum(int plane, double *dpot);
-  void constructDiscreteGradient(double *dpot);
 
 public: // client
   std::thread *thread_ws;
