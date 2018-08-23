@@ -403,6 +403,7 @@ int main(int argc, char **argv)
   std::vector<Components> allComponents;
   ftk::Graph<> g;
 
+  if (1)
   {
     int lastTimestep = -1;
 
@@ -418,7 +419,11 @@ int main(int argc, char **argv)
 
       // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
       std::shared_ptr<Components> components = 
-        std::make_shared<Components>(XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 120));
+        // std::make_shared<Components>(XGCLevelSetAnalysis::extractSuperLevelSet2D(xgcMesh, xgcData, 120));
+        std::make_shared<Components>(ftk::extractConnectedComponents<size_t>(xgcMesh.nNodes, 
+              std::bind(&XGCMesh::getNodeNeighbors2D, &xgcMesh, std::placeholders::_1),
+              [&](size_t i) {return xgcData.dneOverne0[i] >= 0.1;}));
+
       allComponents.push_back(*components);
 
       if (db) db->put_obj("cc" + std::to_string(currentTimestep), *components);
@@ -506,7 +511,8 @@ int main(int argc, char **argv)
     fmt.setSamples(16); 
     QGLFormat::setDefaultFormat(fmt); 
     
-    CGLWidget *widget = new CGLWidget(xgcMesh, xgcData, g, allComponents);
+    reader->read(xgcMesh, xgcData);
+    CGLWidget *widget = new CGLWidget(xgcMesh, xgcData, *reader, g, allComponents);
     widget->show(); 
 
     app.exec();

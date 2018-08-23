@@ -27,13 +27,13 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, ftk::Graph<> &g_, std::vector<std::vector<std::set<size_t> > > &cc_,
+CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, XGCDataReader &r_, ftk::Graph<> &g_, std::vector<std::vector<std::set<size_t> > > &cc_,
       const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
-  : m(m_), d(d_), g(g_), cc(cc_),
+  : m(m_), d(d_), r(r_), g(g_), cc(cc_),
     QGLWidget(fmt, parent, sharedWidget), 
     _fovy(30.f), _znear(0.1f), _zfar(10.f), 
     _eye(0, 0, 2.5), _center(0, 0, 0), _up(0, 1, 0), 
-    toggle_mesh(true), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
+    toggle_mesh(false), toggle_wireframe(false), toggle_extrema(false), toggle_labels(true), 
     current_slice(0)
 {
   // r.read(m, d);
@@ -163,23 +163,21 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
     break;
 
   case Qt::Key_Up:
-    currentTimestep ++;
-    updateData();
-    updateGL();
 #if 0
     if (r.advanceTimestep() >= 0) {
-      fprintf(stderr, "advancing timestep...\n");
+      fprintf(stderr, "advancing timestep... %zu\n", r.getCurrentTimestep());
       r.read(m, d);
       updateData();
       updateGL();
     }
+#else
+    fprintf(stderr, "timestep = %zu\n", ++currentTimestep); 
+    updateData();
+    updateGL();
 #endif
     break;
 
   case Qt::Key_Down:
-    currentTimestep --;
-    updateData();
-    updateGL();
 #if 0
     if (r.recedeTimestep() >= 0) {
       fprintf(stderr, "receding timestep...\n");
@@ -187,6 +185,10 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
       updateData();
       updateGL();
     }
+#else
+    fprintf(stderr, "timestep = %zu\n", --currentTimestep); 
+    updateData();
+    updateGL();
 #endif
     break;
 
@@ -350,8 +352,6 @@ void CGLWidget::renderMultiplePlanes()
     glDisableClientState(GL_VERTEX_ARRAY);
 #endif
 
-    glPointSize(10.f);
-    
     glColor4f(1, 0, 0, 0.8);
     glBegin(GL_POINTS);
     for (int j=0; j<maximum[i].size(); j++) {
@@ -381,6 +381,7 @@ void CGLWidget::renderSinglePlane()
   glTranslatef(-1.7, 0, 0);
     
   if (toggle_labels) {
+    glPointSize(5.f);
     glBegin(GL_POINTS);
     for (int i=0; i<m.nNodes; i++) {
       int label = labels[i];
@@ -442,36 +443,9 @@ void CGLWidget::updateMesh()
 
 void CGLWidget::updateData()
 {
+  fprintf(stderr, "update data...\n");
 #if 1
   const double threshold = 80;
-
-#if 0
-  // TODO
-  f_colors.clear();
-
-  for (int plane = 0; plane < m.nPhi; plane ++) {
-    for (int i=0; i<m.nTriangles; i++) {
-      int v[3] = {m.conn[i*3], m.conn[i*3+1], m.conn[i*3+2]};
-
-      for (int j=0; j<3; j++) {
-        if (d.dpot[plane*m.nNodes + v[j]] >= threshold) {
-          // float val = clamp_normalize(min, max, (float)d.dpot[plane*m.nNodes + v[j]]);
-          f_colors.push_back(1);
-          f_colors.push_back(0);
-          f_colors.push_back(0);
-        } else {
-          f_colors.push_back(0);
-          f_colors.push_back(0);
-          f_colors.push_back(0);
-        }
-      }
-    }
-  }
-#endif
-  
-  // auto components = XGCLevelSetAnalysis::extractSuperLevelSet2D(m, d, threshold);
-  // auto components = XGCLevelSetAnalysis::extractSuperLevelSetOfEnergy2D(m, d, 0.2);
-  // fprintf(stderr, "#components=%lu\n", components.size());
 
   auto components = cc[currentTimestep];
 
@@ -490,7 +464,8 @@ void CGLWidget::updateData()
 #endif
 
 #if 1
-  const float min = -100, max = 100;
+  // const float min = -100, max = 100;
+  const float min = -1, max = 1;
 
   f_colors.clear();
 
@@ -499,7 +474,8 @@ void CGLWidget::updateData()
       int v[3] = {m.conn[i*3], m.conn[i*3+1], m.conn[i*3+2]};
 
       for (int j=0; j<3; j++) {
-        float val = clamp_normalize(min, max, (float)d.dpot[plane*m.nNodes + v[j]]);
+        // float val = clamp_normalize(min, max, (float)d.dpot[plane*m.nNodes + v[j]]);
+        float val = d.dneOverne0[plane*m.nNodes + v[j]];
         f_colors.push_back(val);
         f_colors.push_back(1-val);
         f_colors.push_back(0);

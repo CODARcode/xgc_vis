@@ -11,6 +11,7 @@
 #include "io/xgcMesh.h"
 
 struct XGCData {
+  std::vector<double> dneOverne0;
   std::vector<double> dpot;
   std::vector<float> dpotf, graddpotf;
   float dpotf_min = FLT_MAX, dpotf_max = -FLT_MAX;

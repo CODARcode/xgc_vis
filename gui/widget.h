@@ -36,7 +36,7 @@ class CGLWidget : public QGLWidget
   Q_OBJECT
 
 public:
-  CGLWidget(XGCMesh &m, XGCData &d, ftk::Graph<> &g, std::vector<std::vector<std::set<size_t> > > &cc,
+  CGLWidget(XGCMesh &m, XGCData &d, XGCDataReader &r, ftk::Graph<> &g, std::vector<std::vector<std::set<size_t> > > &cc,
       const QGLFormat& fmt=QGLFormat::defaultFormat(), QWidget *parent=NULL, QGLWidget *sharedWidget=NULL); 
   ~CGLWidget(); 
 
@@ -74,11 +74,11 @@ public: // client
 private: 
   XGCMesh &m; 
   XGCData &d;
-  // XGCDataReader &r;
+  XGCDataReader &r;
 
   ftk::Graph<> &g;
   std::vector<std::vector<std::set<size_t> > > &cc;
-  int currentTimestep = 120;
+  int currentTimestep = 10;
 
   std::vector<double> contour;
 

@@ -95,16 +95,27 @@ void XGCData::readDpotFromH5(XGCMesh &m, const std::string& filename)
   H5Dread(h5id_iphi, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &m.iPhi);
   H5Dclose(h5id_iphi);
 
+  // dpot
   std::vector<double> dpot1(m.nPhi*m.nNodes);
   hid_t h5id_dpot = H5Dopen2(h5fid, "/dpot", H5P_DEFAULT);
   H5Dread(h5id_dpot, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &dpot1[0]);
   H5Dclose(h5id_dpot);
  
-  // transpose
   dpot.resize(m.nPhi*m.nNodes);
   for (int i=0; i<m.nPhi; i++) 
     for (int j=0; j<m.nNodes; j++)
       dpot[i*m.nNodes + j] = dpot1[j*m.nPhi + i];
+ 
+  // narmalized dpot
+  std::vector<double> dneOverne0_(m.nPhi*m.nNodes);
+  hid_t h5id_dneOverne0 = H5Dopen2(h5fid, "/dneOverne0", H5P_DEFAULT);
+  H5Dread(h5id_dneOverne0, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &dneOverne0_[0]);
+  H5Dclose(h5id_dneOverne0);
+ 
+  dneOverne0.resize(m.nPhi*m.nNodes);
+  for (int i=0; i<m.nPhi; i++) 
+    for (int j=0; j<m.nNodes; j++)
+      dneOverne0[i*m.nNodes + j] = dneOverne0_[j*m.nPhi + i];
 
   H5Fclose(h5fid);
 }
