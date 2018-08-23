@@ -111,11 +111,13 @@ void XGCData::readDpotFromH5(XGCMesh &m, const std::string& filename)
   hid_t h5id_dneOverne0 = H5Dopen2(h5fid, "/dneOverne0", H5P_DEFAULT);
   H5Dread(h5id_dneOverne0, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &dneOverne0_[0]);
   H5Dclose(h5id_dneOverne0);
- 
+
+#if 1
   dneOverne0.resize(m.nPhi*m.nNodes);
   for (int i=0; i<m.nPhi; i++) 
     for (int j=0; j<m.nNodes; j++)
       dneOverne0[i*m.nNodes + j] = dneOverne0_[j*m.nPhi + i];
+#endif
 
   H5Fclose(h5fid);
 }

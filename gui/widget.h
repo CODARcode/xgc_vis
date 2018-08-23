@@ -78,7 +78,7 @@ private:
 
   ftk::Graph<> &g;
   std::vector<std::vector<std::set<size_t> > > &cc;
-  int currentTimestep = 10;
+  // int currentTimestep = 10;
 
   std::vector<double> contour;
 

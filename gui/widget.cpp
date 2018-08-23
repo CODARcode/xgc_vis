@@ -163,33 +163,21 @@ void CGLWidget::keyPressEvent(QKeyEvent* e)
     break;
 
   case Qt::Key_Up:
-#if 0
     if (r.advanceTimestep() >= 0) {
       fprintf(stderr, "advancing timestep... %zu\n", r.getCurrentTimestep());
       r.read(m, d);
       updateData();
       updateGL();
     }
-#else
-    fprintf(stderr, "timestep = %zu\n", ++currentTimestep); 
-    updateData();
-    updateGL();
-#endif
     break;
 
   case Qt::Key_Down:
-#if 0
     if (r.recedeTimestep() >= 0) {
-      fprintf(stderr, "receding timestep...\n");
+      fprintf(stderr, "receding timestep... %zu\n", r.getCurrentTimestep());
       r.read(m, d);
       updateData();
       updateGL();
     }
-#else
-    fprintf(stderr, "timestep = %zu\n", --currentTimestep); 
-    updateData();
-    updateGL();
-#endif
     break;
 
   case Qt::Key_Right:
@@ -447,12 +435,12 @@ void CGLWidget::updateData()
 #if 1
   const double threshold = 80;
 
-  auto components = cc[currentTimestep];
+  auto components = cc[r.getCurrentTimestep()];
 
   labels.resize(m.nNodes * m.nPhi);
   std::fill(labels.begin(), labels.end(), 0);
   for (size_t i = 0; i < components.size(); i++) {
-    auto gLabel = g.getGlobalLabel(currentTimestep, i);
+    auto gLabel = g.getGlobalLabel(r.getCurrentTimestep(), i);
     if (label_colors.find(gLabel+1) == label_colors.end())
       label_colors[gLabel+1] = QColor(rand()%256, rand()%256, rand()%256);
     // qDebug() << label_colors[i];
