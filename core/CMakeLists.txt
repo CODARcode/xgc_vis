@@ -1,4 +1,4 @@
-add_library (xgcvis_core xgcMultiscaleAnalysis.cpp xgcLevelSetAnalysis.cpp)
+add_library (xgcvis_core xgcMultiscaleAnalysis.cpp) # xgcLevelSetAnalysis.cpp)
 target_link_libraries (xgcvis_core tourtre xgcvis_common xgcvis_volren ${Boost_LIBRARIES} ${ZLIB_LIBRARIES})
 
 add_executable (xgcvis main.cpp)

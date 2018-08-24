@@ -139,6 +139,8 @@ void XGCMesh::preprocessMesh() {
   coords_centroid_x /= nNodes;
   coords_centroid_y /= nNodes;
 
+  fprintf(stderr, "%f, %f, %f, %f\n", coords_min_x, coords_min_y, coords_max_x, coords_max_y);
+
   // others
   buildNeighbors();
   buildNodeGraph();

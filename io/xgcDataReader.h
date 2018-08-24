@@ -2,6 +2,7 @@
 #define _XGC_DATA_READER_H
 
 #include <string>
+#include <fstream>
 #include "io/xgcMesh.h"
 #include "io/xgcData.h"
 #include <adios.h>
@@ -13,7 +14,7 @@
 struct XGCDataReader {
   virtual ~XGCDataReader() {}
 
-  virtual void open(const std::string&) = 0;
+  virtual void open(const std::string&, bool filelist=false) = 0;
   virtual void close() = 0;
   virtual void read(XGCMesh& m, XGCData& d) = 0;
   virtual int advanceTimestep() {
@@ -22,7 +23,17 @@ struct XGCDataReader {
   virtual int recedeTimestep() {
     return -- currentTimestep;
   }
-    
+ 
+  static std::vector<std::string> parseFileList(const std::string& filename) {
+    std::vector<std::string> filenames;
+    std::ifstream ifs(filename);
+    std::string line;
+    while (std::getline(ifs, line)) 
+      filenames.push_back(line);
+    ifs.close();
+    return filenames;
+  }
+
   static std::vector<std::string> glob(const std::string& pattern) {
     std::vector<std::string> filenames;
     glob_t results; 
@@ -58,7 +69,7 @@ protected:
 struct XGCDataReader_Files : public XGCDataReader {
   std::vector<std::string> input_filename_list;
 
-  void open(const std::string& pattern) {
+  void open(const std::string& pattern, bool filelist=false) {
     input_filename_list = XGCDataReader::glob(pattern);
     assert(input_filename_list.size() > 0);
   }
@@ -79,7 +90,7 @@ struct XGCDataReader_Files : public XGCDataReader {
 struct XGCDataReader_AdiosStream : public XGCDataReader {
   ADIOS_FILE *varFP = NULL;
 
-  void open(const std::string& name) {
+  void open(const std::string& name, bool filelist=false) {
     varFP = adios_read_open(name.c_str(), adiosReadMethod(), comm, ADIOS_LOCKMODE_ALL, -1.0);
   };
 

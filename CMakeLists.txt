@@ -28,6 +28,7 @@ set (Boost_USE_STATIC_LIBS ON)
 set (Boost_USE_MULTITHREADED ON)
 set (Boost_USE_STATIC_RUNTIME OFF)
 
+find_package (GLEW REQUIRED)
 find_package (ZLIB REQUIRED)
 find_package (Boost REQUIRED COMPONENTS program_options system)
 
@@ -42,6 +43,7 @@ include_directories (
   ${PROJECT_SOURCE_DIR}/third_party/concurrentqueue
   ${PROJECT_SOURCE_DIR}/third_party/cutil
   ${Boost_INCLUDE_DIR}
+  ${GLEW_INCLUDE_DIR}
 )
 
 if (WITH_OPENMP)
@@ -87,6 +89,7 @@ if (WITH_QT)
   find_package (Qt4 REQUIRED COMPONENTS QtCore QtGui QtOpenGL)
   include (${QT_USE_FILE})
   add_subdirectory (gui)
+  add_subdirectory (gui2D)
 endif ()
 
 if (WITH_VTK)

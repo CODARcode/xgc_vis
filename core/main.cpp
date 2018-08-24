@@ -419,7 +419,7 @@ int main(int argc, char **argv)
 
       // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
       std::shared_ptr<Components> components = 
-        std::make_shared<Components>(ftk::extractConnectedComponents<size_t>(xgcMesh.nNodes, 
+        std::make_shared<Components>(ftk::extractConnectedComponents<size_t, std::set<size_t> >(xgcMesh.nNodes, 
               std::bind(&XGCMesh::getNodeNeighbors2D, &xgcMesh, std::placeholders::_1),
               [&](size_t i) {return xgcData.dneOverne0[i] >= 0.2;}));
 
