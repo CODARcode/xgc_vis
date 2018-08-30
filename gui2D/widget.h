@@ -10,7 +10,7 @@
 #include <tourtre.h>
 #include <cmath>
 #include <set>
-#include <ftk/graph/graph.hh>
+#include <ftk/tracking_graph.hh>
 #include <ftk/mesh/mesh.h>
 #include "trackball.h"
 
@@ -32,6 +32,7 @@ public:
   ~CGLWidget(); 
 
   void loadData(const std::string& path);
+  void loadDataH5(const std::string& path);
   void trackSuperLevelset();
   void trackSuperLevelsetT();
 
@@ -56,7 +57,7 @@ private:
   int currentTimestep = 120;
   int currentSlice = 0;
 
-  ftk::Graph<> g;
+  ftk::tracking_graph<> g;
 
 private:
   CGLTrackball _trackball;

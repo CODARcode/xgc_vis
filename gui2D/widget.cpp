@@ -7,6 +7,7 @@
 #include <iostream>
 #include <queue>
 #include <functional>
+#include <hdf5.h>
 // #include <json.hpp>
 #include "widget.h"
 

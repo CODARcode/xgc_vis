@@ -25,7 +25,8 @@
 // #include "volren/bvh.h"
 // #include "volren/volren.cuh"
 
-#include <ftk/graph/graph.hh>
+#include <ftk/algorithms/ccl.h>
+#include <ftk/tracking_graph.hh>
 #include <ftk/storage/storage.h>
 #if WITH_ROCKSDB
 #include <ftk/storage/rocksdbStorage.h>
@@ -401,7 +402,9 @@ int main(int argc, char **argv)
   typedef std::vector<std::set<size_t> > Components;
   std::shared_ptr<Components> lastComponents;
   std::vector<Components> allComponents;
-  ftk::Graph<> g;
+  ftk::tracking_graph<> g;
+
+  std::shared_ptr<std::vector<size_t> > lastLabels;
 
   if (1)
   {
@@ -417,31 +420,39 @@ int main(int argc, char **argv)
 
       fprintf(stderr, "[rank=%d] starting analysis..\n", rank);
 
-      // XGCLevelSetAnalysis::thresholdingByPercentageOfTotalEnergy(xgcMesh, xgcData, 0.6);
+#if 0
       std::shared_ptr<Components> components = 
         std::make_shared<Components>(ftk::extractConnectedComponents<size_t, std::set<size_t> >(xgcMesh.nNodes, 
               std::bind(&XGCMesh::getNodeNeighbors2D, &xgcMesh, std::placeholders::_1),
               [&](size_t i) {return xgcData.dneOverne0[i] >= 0.2;}));
+#endif
 
-      allComponents.push_back(*components);
+      std::shared_ptr<std::vector<size_t> > labels(new std::vector<size_t>(xgcMesh.nNodes, 0));
+      ftk::labelConnectedComponents<size_t, std::vector<size_t>, std::set<size_t>, size_t>(
+          xgcMesh.nNodes, *labels,
+          std::bind(&XGCMesh::getNodeNeighbors2D, &xgcMesh, std::placeholders::_1),
+          [&](size_t i) {return xgcData.dneOverne0[i] >= 0.2;});
 
-      if (db) db->put_obj("cc" + std::to_string(currentTimestep), *components);
+      // allComponents.push_back(*components);
+      // if (db) db->put_obj("cc" + std::to_string(currentTimestep), *components);
    
-      if (lastComponents) {
+      if (lastLabels) {
         fprintf(stderr, "associating...\n");
-        auto mat = ftk::trackConnectedComponents(*lastComponents, *components);
+        // auto mat0 = ftk::trackConnectedComponents(*lastComponents, *components);
+        auto mat = ftk::trackConnectedComponentsByLabels<size_t, std::vector<size_t> >(*lastLabels, *labels);
         for (auto p : mat) {
-          g.addNode(lastTimestep, p.first);
-          g.addNode(currentTimestep, p.second);
-          g.addEdge(lastTimestep, p.first, currentTimestep, p.second);
+          g.add_node(lastTimestep, p.first);
+          g.add_node(currentTimestep, p.second);
+          g.add_edge(lastTimestep, p.first, currentTimestep, p.second);
           // fprintf(stderr, "%zu -- %zu\n", pair.first, pair.second);
         }
 
-        if (db) db->put_obj("mat" + std::to_string(lastTimestep) + "." + std::to_string(currentTimestep), mat);
+        // if (db) db->put_obj("mat" + std::to_string(lastTimestep) + "." + std::to_string(currentTimestep), mat);
       }
 
       lastTimestep = currentTimestep;
-      lastComponents = components; 
+      // lastComponents = components; 
+      lastLabels = labels; 
 
       if (volren) {
         volrenEngine = new VolrenEngine();
@@ -499,8 +510,8 @@ int main(int argc, char **argv)
     } // while
 
     g.relabel();
-    g.detectEvents();
-    g.generateDotFile("mydot");
+    g.detect_events();
+    g.generate_dot_file("mydot");
   }
   
   if (gui) { // TODO: async

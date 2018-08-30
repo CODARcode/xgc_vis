@@ -27,7 +27,7 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, XGCDataReader &r_, ftk::Graph<> &g_, std::vector<std::vector<std::set<size_t> > > &cc_,
+CGLWidget::CGLWidget(XGCMesh &m_, XGCData &d_, XGCDataReader &r_, ftk::tracking_graph<> &g_, std::vector<std::vector<std::set<size_t> > > &cc_,
       const QGLFormat& fmt, QWidget *parent, QGLWidget *sharedWidget)
   : m(m_), d(d_), r(r_), g(g_), cc(cc_),
     QGLWidget(fmt, parent, sharedWidget), 
@@ -440,7 +440,7 @@ void CGLWidget::updateData()
   labels.resize(m.nNodes * m.nPhi);
   std::fill(labels.begin(), labels.end(), 0);
   for (size_t i = 0; i < components.size(); i++) {
-    auto gLabel = g.getGlobalLabel(r.getCurrentTimestep(), i);
+    auto gLabel = g.get_global_label(r.getCurrentTimestep(), i);
     if (label_colors.find(gLabel+1) == label_colors.end())
       label_colors[gLabel+1] = QColor(rand()%256, rand()%256, rand()%256);
     // qDebug() << label_colors[i];
