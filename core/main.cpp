@@ -25,8 +25,10 @@
 // #include "volren/bvh.h"
 // #include "volren/volren.cuh"
 
-#include <ftk/algorithms/ccl.h>
 #include <ftk/tracking_graph.hh>
+#include <ftk/basic/contour_tree.h>
+#include <ftk/algorithms/sweep_and_merge.h>
+#include <ftk/algorithms/ccl.h>
 #include <ftk/storage/storage.h>
 #if WITH_ROCKSDB
 #include <ftk/storage/rocksdbStorage.h>
@@ -428,10 +430,21 @@ int main(int argc, char **argv)
 #endif
 
       std::shared_ptr<std::vector<size_t> > labels(new std::vector<size_t>(xgcMesh.nNodes, 0));
+
+      fprintf(stderr, "connected component analysis...\n");
       ftk::labelConnectedComponents<size_t, std::vector<size_t>, std::set<size_t>, size_t>(
           xgcMesh.nNodes, *labels,
           std::bind(&XGCMesh::getNodeNeighbors2D, &xgcMesh, std::placeholders::_1),
           [&](size_t i) {return xgcData.dneOverne0[i] >= 0.2;});
+      fprintf(stderr, "connected component analysis done.\n");
+
+      fprintf(stderr, "building contour tree...\n");
+      auto ct = ftk::build_contour_tree<size_t, double>(xgcMesh.nNodes, 
+          xgcData.dneOverne0, 
+          std::bind(&XGCMesh::getNodeNeighbors2D, &xgcMesh, std::placeholders::_1));
+      ct.reduce();
+      ct.print();
+      fprintf(stderr, "contour tree built.\n");
 
       // allComponents.push_back(*components);
       // if (db) db->put_obj("cc" + std::to_string(currentTimestep), *components);

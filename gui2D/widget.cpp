@@ -58,7 +58,7 @@ void CGLWidget::trackSuperLevelsetT()
   std::shared_ptr<Components> components = 
     std::make_shared<Components>(ftk::extractConnectedComponents<size_t, std::set<size_t> >(
           W*H*nt,
-          std::bind(ftk::Get26Neighbors3DRegular<size_t>, W, H, nt, std::placeholders::_1), 
+          std::bind(ftk::regular_mesh_3d<size_t>::get26neighbors, W, H, nt, std::placeholders::_1), 
           [this](size_t i) {return data[i] >= 0.2;})); // FIXME
 
   fprintf(stderr, "#components=%zu\n", components->size());

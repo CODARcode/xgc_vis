@@ -11,7 +11,8 @@
 #include <cmath>
 #include <set>
 #include <ftk/tracking_graph.hh>
-#include <ftk/mesh/mesh.h>
+#include <ftk/mesh/regular_mesh_2d.h>
+#include <ftk/mesh/regular_mesh_3d.h>
 #include "trackball.h"
 
 class QMouseEvent;
